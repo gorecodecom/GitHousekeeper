@@ -1,0 +1,5 @@
+test_env/
+.idea/
+*.log
+.DS_Store
+bin/
