@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GitHousekeeper</title>
+    <style>
+        :root {
+            --bg-color: #1e1e2e;
+            --sidebar-color: #181825;
+            --text-color: #cdd6f4;
+            --accent-color: #a6e3a1; /* Green */
+            --accent-hover: #94e2d5;
+            --input-bg: #313244;
+            --border-color: #45475a;
+        }
+
+        body {
+            margin: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 250px;
+            background-color: var(--sidebar-color);
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            border-right: 1px solid var(--border-color);
+        }
+
+        .logo {
+            font-size: 24px;
+            font-weight: bold;
+            color: var(--accent-color);
+            margin-bottom: 40px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .nav-item {
+            padding: 12px 15px;
+            margin-bottom: 5px;
+            cursor: pointer;
+            border-radius: 8px;
+            transition: background 0.2s;
+            color: var(--text-color);
+            text-decoration: none;
+            display: block;
+        }
+
+        .nav-item:hover {
+            background-color: var(--input-bg);
+        }
+
+        .nav-item.active {
+            background-color: var(--accent-color);
+            color: var(--sidebar-color);
+            font-weight: bold;
+        }
+
+        /* Main Content */
+        .main-content {
+            flex: 1;
+            padding: 40px;
+            overflow-y: auto;
+        }
+
+        .tab-content {
+            display: none;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        h2 {
+            margin-top: 0;
+            margin-bottom: 20px;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 10px;
+        }
+
+        /* Forms */
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+
+        input[type="text"], textarea {
+            width: 100%;
+            padding: 12px;
+            background-color: var(--input-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            color: var(--text-color);
+            font-size: 14px;
+            box-sizing: border-box;
+            font-family: 'Consolas', 'Monaco', monospace; /* Monospace for code */
+        }
+
+        input[type="text"]:focus, textarea:focus {
+            outline: none;
+            border-color: var(--accent-color);
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 100px;
+        }
+
+        .hint {
+            font-size: 12px;
+            color: #a6adc8;
+            margin-top: 5px;
+        }
+
+        /* Dynamic Lists */
+        .replacement-row {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: opacity 0.2s;
+        }
+
+        .btn-primary {
+            background-color: var(--accent-color);
+            color: var(--sidebar-color);
+        }
+
+        .btn-secondary {
+            background-color: var(--input-bg);
+            color: var(--text-color);
+        }
+
+        .btn:hover {
+            opacity: 0.9;
+        }
+
+        .btn-add {
+            width: 100%;
+            margin-top: 10px;
+            border: 1px dashed var(--border-color);
+            background: transparent;
+            color: var(--text-color);
+        }
+        
+        .btn-add:hover {
+            border-color: var(--accent-color);
+            color: var(--accent-color);
+        }
+
+        /* Report */
+        #report-log {
+            background-color: #11111b;
+            padding: 20px;
+            border-radius: 8px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            white-space: pre-wrap;
+            height: 400px;
+            overflow-y: auto;
+            border: 1px solid var(--border-color);
+        }
+
+        .log-repo {
+            color: var(--accent-color);
+            font-weight: bold;
+            font-size: 1.1em;
+            margin-top: 10px;
+            display: block;
+        }
+
+        .log-error {
+            color: #f38ba8;
+        }
+        
+        .log-info {
+            color: #cdd6f4;
+        }
+
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+<div class="sidebar">
+    <div class="logo">
+        🏠 GitHousekeeper
+    </div>
+    <div class="nav-item active" onclick="showTab('settings')">Einstellungen</div>
+    <div class="nav-item" onclick="showTab('pom')">POM Ersetzungen</div>
+    <div class="nav-item" onclick="showTab('project')">Projekt Ersetzungen</div>
+    <div class="nav-item" onclick="showTab('report')">Bericht</div>
+</div>
+
+<div class="main-content">
+    <!-- Tab: Settings -->
+    <div id="tab-settings" class="tab-content active">
+        <h2>Einstellungen</h2>
+        <div class="form-group">
+            <label>Pfad zum Projekt / Ordner</label>
+            <input type="text" id="rootPath" placeholder="C:\Users\Name\Projects">
+            <div class="hint">Der Stammordner, in dem nach Git-Repositories gesucht wird.</div>
+        </div>
+        <div class="form-group">
+            <label>Ausgeschlossene Ordner</label>
+            <input type="text" id="excluded" placeholder="node_modules, target, dist">
+            <div class="hint">Komma-getrennte Liste von Ordnern, die ignoriert werden sollen.</div>
+        </div>
+        <div class="form-group">
+            <label>Parent Version (Optional)</label>
+            <input type="text" id="parentVersion" placeholder="1.2.3">
+            <div class="hint">Falls angegeben, wird die Parent-Version in pom.xml aktualisiert.</div>
+        </div>
+        <div class="form-group">
+            <label>Versions-Erhöhung (Microservice)</label>
+            <select id="versionBumpStrategy" style="width: 100%; padding: 12px; background-color: var(--input-bg); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-color);">
+                <option value="patch">Patch (x.x.X) - Standard</option>
+                <option value="minor">Minor (x.X.0)</option>
+                <option value="major">Major (X.0.0)</option>
+            </select>
+            <div class="hint">Bestimmt, welche Stelle der Versionsnummer erhöht wird (basierend auf Git Tag).</div>
+        </div>
+        <div style="text-align: right; margin-top: 40px;">
+            <button class="btn btn-primary" onclick="showTab('pom')">Weiter &rarr;</button>
+        </div>
+    </div>
+
+    <!-- Tab: POM Replacements -->
+    <div id="tab-pom" class="tab-content">
+        <h2>POM.xml Ersetzungen</h2>
+        <div id="pom-list">
+            <div class="replacement-row">
+                <textarea placeholder="Suchtext" class="pom-search"></textarea>
+                <textarea placeholder="Ersetzung" class="pom-replace"></textarea>
+            </div>
+        </div>
+        <button class="btn btn-add" onclick="addRow('pom-list')">+ Zeile hinzufügen</button>
+        
+        <div style="text-align: right; margin-top: 40px;">
+            <button class="btn btn-secondary" onclick="showTab('settings')">&larr; Zurück</button>
+            <button class="btn btn-primary" onclick="showTab('project')">Weiter &rarr;</button>
+        </div>
+    </div>
+
+    <!-- Tab: Project Replacements -->
+    <div id="tab-project" class="tab-content">
+        <h2>Projektweite Ersetzungen</h2>
+        <div class="hint" style="margin-bottom: 20px;">Diese Ersetzungen werden in ALLEN Dateien (außer .git, target, etc.) durchgeführt.</div>
+        
+        <div id="project-list">
+            <div class="replacement-row">
+                <textarea placeholder="Suchtext" class="proj-search"></textarea>
+                <textarea placeholder="Ersetzung" class="proj-replace"></textarea>
+            </div>
+        </div>
+        <button class="btn btn-add" onclick="addRow('project-list')">+ Zeile hinzufügen</button>
+
+        <div style="text-align: right; margin-top: 40px;">
+            <button class="btn btn-secondary" onclick="showTab('pom')">&larr; Zurück</button>
+            <button class="btn btn-primary" onclick="runHousekeeper()">🚀 Starten</button>
+        </div>
+    </div>
+
+    <!-- Tab: Report -->
+    <div id="tab-report" class="tab-content">
+        <h2>Bericht</h2>
+        <div id="report-log">
+            <div class="log-info">Bereit zum Starten...</div>
+        </div>
+        <div id="loading" class="hidden" style="margin-top: 20px; color: var(--accent-color);">
+            Bearbeitung läuft... Bitte warten.
+        </div>
+    </div>
+</div>
+
+<script>
+    function showTab(tabId) {
+        // Update Sidebar
+        document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+        document.querySelector(`.nav-item[onclick="showTab('${tabId}')"]`).classList.add('active');
+
+        // Update Content
+        document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+        document.getElementById(`tab-${tabId}`).classList.add('active');
+    }
+
+    function addRow(containerId) {
+        const container = document.getElementById(containerId);
+        const div = document.createElement('div');
+        div.className = 'replacement-row';
+        div.innerHTML = `
+            <textarea placeholder="Suchtext" class="${containerId === 'pom-list' ? 'pom-search' : 'proj-search'}"></textarea>
+            <textarea placeholder="Ersetzung" class="${containerId === 'pom-list' ? 'pom-replace' : 'proj-replace'}"></textarea>
+        `;
+        container.appendChild(div);
+    }
+
+    async function runHousekeeper() {
+        showTab('report');
+        const log = document.getElementById('report-log');
+        const loading = document.getElementById('loading');
+        
+        log.innerHTML = '';
+        loading.classList.remove('hidden');
+
+        // Collect Data
+        const data = {
+            rootPath: document.getElementById('rootPath').value,
+            excluded: document.getElementById('excluded').value.split(',').map(s => s.trim()).filter(s => s),
+            parentVersion: document.getElementById('parentVersion').value,
+            versionBumpStrategy: document.getElementById('versionBumpStrategy').value,
+            pomReplacements: [],
+            projectReplacements: []
+        };
+
+        // Collect POM
+        document.querySelectorAll('#pom-list .replacement-row').forEach(row => {
+            const s = row.querySelector('.pom-search').value;
+            const r = row.querySelector('.pom-replace').value;
+            if(s) data.pomReplacements.push({Search: s, Replace: r});
+        });
+
+        // Collect Project
+        document.querySelectorAll('#project-list .replacement-row').forEach(row => {
+            const s = row.querySelector('.proj-search').value;
+            const r = row.querySelector('.proj-replace').value;
+            if(s) data.projectReplacements.push({Search: s, Replace: r});
+        });
+
+        try {
+            const response = await fetch('/api/run', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(data)
+            });
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+
+            while (true) {
+                const {value, done} = await reader.read();
+                if (done) break;
+                
+                const text = decoder.decode(value);
+                // Simple parsing for color highlighting
+                const lines = text.split('\n');
+                lines.forEach(line => {
+                    if(!line) return;
+                    const div = document.createElement('div');
+                    if (line.startsWith('REPO:')) {
+                        div.className = 'log-repo';
+                        div.textContent = line.substring(5);
+                    } else if (line.includes('[FEHLER]')) {
+                        div.className = 'log-error';
+                        div.textContent = line;
+                    } else {
+                        div.className = 'log-info';
+                        div.textContent = line;
+                    }
+                    log.appendChild(div);
+                });
+                log.scrollTop = log.scrollHeight;
+            }
+        } catch (e) {
+            log.innerHTML += `<div class="log-error">Netzwerkfehler: ${e.message}</div>`;
+        } finally {
+            loading.classList.add('hidden');
+            log.innerHTML += '<div class="log-info" style="margin-top:20px; border-top:1px solid #333; padding-top:10px;">--- Fertig ---</div>';
+        }
+    }
+</script>
+
+</body>
+</html>
