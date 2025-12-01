@@ -82,9 +82,37 @@ func main() {
 	parentVersionInput, _ := reader.ReadString('\n')
 	parentVersionInput = strings.TrimSpace(parentVersionInput)
 
+	// 5. Ask for project-wide replacements
+	var projectReplacements []Replacement
+	
+	fmt.Print("Soll eine projektweite Ersetzung (in allen Dateien) durchgeführt werden? (j/n): ")
+	projectReplaceInput, _ := reader.ReadString('\n')
+	projectReplaceInput = strings.TrimSpace(strings.ToLower(projectReplaceInput))
 
+	if projectReplaceInput == "j" || projectReplaceInput == "y" {
+		for {
+			fmt.Print("Suchtext (Projektweit): ")
+			pSearch, _ := reader.ReadString('\n')
+			pSearch = strings.TrimSpace(pSearch)
+			
+			fmt.Print("Ersetzungstext (Projektweit): ")
+			pReplace, _ := reader.ReadString('\n')
+			pReplace = strings.TrimSpace(pReplace)
 
-	// 5. Ask for mode
+			if pSearch != "" {
+				projectReplacements = append(projectReplacements, Replacement{Search: pSearch, Replace: pReplace})
+			}
+			
+			fmt.Print("Möchtest du noch eine weitere projektweite Ersetzung hinzufügen? (j/n): ")
+			pMoreInput, _ := reader.ReadString('\n')
+			pMoreInput = strings.TrimSpace(strings.ToLower(pMoreInput))
+			if pMoreInput != "j" && pMoreInput != "y" {
+				break
+			}
+		}
+	}
+
+	// 6. Ask for mode
 	fmt.Print("Ist der Pfad selbst ein Git-Projekt (j) oder sollen Unterordner durchsucht werden (n)? [j/n]: ")
 	modeInput, _ := reader.ReadString('\n')
 	modeInput = strings.TrimSpace(strings.ToLower(modeInput))
@@ -113,7 +141,7 @@ func main() {
 	// Process repos
 	for _, repo := range repos {
 		fmt.Printf("\nBearbeite: %s\n", repo)
-		processRepo(repo, replacements, parentVersionInput)
+		processRepo(repo, replacements, projectReplacements, parentVersionInput, excludedFolders)
 	}
 	
 	fmt.Println("\nFertig.")
@@ -157,7 +185,7 @@ func findGitRepos(root string, excluded []string) []string {
 	return repos
 }
 
-func processRepo(path string, replacements []Replacement, targetParentVersion string) {
+func processRepo(path string, pomReplacements []Replacement, projectReplacements []Replacement, targetParentVersion string, excludedFolders []string) {
 	// Check and delete old housekeeping branch if needed
 	// Returns true if branch exists and is current (kept)
 	isCurrent := checkAndDeleteOldHousekeeping(path)
@@ -218,10 +246,127 @@ func processRepo(path string, replacements []Replacement, targetParentVersion st
 	fmt.Printf("  Aktueller Tag: %s\n", tag)
 
 	// 7. Process POM
-	processPomXml(path, tag, replacements, targetParentVersion)
+	processPomXml(path, tag, pomReplacements, targetParentVersion)
 
 	// 8. Process CI Settings
 	processCiSettingsXml(path)
+
+	// 9. Process Project-wide Replacements
+	projectChangesMade := processProjectReplacements(path, projectReplacements, excludedFolders)
+
+	// 10. Maven Re-import if needed
+	if projectChangesMade {
+		fmt.Println("  Änderungen wurden durchgeführt. Führe Maven Re-import aus...")
+		// Use mvn clean install -DskipTests as requested/planned
+		// Note: We need to make sure 'mvn' is in PATH or use absolute path. Assuming in PATH.
+		// On Windows it might be 'mvn.cmd' or just 'mvn'. exec.Command usually handles PATH lookups.
+		
+		// We use a shell wrapper or just call mvn directly.
+		var cmd *exec.Cmd
+		if strings.Contains(strings.ToLower(os.Getenv("OS")), "windows") {
+			cmd = exec.Command("cmd", "/C", "mvn", "clean", "install", "-DskipTests")
+		} else {
+			cmd = exec.Command("mvn", "clean", "install", "-DskipTests")
+		}
+		cmd.Dir = path
+		
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			fmt.Printf("  [FEHLER] Maven Re-import fehlgeschlagen: %v\nOutput:\n%s\n", err, string(output))
+		} else {
+			fmt.Println("  Maven Re-import erfolgreich.")
+		}
+	}
+}
+
+func processProjectReplacements(root string, replacements []Replacement, excludedFolders []string) bool {
+	if len(replacements) == 0 {
+		return false
+	}
+
+	changesMade := false
+
+	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if info.IsDir() {
+			// Check excluded folders
+			for _, ex := range excludedFolders {
+				if info.Name() == ex {
+					return filepath.SkipDir
+				}
+			}
+			if info.Name() == ".git" || info.Name() == "target" || info.Name() == "node_modules" {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+
+		// Process files
+		// Skip binary files or very large files if possible? 
+		// For now, just try to read as text.
+		
+		contentBytes, err := os.ReadFile(path)
+		if err != nil {
+			fmt.Printf("    [WARNUNG] Konnte Datei %s nicht lesen: %v\n", path, err)
+			return nil
+		}
+		
+		// Simple check for binary content (null byte)
+		// This is a heuristic.
+		for i := 0; i < len(contentBytes) && i < 1024; i++ {
+			if contentBytes[i] == 0 {
+				return nil // Likely binary
+			}
+		}
+
+		content := string(contentBytes)
+		// originalContent := content // Unused
+		fileChanged := false
+
+		for _, r := range replacements {
+			if strings.Contains(content, r.Search) {
+				content = strings.ReplaceAll(content, r.Search, r.Replace)
+				fileChanged = true
+			}
+		}
+
+		if fileChanged {
+			err = os.WriteFile(path, []byte(content), info.Mode())
+			if err != nil {
+				fmt.Printf("    [FEHLER] Konnte Datei %s nicht schreiben: %v\n", path, err)
+			} else {
+				fmt.Printf("    [INFO] Datei aktualisiert: %s\n", path)
+				
+				// Commit changes for this file
+				// We commit all changes at once or per file? 
+				// The prompt said "Wenn hier etwas ausgetauscht wurde, muss der Import noch angenommen werden."
+				// It implies we should commit it so it's part of the repo state.
+				// Let's add and commit.
+				
+				err = runGitCommand(root, "add", path)
+				if err == nil {
+					// We might want to group commits, but per-file is safer for now to ensure it's tracked.
+					// Or we can just return true and let the caller know changes happened.
+					// But we need to commit them so they are in the 'housekeeping' branch.
+					// Let's commit here.
+					runGitCommand(root, "commit", "-m", fmt.Sprintf("Update %s via project-wide replacement", filepath.Base(path)))
+				}
+				
+				changesMade = true
+			}
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		fmt.Printf("  [FEHLER] Fehler beim Durchsuchen für Ersetzungen: %v\n", err)
+	}
+
+	return changesMade
 }
 
 
