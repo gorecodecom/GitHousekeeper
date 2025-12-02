@@ -49,19 +49,20 @@ func main() {
 	http.HandleFunc("/api/run", handleRun)
 	http.HandleFunc("/api/spring-versions", handleSpringVersions)
 	http.HandleFunc("/api/scan-spring", handleScanSpring)
+	http.HandleFunc("/api/analyze-spring", handleAnalyzeSpring)
 	http.HandleFunc("/api/pick-folder", handlePickFolder)
 	http.HandleFunc("/api/list-folders", handleListFolders)
 
 	port := "8080"
 	url := "http://localhost:" + port
 
-	fmt.Printf("Starte Web-Interface auf %s ...\n", url)
+	fmt.Printf("Starting web interface at %s ...\n", url)
 
 	// Open Browser
 	go openBrowser(url)
 
 	if err := http.ListenAndServe(":"+port, nil); err != nil {
-		fmt.Printf("Fehler beim Starten des Servers: %v\n", err)
+		fmt.Printf("Error starting server: %v\n", err)
 	}
 }
 
@@ -97,12 +98,12 @@ func handleRun(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if len(repos) == 0 {
-		fmt.Fprintf(w, "Keine Git-Projekte unter '%s' gefunden.\n", req.RootPath)
+		fmt.Fprintf(w, "No Git projects found under '%s'.\n", req.RootPath)
 		flusher.Flush()
 		return
 	}
 
-	fmt.Fprintf(w, "Gefunden: %d Projekte\n", len(repos))
+	fmt.Fprintf(w, "Found: %d projects\n", len(repos))
 	flusher.Flush()
 
 	for _, repo := range repos {
@@ -331,4 +332,151 @@ func runCommandOutput(name string, args ...string) (string, error) {
 		return "", err
 	}
 	return strings.TrimSpace(string(output)), nil
+}
+
+type AnalyzeSpringRequest struct {
+	RootPath      string   `json:"RootPath"`
+	Excluded      []string `json:"Excluded"`
+	TargetVersion string   `json:"TargetVersion"`
+}
+
+func handleAnalyzeSpring(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req AnalyzeSpringRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.Header().Set("Transfer-Encoding", "chunked")
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "Streaming not supported", http.StatusInternalServerError)
+		return
+	}
+
+	// 1. Find Repos
+	var repos []string
+	if logic.IsGitRepo(req.RootPath) {
+		repos = []string{req.RootPath}
+	} else {
+		repos = logic.FindGitRepos(req.RootPath, req.Excluded)
+	}
+
+	if len(repos) == 0 {
+		fmt.Fprintf(w, "No Git projects found under '%s'.\n", req.RootPath)
+		flusher.Flush()
+		return
+	}
+
+	fmt.Fprintf(w, "Found %d projects. Starting analysis for Spring Boot %s...\n\n", len(repos), req.TargetVersion)
+	flusher.Flush()
+
+	// 2. Determine Recipe
+	// Mapping Target Version -> OpenRewrite Recipe
+	// Using latest stable rewrite-spring recipes
+	// See: https://docs.openrewrite.org/recipes/java/spring/boot3
+	var recipe string
+
+	// Dynamic Recipe Construction
+	// We assume the recipe follows the pattern: org.openrewrite.java.spring.boot3.UpgradeSpringBoot_X_Y
+	// e.g. UpgradeSpringBoot_3_3, UpgradeSpringBoot_3_4
+	// For 4.x, it might be boot4.UpgradeSpringBoot_4_0 (Need to verify if 4.x recipes exist yet in rewrite-spring)
+	// As of now, Spring Boot 4 is not out, but user asked for "4er Versionen".
+	// If they mean 3.4, 3.5 etc, the pattern holds.
+
+	cleanVersion := strings.ReplaceAll(req.TargetVersion, ".", "_")
+
+	if strings.HasPrefix(req.TargetVersion, "3.") {
+		recipe = fmt.Sprintf("org.openrewrite.java.spring.boot3.UpgradeSpringBoot_%s", cleanVersion)
+	} else if strings.HasPrefix(req.TargetVersion, "2.") {
+		recipe = fmt.Sprintf("org.openrewrite.java.spring.boot2.UpgradeSpringBoot_%s", cleanVersion)
+	} else {
+		// Fallback for future versions (e.g. 4.0) - assuming naming convention persists
+		// Note: This might fail if the recipe doesn't exist in the plugin version used.
+		recipe = fmt.Sprintf("org.openrewrite.java.spring.boot%c.UpgradeSpringBoot_%s", req.TargetVersion[0], cleanVersion)
+	}
+
+	// 3. Run Analysis per Repo
+	for _, repo := range repos {
+		repoName := filepath.Base(repo)
+		fmt.Fprintf(w, ">>> Analyzing %s...\n", repoName)
+		flusher.Flush()
+
+		// Check if it's a Maven project
+		if _, err := os.Stat(filepath.Join(repo, "pom.xml")); os.IsNotExist(err) {
+			fmt.Fprintf(w, "Skipping (no pom.xml)\n")
+			continue
+		}
+
+		// Construct Maven Command
+		// We use the rewrite-maven-plugin directly from command line
+		// Command: mvn -U org.openrewrite.maven:rewrite-maven-plugin:RELEASE:dryRun
+		//          -Drewrite.recipeArtifactCoordinates=org.openrewrite.recipe:rewrite-spring:RELEASE
+		//          -Drewrite.activeRecipes=<recipe>
+
+		// Note: We use "RELEASE" to get latest, or pin specific versions if needed.
+		// Pinning is safer for stability.
+		pluginVersion := "5.41.0" // Recent stable as of late 2024
+		recipeVersion := "5.18.0" // Recent stable rewrite-spring
+
+		cmd := exec.Command("mvn",
+			"-U", // Force update snapshots
+			"-B", // Batch mode
+			fmt.Sprintf("org.openrewrite.maven:rewrite-maven-plugin:%s:dryRun", pluginVersion),
+			fmt.Sprintf("-Drewrite.recipeArtifactCoordinates=org.openrewrite.recipe:rewrite-spring:%s", recipeVersion),
+			fmt.Sprintf("-Drewrite.activeRecipes=%s", recipe),
+		)
+		cmd.Dir = repo
+
+		// Capture output
+		// We want to capture stdout/stderr to show progress or errors
+		// But mainly we are interested in the generated patch file or the "Changes" log.
+		// dryRun usually prints a summary to stdout and generates target/rewrite/rewrite.patch
+
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			fmt.Fprintf(w, "Error running OpenRewrite: %v\n", err)
+			// Print last few lines of output for debug
+			lines := strings.Split(string(output), "\n")
+			start := len(lines) - 10
+			if start < 0 {
+				start = 0
+			}
+			for _, line := range lines[start:] {
+				fmt.Fprintf(w, "  %s\n", line)
+			}
+			flusher.Flush()
+			continue
+		}
+
+		// Check for patch file
+		patchFile := filepath.Join(repo, "target", "rewrite", "rewrite.patch")
+		if _, err := os.Stat(patchFile); err == nil {
+			// Patch exists -> Changes found
+			content, err := os.ReadFile(patchFile)
+			if err == nil && len(content) > 0 {
+				fmt.Fprintf(w, "Changes detected:\n")
+				fmt.Fprintf(w, "%s\n", string(content))
+			} else {
+				fmt.Fprintf(w, "No changes required (or empty patch).\n")
+			}
+		} else {
+			// No patch file -> No changes or failed to generate
+			// Check output for "No changes" message
+			if strings.Contains(string(output), "No changes") {
+				fmt.Fprintf(w, "No changes required.\n")
+			} else {
+				fmt.Fprintf(w, "Analysis finished (no patch file generated).\n")
+			}
+		}
+
+		fmt.Fprintf(w, "\n")
+		flusher.Flush()
+	}
 }

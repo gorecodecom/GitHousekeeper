@@ -766,7 +766,7 @@ type Versioning struct {
 }
 
 type SpringVersionInfo struct {
-	Major          string
+	Branch         string
 	Versions       []string
 	MigrationGuide string
 }
@@ -788,7 +788,7 @@ func GetSpringVersions() ([]SpringVersionInfo, error) {
 		return nil, err
 	}
 
-	// Group by Major version
+	// Group by Major.Minor
 	grouped := make(map[string][]string)
 	for _, v := range metadata.Versioning.Versions {
 		// Filter for stable versions (no M1, RC1, SNAPSHOT) if desired
@@ -796,45 +796,65 @@ func GetSpringVersions() ([]SpringVersionInfo, error) {
 			continue
 		}
 		parts := strings.Split(v, ".")
-		if len(parts) > 0 {
-			major := parts[0]
-			grouped[major] = append(grouped[major], v)
+		if len(parts) >= 2 {
+			branch := parts[0] + "." + parts[1]
+			grouped[branch] = append(grouped[branch], v)
 		}
 	}
 
 	var result []SpringVersionInfo
 
-	// Define migration guides
-	guides := map[string]string{
-		"2": "https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-2.0-Migration-Guide",
-		"3": "https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-3.0-Migration-Guide",
-		"4": "https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-4.0-Migration-Guide",
-	}
-
-	for major, versions := range grouped {
+	for branch, versions := range grouped {
 		// Reverse sort to show latest first
-		// Since they are strings, we need to be careful with "2.10" vs "2.2"
-		// But for now, simple string sort might be enough or we implement semantic version sort.
-		// Maven metadata usually returns them sorted.
-		// Let's just reverse the slice we got.
 		for i, j := 0, len(versions)-1; i < j; i, j = i+1, j-1 {
 			versions[i], versions[j] = versions[j], versions[i]
 		}
 
+		// Generate Guide URL
+		// Default: Release Notes
+		guide := fmt.Sprintf("https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-%s-Release-Notes", branch)
+
+		// For .0 versions, point to Migration Guide
+		if strings.HasSuffix(branch, ".0") {
+			guide = fmt.Sprintf("https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-%s-Migration-Guide", branch)
+		}
+
 		info := SpringVersionInfo{
-			Major:          major,
+			Branch:         branch,
 			Versions:       versions,
-			MigrationGuide: guides[major],
+			MigrationGuide: guide,
 		}
 		result = append(result, info)
 	}
 
-	// Sort result by Major version descending
+	// Sort result by Branch descending (semantic sort)
 	sort.Slice(result, func(i, j int) bool {
-		return result[i].Major > result[j].Major
+		v1 := parseVersionParts(result[i].Branch)
+		v2 := parseVersionParts(result[j].Branch)
+
+		if len(v1) > 0 && len(v2) > 0 {
+			if v1[0] != v2[0] {
+				return v1[0] > v2[0]
+			}
+			if len(v1) > 1 && len(v2) > 1 {
+				return v1[1] > v2[1]
+			}
+		}
+		return result[i].Branch > result[j].Branch
 	})
 
 	return result, nil
+}
+
+func parseVersionParts(v string) []int {
+	parts := strings.Split(v, ".")
+	res := make([]int, 0, len(parts))
+	for _, p := range parts {
+		var n int
+		fmt.Sscanf(p, "%d", &n)
+		res = append(res, n)
+	}
+	return res
 }
 
 type ProjectSpringStatus struct {

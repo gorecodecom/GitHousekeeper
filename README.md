@@ -25,6 +25,10 @@ GitHousekeeper is a powerful tool designed to automate maintenance tasks and mas
   - **Version Dashboard**: View currently available Spring Boot versions (Major/Minor) fetched live from Maven Central.
   - **Migration Guides**: Direct links to official migration guides for major version upgrades.
   - **Project Scanning**: Scans local repositories to identify their current Spring Boot parent version.
+- **Spring Boot Migration Analysis**:
+  - **Dry-Run Analysis**: Uses OpenRewrite to analyze projects for Spring Boot upgrades (e.g., 3.3 -> 3.4) without modifying files.
+  - **Patch Generation**: Generates and displays a patch file showing exactly what changes would be made.
+  - **Zero-Config**: Injects the OpenRewrite Maven plugin dynamically, requiring no changes to your project's `pom.xml`.
 - **Reporting & Export**:
   - Detailed execution log.
   - **PDF Export**: Export the general log or the deprecation report as a PDF file.
@@ -38,31 +42,38 @@ GitHousekeeper is a powerful tool designed to automate maintenance tasks and mas
 ## Prerequisites
 
 To run the pre-built executable:
+
 - **Git**: Must be installed and available in the system PATH.
 - **Maven**: Required for project verification steps (`mvn` command).
 
 To build from source:
+
 - **Go**: Version 1.16 or higher.
 
 ## Installation & Usage
 
 ### Option A: Run Pre-built Executable (Windows)
+
 1. Simply download or build `GitHousekeeper.exe`.
 2. Double-click `GitHousekeeper.exe`.
 3. The application will start and open your browser at `http://localhost:8080`.
 
 ### Option B: Build from Source
+
 1. **Clone the repository**:
+
    ```bash
    git clone https://github.com/gorecodecom/GitHousekeeper.git
    cd GitHousekeeper
    ```
 
 2. **Build the application**:
+
    ```bash
    go build -o GitHousekeeper.exe main.go
    ```
-   *Note: The HTML/CSS assets are embedded directly into the executable. You only need the `.exe` file to run the app.*
+
+   _Note: The HTML/CSS assets are embedded directly into the executable. You only need the `.exe` file to run the app._
 
 3. **Run**:
    ```bash
@@ -80,11 +91,13 @@ If you want to modify the frontend (HTML/CSS/JS) without rebuilding the Go appli
 ## Workflow
 
 1. **Configure**:
+
    - **Root Path**: Select the directory containing your Git repositories.
    - **Included Projects**: Dynamically select which subfolders (repositories) to include or exclude via checkboxes.
    - **Settings**: Choose version bump strategy and whether to run a full Maven build.
 
 2. **Define Replacements**:
+
    - Use the **POM Replacements** tab for specific changes in `pom.xml`.
    - Use the **Project Replacements** tab for global changes.
 

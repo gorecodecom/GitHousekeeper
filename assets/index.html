@@ -307,6 +307,32 @@
           overflow: visible !important;
         }
 
+        /* Show Migration Report */
+        body.print-migration .main-content {
+          display: block !important;
+        }
+        body.print-migration #tab-frameworks {
+          display: block !important;
+        }
+        body.print-migration #migration-report-container {
+          display: block !important;
+        }
+        body.print-migration #migration-log {
+          height: auto !important;
+          max-height: none !important;
+          border: 1px solid #000;
+          color: #000;
+          background: #fff;
+        }
+        /* Hide other parts in migration print */
+        body.print-migration .sidebar,
+        body.print-migration .form-group,
+        body.print-migration h2,
+        body.print-migration #spring-versions-list,
+        body.print-migration #spring-projects-list {
+          display: none !important;
+        }
+
         #report-log,
         #deprecation-log {
           height: auto !important;
@@ -636,15 +662,79 @@
                 display: flex;
                 justify-content: space-between;
                 align-items: center;
+                margin-bottom: 10px;
               "
             >
-              <h3>Local Projects</h3>
+              <h3 style="margin: 0">Local Projects</h3>
               <button class="btn btn-secondary" onclick="scanSpringProjects()">
                 🔍 Scan
               </button>
             </div>
-            <div id="spring-projects-list" style="margin-top: 10px">
+            <div
+              id="spring-projects-list"
+              style="margin-top: 10px; margin-bottom: 30px"
+            >
               <div class="hint">Click Scan to check local versions.</div>
+            </div>
+
+            <!-- Migration Analysis -->
+            <div
+              style="
+                border-top: 1px solid var(--border-color);
+                padding-top: 20px;
+              "
+            >
+              <h3 style="margin-top: 0">Migration Analysis (OpenRewrite)</h3>
+              <div class="form-group">
+                <label>Target Spring Boot Version</label>
+                <div style="display: flex; gap: 10px">
+                  <select id="targetBootVersion">
+                    <option value="">Select Version...</option>
+                  </select>
+                  <button
+                    class="btn btn-primary"
+                    onclick="runOpenRewriteAnalysis()"
+                  >
+                    📊 Analyze
+                  </button>
+                </div>
+                <div class="hint">
+                  Runs OpenRewrite in dry-run mode to detect necessary changes.
+                  No files will be modified.
+                </div>
+              </div>
+
+              <div id="migration-report-container" class="hidden">
+                <div
+                  style="
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    margin-bottom: 10px;
+                  "
+                >
+                  <h4>Analysis Report</h4>
+                  <button
+                    class="btn btn-secondary"
+                    onclick="printSection('migration')"
+                  >
+                    🖨️ PDF / Print
+                  </button>
+                </div>
+                <div
+                  id="migration-log"
+                  style="
+                    background-color: #11111b;
+                    padding: 20px;
+                    border-radius: 8px;
+                    font-family: 'Consolas', monospace;
+                    white-space: pre-wrap;
+                    height: 300px;
+                    overflow-y: auto;
+                    border: 1px solid var(--border-color);
+                  "
+                ></div>
+              </div>
             </div>
           </div>
         </div>
@@ -876,11 +966,11 @@
             }
           }
         } catch (e) {
-          log.innerHTML += `<div class="log-error">Fehler: ${e.message}</div>`;
+          log.innerHTML += `<div class="log-error">Error: ${e.message}</div>`;
         } finally {
           loading.classList.add("hidden");
           log.innerHTML +=
-            '<div class="log-info" style="margin-top:20px; border-top:1px solid #333; padding-top:10px;">--- Fertig ---</div>';
+            '<div class="log-info" style="margin-top:20px; border-top:1px solid #333; padding-top:10px;">--- Done ---</div>';
         }
       }
 
@@ -942,7 +1032,7 @@
             // However, for a local tool, users expect to pick a path.
             // Since we can't get the path, we have to inform the user.
             alert(
-              "Hinweis: Browser-Sicherheitsrichtlinien verhindern das Auslesen des vollständigen Pfades. Bitte kopieren Sie den Pfad manuell aus dem Explorer."
+              "Note: Browser security policies prevent reading the full path. Please copy the path manually from Explorer."
             );
           } catch (e) {
             // User cancelled or error
@@ -950,7 +1040,7 @@
           }
         } else {
           alert(
-            "Ihr Browser unterstützt die Ordner-Auswahl nicht. Bitte kopieren Sie den Pfad manuell."
+            "Your browser does not support folder selection. Please copy the path manually."
           );
         }
       }
@@ -975,7 +1065,7 @@
             const title = document.createElement("h4");
             title.style.margin = "0 0 10px 0";
             title.style.color = "var(--accent-color)";
-            title.textContent = `Spring Boot ${group.Major}`;
+            title.textContent = `Spring Boot ${group.Branch}`;
 
             if (group.MigrationGuide) {
               const link = document.createElement("a");
@@ -984,11 +1074,25 @@
               link.style.fontSize = "0.8em";
               link.style.marginLeft = "10px";
               link.style.color = "#89b4fa";
-              link.textContent = "📖 Migration Guide";
+              link.textContent = group.Branch.endsWith(".0")
+                ? "📖 Migration Guide"
+                : "📝 Release Notes";
               title.appendChild(link);
             }
 
             groupDiv.appendChild(title);
+
+            // Add to Dropdown
+            const dropdown = document.getElementById("targetBootVersion");
+            // Check if option already exists
+            if (!dropdown.querySelector(`option[value="${group.Branch}"]`)) {
+              const option = document.createElement("option");
+              option.value = group.Branch;
+              // Show latest version in label
+              const latest = group.Versions.length > 0 ? group.Versions[0] : "";
+              option.textContent = `Spring Boot ${group.Branch} (Latest: ${latest})`;
+              dropdown.appendChild(option);
+            }
 
             const versionsDiv = document.createElement("div");
             versionsDiv.style.fontSize = "0.9em";
@@ -1016,27 +1120,37 @@
             container.appendChild(groupDiv);
           });
         } catch (e) {
-          container.innerHTML = `<div class="log-error">Fehler beim Laden: ${e.message}</div>`;
+          container.innerHTML = `<div class="log-error">Error loading: ${e.message}</div>`;
         }
       }
 
       async function scanSpringProjects() {
         const container = document.getElementById("spring-projects-list");
         const rootPath = document.getElementById("rootPath").value;
-        const excluded = document
-          .getElementById("excluded")
-          .value.split(",")
-          .map((s) => s.trim())
-          .filter((s) => s);
+
+        // Calculate Excluded Folders from Checkboxes
+        const excluded = [
+          "node_modules",
+          "target",
+          "dist",
+          ".git",
+          ".idea",
+          ".vscode",
+        ]; // Standard defaults
+        document
+          .querySelectorAll('#folder-list-container input[type="checkbox"]')
+          .forEach((cb) => {
+            if (!cb.checked) {
+              excluded.push(cb.value);
+            }
+          });
 
         if (!rootPath) {
-          alert(
-            "Bitte konfigurieren Sie zuerst den Projekt-Pfad in Project Setup."
-          );
+          alert("Please configure the project path in Project Setup first.");
           return;
         }
 
-        container.innerHTML = '<div class="log-info">Scanne...</div>';
+        container.innerHTML = '<div class="log-info">Scanning...</div>';
 
         try {
           const res = await fetch("/api/scan-spring", {
@@ -1051,8 +1165,7 @@
 
           // Handle new SpringScanResult structure
           if (!results || !results.Projects || results.Projects.length === 0) {
-            let html =
-              '<div class="hint">Keine Spring Boot Projekte gefunden.</div>';
+            let html = '<div class="hint">No Spring Boot projects found.</div>';
 
             // Show debug log if available
             if (results && results.DebugLog && results.DebugLog.length > 0) {
@@ -1084,7 +1197,7 @@
             container.appendChild(div);
           });
         } catch (e) {
-          container.innerHTML = `<div class="log-error">Fehler beim Scannen: ${e.message}</div>`;
+          container.innerHTML = `<div class="log-error">Error scanning: ${e.message}</div>`;
         }
       }
 
@@ -1105,7 +1218,7 @@
           }
         } catch (e) {
           console.error(e);
-          alert("Fehler beim Öffnen des Dialogs: " + e.message);
+          alert("Error opening dialog: " + e.message);
         }
       }
 
@@ -1192,6 +1305,79 @@
           }
         } catch (e) {
           container.innerHTML = `<div class="log-error">Error loading folders: ${e.message}</div>`;
+        }
+      }
+
+      async function runOpenRewriteAnalysis() {
+        const rootPath = document.getElementById("rootPath").value;
+        const targetVersion =
+          document.getElementById("targetBootVersion").value;
+        const container = document.getElementById("migration-report-container");
+        const log = document.getElementById("migration-log");
+
+        // Get excluded folders
+        const excluded = [
+          "node_modules",
+          "target",
+          "dist",
+          ".git",
+          ".idea",
+          ".vscode",
+        ];
+        document
+          .querySelectorAll('#folder-list-container input[type="checkbox"]')
+          .forEach((cb) => {
+            if (!cb.checked) {
+              excluded.push(cb.value);
+            }
+          });
+
+        if (!rootPath) {
+          alert("Please configure the project path first.");
+          return;
+        }
+        if (!targetVersion) {
+          alert("Please select a target version.");
+          return;
+        }
+
+        container.classList.remove("hidden");
+        log.innerHTML =
+          '<div class="log-info">Starting OpenRewrite analysis... This may take a while.</div>';
+
+        try {
+          const res = await fetch("/api/analyze-spring", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              RootPath: rootPath,
+              Excluded: excluded,
+              TargetVersion: targetVersion,
+            }),
+          });
+
+          const reader = res.body.getReader();
+          const decoder = new TextDecoder("utf-8");
+
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            const chunk = decoder.decode(value, { stream: true });
+            // Simple append for now, could be parsed for better formatting
+            const formattedChunk = chunk
+              .replace(/</g, "&lt;")
+              .replace(/>/g, "&gt;")
+              .replace(/\n/g, "<br>");
+
+            log.innerHTML += `<span class="log-info">${formattedChunk}</span>`;
+            log.scrollTop = log.scrollHeight;
+          }
+
+          log.innerHTML +=
+            '<div class="log-success" style="margin-top: 20px; border-top: 1px solid #444; padding-top: 10px;">--- Analysis Complete ---</div>';
+        } catch (e) {
+          log.innerHTML += `<div class="log-error">Error: ${e.message}</div>`;
         }
       }
     </script>
