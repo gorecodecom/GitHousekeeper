@@ -126,6 +126,8 @@ func ProcessRepo(path string, pomReplacements []Replacement, projectReplacements
 	processCiSettingsXml(path, log)
 	projectChangesMade := processProjectReplacements(path, projectReplacements, excludedFolders, log)
 
+	var buildOutput string
+
 	if projectChangesMade || runCleanInstall {
 		if runCleanInstall {
 			log("  Führe Maven Clean Install aus (explizit angefordert)...")
@@ -134,25 +136,34 @@ func ProcessRepo(path string, pomReplacements []Replacement, projectReplacements
 		}
 		
 		var cmd *exec.Cmd
+		// Add -Dmaven.compiler.showDeprecation=true to capture deprecations in the same run
 		if strings.Contains(strings.ToLower(os.Getenv("OS")), "windows") {
-			cmd = exec.Command("cmd", "/C", "mvn", "clean", "install", "-DskipTests")
+			cmd = exec.Command("cmd", "/C", "mvn", "clean", "install", "-DskipTests", "-Dmaven.compiler.showDeprecation=true")
 		} else {
-			cmd = exec.Command("mvn", "clean", "install", "-DskipTests")
+			cmd = exec.Command("mvn", "clean", "install", "-DskipTests", "-Dmaven.compiler.showDeprecation=true")
 		}
 		cmd.Dir = path
 		
-		output, err := cmd.CombinedOutput()
+		outputBytes, err := cmd.CombinedOutput()
+		buildOutput = string(outputBytes)
+		
 		if err != nil {
-			log(fmt.Sprintf("  [FEHLER] Maven Build fehlgeschlagen: %v\nOutput:\n%s", err, string(output)))
+			log(fmt.Sprintf("  [FEHLER] Maven Build fehlgeschlagen: %v\nOutput:\n%s", err, buildOutput))
 			entry.Success = false
 		} else {
 			log("  Maven Build erfolgreich.")
 		}
 	}
 
-
-	
-	entry.DeprecationOutput = checkDeprecations(path, log)
+	if buildOutput != "" {
+		// Parse deprecations from the build we just ran
+		entry.DeprecationOutput = parseDeprecationsFromOutput(buildOutput, log)
+	} else {
+		// No build ran yet. If we want to check deprecations, we must run a build now.
+		// Since the user didn't ask for a build (runCleanInstall=false) and no changes were made,
+		// we run 'clean compile' just for deprecations.
+		entry.DeprecationOutput = checkDeprecations(path, log)
+	}
 
 	return entry
 }
@@ -617,7 +628,7 @@ func performFuzzyReplacement(content, search, replace string) (string, bool) {
 }
 
 func checkDeprecations(path string, log func(string)) string {
-	log("  Prüfe auf Deprecations...")
+	log("  Prüfe auf Deprecations (separater Lauf)...")
 	
 	var cmd *exec.Cmd
 	if strings.Contains(strings.ToLower(os.Getenv("OS")), "windows") {
@@ -629,8 +640,11 @@ func checkDeprecations(path string, log func(string)) string {
 	
 	// We ignore error here because we only care about the output logs
 	output, _ := cmd.CombinedOutput()
+	return parseDeprecationsFromOutput(string(output), log)
+}
 
-	lines := strings.Split(string(output), "\n")
+func parseDeprecationsFromOutput(output string, log func(string)) string {
+	lines := strings.Split(output, "\n")
 	var warnings []string
 	count := 0
 	
