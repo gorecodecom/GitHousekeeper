@@ -69,11 +69,19 @@ To build from source:
    ./GitHousekeeper.exe
    ```
 
+### Development Mode
+
+If you want to modify the frontend (HTML/CSS/JS) without rebuilding the Go application:
+
+1. Ensure the `assets` folder is present in the same directory as the executable.
+2. Run the application. It will detect the `assets` folder and serve files from disk instead of the embedded filesystem.
+3. Refresh your browser to see changes instantly.
+
 ## Workflow
 
 1. **Configure**:
    - **Root Path**: Select the directory containing your Git repositories.
-   - **Excluded Folders**: Specify folders to ignore (e.g., `node_modules`, `dist`).
+   - **Included Projects**: Dynamically select which subfolders (repositories) to include or exclude via checkboxes.
    - **Settings**: Choose version bump strategy and whether to run a full Maven build.
 
 2. **Define Replacements**:
