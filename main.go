@@ -22,6 +22,7 @@ type RunRequest struct {
 	ParentVersion       string
 	VersionBumpStrategy string // "major", "minor", "patch"
 	RunCleanInstall     bool
+	TargetBranch        string // "housekeeping", "custom-name", or ""
 	PomReplacements     []logic.Replacement
 	ProjectReplacements []logic.Replacement
 }
@@ -112,6 +113,7 @@ func handleRun(w http.ResponseWriter, r *http.Request) {
 			VersionBumpStrategy: req.VersionBumpStrategy,
 			RunCleanInstall:     req.RunCleanInstall,
 			ExcludedFolders:     req.Excluded,
+			TargetBranch:        req.TargetBranch,
 			Log:                 logCallback,
 		}
 

@@ -24,9 +24,11 @@ GitHousekeeper is a powerful tool designed to automate maintenance tasks and mas
   - Detailed execution log.
   - **PDF Export**: Export the general log or the deprecation report as a PDF file.
 - **Git Automation**:
-  - Automatically manages a `housekeeping` branch.
-  - Resets the branch if it is stale (older than 1 month).
-  - Commits changes automatically with descriptive messages.
+  - **Flexible Branching Strategy**:
+    - **Housekeeping**: Default mode. Manages a `housekeeping` branch (resets if stale > 1 month).
+    - **Custom Branch**: Work on a specific feature branch (e.g., `feature/upgrade-v2`).
+    - **Direct Master**: Option to apply changes directly to the `master` branch.
+  - Automatically commits changes with descriptive messages.
 
 ## Prerequisites
 

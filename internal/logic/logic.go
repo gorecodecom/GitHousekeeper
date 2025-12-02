@@ -22,6 +22,17 @@ type ReportEntry struct {
 	DeprecationOutput string
 }
 
+type RepoOptions struct {
+	PomReplacements     []Replacement
+	ProjectReplacements []Replacement
+	TargetParentVersion string
+	VersionBumpStrategy string
+	RunCleanInstall     bool
+	ExcludedFolders     []string
+	TargetBranch        string // "housekeeping", "custom-name", or "" (for master)
+	Log                 func(string)
+}
+
 func IsGitRepo(path string) bool {
 	gitPath := filepath.Join(path, ".git")
 	info, err := os.Stat(gitPath)
@@ -58,16 +69,6 @@ func FindGitRepos(root string, excluded []string) []string {
 	return repos
 }
 
-type RepoOptions struct {
-	PomReplacements     []Replacement
-	ProjectReplacements []Replacement
-	TargetParentVersion string
-	VersionBumpStrategy string
-	RunCleanInstall     bool
-	ExcludedFolders     []string
-	Log                 func(string)
-}
-
 func ProcessRepo(path string, opts RepoOptions) ReportEntry {
 	entry := ReportEntry{RepoPath: path, Success: true}
 	// Use provided logger or fallback to stdout
@@ -86,55 +87,67 @@ func ProcessRepo(path string, opts RepoOptions) ReportEntry {
 
 	captureLog(fmt.Sprintf("Bearbeite: %s", path))
 
-	isCurrent := checkAndDeleteOldHousekeeping(path, captureLog)
+	// 1. Always update master first
+	captureLog("  Wechsle zu master und aktualisiere...")
+	err := runGitCommand(path, "checkout", "master")
+	if err != nil {
+		captureLog(fmt.Sprintf("  [FEHLER] Checkout master fehlgeschlagen: %v", err))
+		entry.Success = false
+		return entry
+	}
+	
+	err = runGitCommand(path, "fetch", "-p")
+	if err != nil {
+		captureLog(fmt.Sprintf("  [WARNUNG] Fetch -p fehlgeschlagen: %v", err))
+	}
 
-	if isCurrent {
-		captureLog("  Branch 'housekeeping' existiert bereits und ist aktuell.")
-		err := runGitCommand(path, "checkout", "housekeeping")
-		if err != nil {
-			captureLog(fmt.Sprintf("  [FEHLER] Checkout housekeeping fehlgeschlagen: %v", err))
-			entry.Success = false
-			return entry
-		}
-		captureLog("  Checkout housekeeping erfolgreich.")
+	err = runGitCommand(path, "pull")
+	if err != nil {
+		captureLog(fmt.Sprintf("  [FEHLER] Pull master fehlgeschlagen: %v", err))
+		entry.Success = false
+		return entry
+	}
+	captureLog("  Master erfolgreich aktualisiert.")
 
-		err = runGitCommand(path, "fetch", "-p")
-		if err != nil {
-			captureLog(fmt.Sprintf("  [FEHLER] Fetch -p fehlgeschlagen: %v", err))
-			entry.Success = false
-			return entry
-		}
-		captureLog("  Fetch -p erfolgreich.")
+	// 2. Branch Logic
+	targetBranch := strings.TrimSpace(opts.TargetBranch)
+	
+	if targetBranch == "" {
+		captureLog("  Kein Ziel-Branch angegeben. Arbeite auf master weiter.")
 	} else {
-		err := runGitCommand(path, "checkout", "master")
-		if err != nil {
-			captureLog(fmt.Sprintf("  [FEHLER] Checkout master fehlgeschlagen: %v", err))
-			entry.Success = false
-			return entry
+		// Special logic for "housekeeping"
+		if targetBranch == "housekeeping" {
+			checkAndDeleteOldHousekeeping(path, captureLog)
 		}
-		captureLog("  Checkout master erfolgreich.")
-
-		err = runGitCommand(path, "fetch", "--tags")
-		if err != nil {
-			captureLog(fmt.Sprintf("  [FEHLER] Fetch --tags fehlgeschlagen: %v", err))
-			entry.Success = false
-			return entry
-		}
-		captureLog("  Fetch --tags erfolgreich.")
-
-		err = runGitCommand(path, "pull")
-		if err != nil {
-			captureLog(fmt.Sprintf("  [FEHLER] Pull fehlgeschlagen: %v", err))
-			entry.Success = false
-			return entry
-		}
-		captureLog("  Pull erfolgreich.")
-
-		err = runGitCommand(path, "checkout", "-b", "housekeeping")
-		if err != nil {
-			captureLog(fmt.Sprintf("  [INFO] Konnte Branch 'housekeeping' nicht neu anlegen (existiert evtl. schon?): %v", err))
+		
+		if branchExists(path, targetBranch) {
+			captureLog(fmt.Sprintf("  Wechsle zu existierendem Branch '%s'...", targetBranch))
+			err := runGitCommand(path, "checkout", targetBranch)
+			if err != nil {
+				captureLog(fmt.Sprintf("  [FEHLER] Checkout %s fehlgeschlagen: %v", targetBranch, err))
+				entry.Success = false
+				return entry
+			}
+			
+			// For custom branches (not housekeeping), try to pull updates if tracking remote
+			if targetBranch != "housekeeping" {
+				err := runGitCommand(path, "pull")
+				if err == nil {
+					captureLog("  Branch aktualisiert (Pull).")
+				} else {
+					// It's okay if pull fails (e.g. local only branch), just log info
+					captureLog("  Pull nicht möglich (evtl. nur lokal), mache weiter.")
+				}
+			}
 		} else {
-			captureLog("  Branch 'housekeeping' angelegt.")
+			captureLog(fmt.Sprintf("  Erstelle neuen Branch '%s' von master...", targetBranch))
+			err := runGitCommand(path, "checkout", "-b", targetBranch)
+			if err != nil {
+				captureLog(fmt.Sprintf("  [FEHLER] Konnte Branch '%s' nicht erstellen: %v", targetBranch, err))
+				entry.Success = false
+				return entry
+			}
+			captureLog(fmt.Sprintf("  Branch '%s' erstellt.", targetBranch))
 		}
 	}
 
@@ -187,10 +200,14 @@ func ProcessRepo(path string, opts RepoOptions) ReportEntry {
 	return entry
 }
 
-func checkAndDeleteOldHousekeeping(path string, log func(string)) bool {
-	err := runGitCommand(path, "show-ref", "--verify", "--quiet", "refs/heads/housekeeping")
-	if err != nil {
-		return false
+func branchExists(path, branchName string) bool {
+	err := runGitCommand(path, "show-ref", "--verify", "--quiet", "refs/heads/"+branchName)
+	return err == nil
+}
+
+func checkAndDeleteOldHousekeeping(path string, log func(string)) {
+	if !branchExists(path, "housekeeping") {
+		return
 	}
 
 	cmd := exec.Command("git", "log", "-1", "--format=%cI", "housekeeping")
@@ -198,13 +215,13 @@ func checkAndDeleteOldHousekeeping(path string, log func(string)) bool {
 	output, err := cmd.Output()
 	if err != nil {
 		log(fmt.Sprintf("  [WARNUNG] Konnte Datum von housekeeping nicht lesen: %v", err))
-		return false
+		return
 	}
 	dateStr := strings.TrimSpace(string(output))
 	branchDate, err := time.Parse(time.RFC3339, dateStr)
 	if err != nil {
 		log(fmt.Sprintf("  [WARNUNG] Konnte Datum '%s' nicht parsen: %v", dateStr, err))
-		return false
+		return
 	}
 
 	now := time.Now()
@@ -219,9 +236,7 @@ func checkAndDeleteOldHousekeeping(path string, log func(string)) bool {
 		} else {
 			log("  Branch housekeeping gelöscht.")
 		}
-		return false
 	}
-	return true
 }
 
 func runGitCommand(dir string, args ...string) error {

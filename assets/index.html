@@ -344,6 +344,25 @@
             <div class="hint">Komma-getrennte Liste von Ordnern, die ignoriert werden sollen.</div>
         </div>
         <div class="form-group">
+            <label>Branch Strategie</label>
+            <div style="background-color: var(--input-bg); padding: 15px; border-radius: 6px; border: 1px solid var(--border-color);">
+                <div style="margin-bottom: 10px;">
+                    <input type="radio" id="branch_housekeeping" name="branchStrategy" value="housekeeping" checked onchange="toggleBranchInput()">
+                    <label for="branch_housekeeping" style="display: inline; font-weight: normal; margin-left: 5px;">housekeeping (Standard)</label>
+                </div>
+                <div style="margin-bottom: 10px; display: flex; align-items: center;">
+                    <input type="radio" id="branch_custom" name="branchStrategy" value="custom" onchange="toggleBranchInput()">
+                    <input type="text" id="customBranchName" placeholder="Eigener Branch Name" style="margin-left: 10px; width: 200px; padding: 5px;" disabled>
+                </div>
+                <div>
+                    <input type="radio" id="branch_none" name="branchStrategy" value="none" onchange="toggleBranchInput()">
+                    <label for="branch_none" style="display: inline; font-weight: normal; margin-left: 5px;">Kein Branch (direkt auf Master)</label>
+                </div>
+            </div>
+            <div class="hint">Wählen Sie, auf welchem Branch gearbeitet werden soll.</div>
+        </div>
+
+        <div class="form-group">
             <label>Parent Version (Optional)</label>
             <input type="text" id="parentVersion" placeholder="1.2.3">
             <div class="hint">Falls angegeben, wird die Parent-Version in pom.xml aktualisiert.</div>
@@ -444,6 +463,13 @@
         document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
         document.getElementById(`tab-${tabId}`).classList.add('active');
     }
+    
+    function toggleBranchInput() {
+        const isCustom = document.getElementById('branch_custom').checked;
+        const input = document.getElementById('customBranchName');
+        input.disabled = !isCustom;
+        if (isCustom) input.focus();
+    }
 
     function addRow(containerId) {
         const container = document.getElementById(containerId);
@@ -472,6 +498,22 @@
         deprecationLog.innerHTML = '';
         loading.classList.remove('hidden');
 
+        // Determine Target Branch
+        let targetBranch = "";
+        if (document.getElementById('branch_housekeeping').checked) {
+            targetBranch = "housekeeping";
+        } else if (document.getElementById('branch_custom').checked) {
+            targetBranch = document.getElementById('customBranchName').value.trim();
+            if (!targetBranch) {
+                alert("Bitte geben Sie einen Branch-Namen ein.");
+                loading.classList.add('hidden');
+                return;
+            }
+        } else {
+            // None selected -> Master
+            targetBranch = "";
+        }
+
         // Collect Data
         const data = {
             rootPath: document.getElementById('rootPath').value,
@@ -479,9 +521,17 @@
             parentVersion: document.getElementById('parentVersion').value,
             versionBumpStrategy: document.getElementById('versionBumpStrategy').value,
             runCleanInstall: document.getElementById('runCleanInstall').checked,
+            targetBranch: targetBranch,
             pomReplacements: [],
             projectReplacements: []
         };
+        
+        if (!data.rootPath) {
+             alert("Bitte geben Sie einen Projekt-Pfad an.");
+             loading.classList.add('hidden');
+             showTab('settings');
+             return;
+        }
         
         // Save settings to localStorage
         localStorage.setItem('gitHousekeeper_settings', JSON.stringify({
@@ -489,7 +539,9 @@
             excluded: document.getElementById('excluded').value,
             parentVersion: data.parentVersion,
             versionBumpStrategy: data.versionBumpStrategy,
-            runCleanInstall: data.runCleanInstall
+            runCleanInstall: data.runCleanInstall,
+            branchStrategy: document.querySelector('input[name="branchStrategy"]:checked').value,
+            customBranchName: document.getElementById('customBranchName').value
         }));
 
         // Collect POM
@@ -594,6 +646,14 @@
                 if (settings.parentVersion) document.getElementById('parentVersion').value = settings.parentVersion;
                 if (settings.versionBumpStrategy) document.getElementById('versionBumpStrategy').value = settings.versionBumpStrategy;
                 if (settings.runCleanInstall !== undefined) document.getElementById('runCleanInstall').checked = settings.runCleanInstall;
+                
+                if (settings.branchStrategy) {
+                    const rb = document.querySelector(`input[name="branchStrategy"][value="${settings.branchStrategy}"]`);
+                    if (rb) rb.checked = true;
+                }
+                if (settings.customBranchName) document.getElementById('customBranchName').value = settings.customBranchName;
+                toggleBranchInput();
+                
             } catch (e) {
                 console.error("Failed to load settings", e);
             }
