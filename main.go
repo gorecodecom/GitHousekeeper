@@ -21,6 +21,7 @@ type RunRequest struct {
 	Excluded            []string
 	ParentVersion       string
 	VersionBumpStrategy string // "major", "minor", "patch"
+	RunCleanInstall     bool
 	PomReplacements     []logic.Replacement
 	ProjectReplacements []logic.Replacement
 }
@@ -107,7 +108,7 @@ func handleRun(w http.ResponseWriter, r *http.Request) {
 		// 	flusher.Flush()
 		// }
 
-		entry := logic.ProcessRepo(repo, req.PomReplacements, req.ProjectReplacements, req.ParentVersion, req.VersionBumpStrategy, req.Excluded)
+		entry := logic.ProcessRepo(repo, req.PomReplacements, req.ProjectReplacements, req.ParentVersion, req.VersionBumpStrategy, req.RunCleanInstall, req.Excluded)
 		
 		// logic.ProcessRepo already calls logFunc for internal steps.
 		// But it returns an entry with messages too. We don't need to print them again if logFunc worked.
@@ -145,6 +146,13 @@ func handleRun(w http.ResponseWriter, r *http.Request) {
 			fmt.Fprintf(w, "%s\n", msg)
 		}
 		flusher.Flush()
+
+		if entry.DeprecationOutput != "" {
+			fmt.Fprintf(w, "DEPRECATION_START:%s\n", repoName)
+			fmt.Fprintf(w, "%s\n", entry.DeprecationOutput)
+			fmt.Fprintf(w, "DEPRECATION_END\n")
+			flusher.Flush()
+		}
 		
 		if entry.Success {
 			fmt.Fprintf(w, "✓ %s erfolgreich bearbeitet.\n", repoName)

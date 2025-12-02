@@ -16,9 +16,10 @@ type Replacement struct {
 }
 
 type ReportEntry struct {
-	RepoPath string
-	Messages []string
-	Success  bool
+	RepoPath          string
+	Messages          []string
+	Success           bool
+	DeprecationOutput string
 }
 
 func IsGitRepo(path string) bool {
@@ -57,7 +58,7 @@ func FindGitRepos(root string, excluded []string) []string {
 	return repos
 }
 
-func ProcessRepo(path string, pomReplacements []Replacement, projectReplacements []Replacement, targetParentVersion string, versionBumpStrategy string, excludedFolders []string) ReportEntry {
+func ProcessRepo(path string, pomReplacements []Replacement, projectReplacements []Replacement, targetParentVersion string, versionBumpStrategy string, runCleanInstall bool, excludedFolders []string) ReportEntry {
 	entry := ReportEntry{RepoPath: path, Success: true}
 	log := func(msg string) {
 		entry.Messages = append(entry.Messages, msg)
@@ -125,8 +126,13 @@ func ProcessRepo(path string, pomReplacements []Replacement, projectReplacements
 	processCiSettingsXml(path, log)
 	projectChangesMade := processProjectReplacements(path, projectReplacements, excludedFolders, log)
 
-	if projectChangesMade {
-		log("  Änderungen wurden durchgeführt. Führe Maven Re-import aus...")
+	if projectChangesMade || runCleanInstall {
+		if runCleanInstall {
+			log("  Führe Maven Clean Install aus (explizit angefordert)...")
+		} else {
+			log("  Änderungen wurden durchgeführt. Führe Maven Re-import aus...")
+		}
+		
 		var cmd *exec.Cmd
 		if strings.Contains(strings.ToLower(os.Getenv("OS")), "windows") {
 			cmd = exec.Command("cmd", "/C", "mvn", "clean", "install", "-DskipTests")
@@ -137,12 +143,16 @@ func ProcessRepo(path string, pomReplacements []Replacement, projectReplacements
 		
 		output, err := cmd.CombinedOutput()
 		if err != nil {
-			log(fmt.Sprintf("  [FEHLER] Maven Re-import fehlgeschlagen: %v\nOutput:\n%s", err, string(output)))
+			log(fmt.Sprintf("  [FEHLER] Maven Build fehlgeschlagen: %v\nOutput:\n%s", err, string(output)))
 			entry.Success = false
 		} else {
-			log("  Maven Re-import erfolgreich.")
+			log("  Maven Build erfolgreich.")
 		}
 	}
+
+
+	
+	entry.DeprecationOutput = checkDeprecations(path, log)
 
 	return entry
 }
@@ -604,4 +614,46 @@ func performFuzzyReplacement(content, search, replace string) (string, bool) {
 	}
 
 	return content, false
+}
+
+func checkDeprecations(path string, log func(string)) string {
+	log("  Prüfe auf Deprecations...")
+	
+	var cmd *exec.Cmd
+	if strings.Contains(strings.ToLower(os.Getenv("OS")), "windows") {
+		cmd = exec.Command("cmd", "/C", "mvn", "clean", "compile", "-Dmaven.compiler.showDeprecation=true")
+	} else {
+		cmd = exec.Command("mvn", "clean", "compile", "-Dmaven.compiler.showDeprecation=true")
+	}
+	cmd.Dir = path
+	
+	// We ignore error here because we only care about the output logs
+	output, _ := cmd.CombinedOutput()
+
+	lines := strings.Split(string(output), "\n")
+	var warnings []string
+	count := 0
+	
+	for _, line := range lines {
+		lower := strings.ToLower(line)
+		if strings.Contains(lower, "deprecation") || strings.Contains(lower, "deprecated") || strings.Contains(lower, "warning") {
+			// Clean up line
+			line = strings.TrimSpace(line)
+			if line != "" {
+				warnings = append(warnings, line)
+				count++
+				if count >= 100 {
+					break
+				}
+			}
+		}
+	}
+	
+	if len(warnings) > 0 {
+		log(fmt.Sprintf("  %d Deprecation-Warnungen gefunden.", len(warnings)))
+		return strings.Join(warnings, "\n")
+	}
+	
+	log("  Keine Deprecation-Warnungen gefunden.")
+	return ""
 }

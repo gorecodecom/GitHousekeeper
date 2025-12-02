@@ -48,71 +48,6 @@
         .nav-item {
             padding: 12px 15px;
             margin-bottom: 5px;
-            cursor: pointer;
-            border-radius: 8px;
-            transition: background 0.2s;
-            color: var(--text-color);
-            text-decoration: none;
-            display: block;
-        }
-
-        .nav-item:hover {
-            background-color: var(--input-bg);
-        }
-
-        .nav-item.active {
-            background-color: var(--accent-color);
-            color: var(--sidebar-color);
-            font-weight: bold;
-        }
-
-        /* Main Content */
-        .main-content {
-            flex: 1;
-            padding: 40px;
-            overflow-y: auto;
-        }
-
-        .tab-content {
-            display: none;
-            max-width: 800px;
-            margin: 0 auto;
-        }
-
-        .tab-content.active {
-            display: block;
-        }
-
-        h2 {
-            margin-top: 0;
-            margin-bottom: 20px;
-            border-bottom: 1px solid var(--border-color);
-            padding-bottom: 10px;
-        }
-
-        /* Forms */
-        .form-group {
-            margin-bottom: 20px;
-        }
-
-        label {
-            display: block;
-            margin-bottom: 8px;
-            font-weight: 600;
-        }
-
-        input[type="text"], textarea {
-            width: 100%;
-            padding: 12px;
-            background-color: var(--input-bg);
-            border: 1px solid var(--border-color);
-            border-radius: 6px;
-            color: var(--text-color);
-            font-size: 14px;
-            box-sizing: border-box;
-            font-family: 'Consolas', 'Monaco', monospace; /* Monospace for code */
-        }
-
         input[type="text"]:focus, textarea:focus {
             outline: none;
             border-color: var(--accent-color);
@@ -187,21 +122,123 @@
         .log-repo {
             color: var(--accent-color);
             font-weight: bold;
-            font-size: 1.1em;
-            margin-top: 10px;
+            font-size: 1.2em;
+            margin-top: 25px;
+            margin-bottom: 10px;
             display: block;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 5px;
         }
 
         .log-error {
             color: #f38ba8;
+            margin-left: 15px;
+            margin-bottom: 2px;
         }
         
         .log-info {
             color: #cdd6f4;
+            margin-left: 15px;
+            margin-bottom: 2px;
+            line-height: 1.4;
+        }
+        
+        .log-success {
+            color: #a6e3a1;
+            margin-left: 15px;
+            font-weight: bold;
+            margin-top: 5px;
+        }
+
+        .log-warning {
+            color: #fab387; /* Peach/Orange */
+            margin-left: 15px;
+            margin-bottom: 2px;
         }
 
         .hidden {
             display: none;
+        }
+
+        #deprecation-log {
+            background-color: #11111b;
+            padding: 20px;
+            border-radius: 8px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            white-space: pre-wrap;
+            height: 400px;
+            overflow-y: auto;
+            border: 1px solid var(--border-color);
+        }
+        @media print {
+            body {
+                background-color: white;
+                color: black;
+                height: auto;
+                overflow: visible;
+            }
+            .sidebar, .btn, .hint, #loading, .nav-item, .form-group, input, textarea, select {
+                display: none !important;
+            }
+            .main-content {
+                padding: 0;
+                margin: 0;
+                overflow: visible;
+            }
+            .tab-content {
+                display: none; /* Hide all tabs by default */
+            }
+            #tab-report {
+                display: block !important; /* Show only report */
+                max-width: 100%;
+            }
+            
+            /* Hide both columns by default in print */
+            .report-container > div {
+                display: none;
+            }
+
+            /* Reset container for print to avoid flexbox page break issues */
+            .report-container {
+                display: block !important;
+                height: auto !important;
+                overflow: visible !important;
+            }
+
+            /* Show Report Column */
+            body.print-report .report-container > div:first-child {
+                display: block !important;
+                width: 100% !important;
+                height: auto !important;
+                overflow: visible !important;
+            }
+
+            /* Show Deprecation Column */
+            body.print-deprecation .report-container > div:last-child {
+                display: block !important;
+                width: 100% !important;
+                height: auto !important;
+                overflow: visible !important;
+            }
+
+            #report-log, #deprecation-log {
+                height: auto !important;
+                max-height: none !important;
+                border: 1px solid #ccc;
+                background-color: #fff;
+                color: #000;
+                overflow: visible !important;
+                white-space: pre-wrap;
+            }
+            
+            .log-repo { color: #000; font-weight: bold; border-bottom: 1px solid #eee; margin-top: 15px; }
+            .log-error { color: red; }
+            .log-info { color: #333; }
+            
+            h2, h3 {
+                color: #000;
+                border-bottom: 1px solid #000;
+            }
         }
     </style>
 </head>
@@ -245,6 +282,12 @@
             </select>
             <div class="hint">Bestimmt, welche Stelle der Versionsnummer erhöht wird (basierend auf Git Tag).</div>
         </div>
+        <div class="form-group" style="display: flex; align-items: center; gap: 10px;">
+            <input type="checkbox" id="runCleanInstall" style="width: auto;">
+            <label for="runCleanInstall" style="margin: 0; cursor: pointer;">Maven Clean Install ausführen</label>
+        </div>
+        <div class="hint" style="margin-top: -15px; margin-bottom: 20px;">Führt 'mvn clean install -DskipTests' für jedes Repository aus.</div>
+        
         <div style="text-align: right; margin-top: 40px;">
             <button class="btn btn-primary" onclick="showTab('pom')">Weiter &rarr;</button>
         </div>
@@ -289,8 +332,26 @@
     <!-- Tab: Report -->
     <div id="tab-report" class="tab-content">
         <h2>Bericht</h2>
-        <div id="report-log">
-            <div class="log-info">Bereit zum Starten...</div>
+        
+        <div class="report-container" style="display: flex; gap: 20px;">
+            <div style="flex: 1; width: 50%;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                    <h3 style="margin: 0;">Verlauf</h3>
+                    <button class="btn btn-secondary" style="padding: 5px 10px; font-size: 0.9em;" onclick="printSection('report')">📄 PDF</button>
+                </div>
+                <div id="report-log">
+                    <div class="log-info">Bereit zum Starten...</div>
+                </div>
+            </div>
+            <div style="flex: 1; width: 50%;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                    <h3 style="margin: 0;">Deprecation / Warnings</h3>
+                    <button class="btn btn-secondary" style="padding: 5px 10px; font-size: 0.9em;" onclick="printSection('deprecation')">📄 PDF</button>
+                </div>
+                <div id="deprecation-log">
+                    <div class="log-info">Warte auf Ergebnisse...</div>
+                </div>
+            </div>
         </div>
         <div id="loading" class="hidden" style="margin-top: 20px; color: var(--accent-color);">
             Bearbeitung läuft... Bitte warten.
@@ -320,6 +381,12 @@
         container.appendChild(div);
     }
 
+    function printSection(section) {
+        document.body.classList.add('print-' + section);
+        window.print();
+        document.body.classList.remove('print-' + section);
+    }
+
     async function runHousekeeper() {
         showTab('report');
         const log = document.getElementById('report-log');
@@ -334,6 +401,7 @@
             excluded: document.getElementById('excluded').value.split(',').map(s => s.trim()).filter(s => s),
             parentVersion: document.getElementById('parentVersion').value,
             versionBumpStrategy: document.getElementById('versionBumpStrategy').value,
+            runCleanInstall: document.getElementById('runCleanInstall').checked,
             pomReplacements: [],
             projectReplacements: []
         };
@@ -361,6 +429,10 @@
 
             const reader = response.body.getReader();
             const decoder = new TextDecoder();
+            
+            let isDeprecation = false;
+            const depLog = document.getElementById('deprecation-log');
+            depLog.innerHTML = '';
 
             while (true) {
                 const {value, done} = await reader.read();
@@ -371,20 +443,47 @@
                 const lines = text.split('\n');
                 lines.forEach(line => {
                     if(!line) return;
+                    
+                    if (line.startsWith('DEPRECATION_START:')) {
+                        isDeprecation = true;
+                        const repo = line.substring(18);
+                        const div = document.createElement('div');
+                        div.className = 'log-repo';
+                        div.textContent = repo;
+                        depLog.appendChild(div);
+                        return;
+                    }
+                    if (line === 'DEPRECATION_END') {
+                        isDeprecation = false;
+                        return;
+                    }
+
                     const div = document.createElement('div');
                     if (line.startsWith('REPO:')) {
                         div.className = 'log-repo';
                         div.textContent = line.substring(5);
-                    } else if (line.includes('[FEHLER]')) {
+                    } else if (line.includes('[FEHLER]') || line.includes('✗')) {
                         div.className = 'log-error';
+                        div.textContent = line;
+                    } else if (line.includes('[WARNUNG]') || line.toLowerCase().includes('warning') || line.toLowerCase().includes('deprecated')) {
+                        div.className = 'log-warning';
+                        div.textContent = line;
+                    } else if (line.includes('✓') || line.includes('erfolgreich')) {
+                        div.className = 'log-success';
                         div.textContent = line;
                     } else {
                         div.className = 'log-info';
                         div.textContent = line;
                     }
-                    log.appendChild(div);
+                    
+                    if (isDeprecation) {
+                        depLog.appendChild(div);
+                        depLog.scrollTop = depLog.scrollHeight;
+                    } else {
+                        log.appendChild(div);
+                        log.scrollTop = log.scrollHeight;
+                    }
                 });
-                log.scrollTop = log.scrollHeight;
             }
         } catch (e) {
             log.innerHTML += `<div class="log-error">Netzwerkfehler: ${e.message}</div>`;
