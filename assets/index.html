@@ -668,6 +668,42 @@
 
       <!-- Tab: Frameworks -->
       <div id="tab-frameworks" class="tab-content">
+        <!-- OpenRewrite Version Check -->
+        <div
+          id="openrewrite-version-card"
+          style="
+            background: var(--input-bg);
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+            border: 1px solid var(--border-color);
+          "
+        >
+          <div
+            style="
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              margin-bottom: 10px;
+            "
+          >
+            <h3 style="margin: 0">🔧 OpenRewrite Status</h3>
+            <button
+              class="btn btn-secondary"
+              onclick="checkOpenRewriteVersions()"
+              style="font-size: 0.85rem; padding: 5px 10px"
+            >
+              🔄 Refresh
+            </button>
+          </div>
+          <div
+            id="openrewrite-versions"
+            style="display: flex; gap: 20px; flex-wrap: wrap"
+          >
+            <div class="hint">Loading OpenRewrite versions...</div>
+          </div>
+        </div>
+
         <h2>Spring Boot Versions</h2>
 
         <div style="display: flex; gap: 20px">
@@ -1066,6 +1102,7 @@
 
         if (tabId === "frameworks") {
           loadSpringVersions();
+          checkOpenRewriteVersions();
         }
       }
 
@@ -1471,6 +1508,59 @@
           }
         } catch (e) {
           container.innerHTML = `<div class="log-error">Error loading: ${e.message}</div>`;
+        }
+      }
+
+      async function checkOpenRewriteVersions() {
+        const container = document.getElementById("openrewrite-versions");
+
+        try {
+          const res = await fetch("/api/openrewrite-versions");
+          if (!res.ok) throw new Error(res.statusText);
+          const data = await res.json();
+
+          container.innerHTML = "";
+
+          data.forEach((item) => {
+            const card = document.createElement("div");
+            card.style.cssText =
+              "flex: 1; min-width: 200px; padding: 12px; background: var(--bg-color); border-radius: 6px; border: 1px solid var(--border-color);";
+
+            const hasUpdate = item.updateAvailable;
+            const statusColor = hasUpdate ? "#f9e2af" : "#a6e3a1";
+            const statusIcon = hasUpdate ? "⚠️" : "✅";
+            const statusText = hasUpdate ? "Update verfügbar" : "Aktuell";
+
+            card.innerHTML = `
+              <div style="font-weight: 500; margin-bottom: 8px; color: var(--text-color);">
+                ${item.component}
+              </div>
+              <div style="display: flex; justify-content: space-between; font-size: 0.9em; margin-bottom: 4px;">
+                <span style="color: #6c7086;">Verwendet:</span>
+                <span style="color: var(--text-color); font-family: monospace;">${
+                  item.currentVersion
+                }</span>
+              </div>
+              <div style="display: flex; justify-content: space-between; font-size: 0.9em; margin-bottom: 8px;">
+                <span style="color: #6c7086;">Aktuell:</span>
+                <span style="color: ${
+                  hasUpdate ? "#a6e3a1" : "var(--text-color)"
+                }; font-family: monospace;">${item.latestVersion}</span>
+              </div>
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span style="color: ${statusColor}; font-size: 0.85em;">${statusIcon} ${statusText}</span>
+                <a href="${
+                  item.mavenCentralUrl
+                }" target="_blank" style="color: #89b4fa; font-size: 0.85em; text-decoration: none;">
+                  Maven Central ↗
+                </a>
+              </div>
+            `;
+
+            container.appendChild(card);
+          });
+        } catch (e) {
+          container.innerHTML = `<div class="log-error">Fehler: ${e.message}</div>`;
         }
       }
 

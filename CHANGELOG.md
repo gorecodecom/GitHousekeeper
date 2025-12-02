@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Smart summary parsing - categorizes changes instead of showing raw patch output
   - Support for Spring Boot 2.x → 3.x and 3.x → 3.5 migrations
   - Uses OpenRewrite Maven Plugin 6.24.0 with rewrite-spring 6.19.0
+  - **OpenRewrite Version Monitoring**: Displays current vs. latest versions with update notifications
 
 - **Spring Boot Version Dashboard**
 

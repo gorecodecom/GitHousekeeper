@@ -999,3 +999,68 @@ func getSpringBootVersionFromMaven(dir string) (string, error) {
 
 	return "", fmt.Errorf("no Spring Boot version found in Effective POM")
 }
+
+// OpenRewriteVersionInfo contains version information for OpenRewrite components
+type OpenRewriteVersionInfo struct {
+	Component       string `json:"component"`
+	CurrentVersion  string `json:"currentVersion"`
+	LatestVersion   string `json:"latestVersion"`
+	UpdateAvailable bool   `json:"updateAvailable"`
+	MavenCentralURL string `json:"mavenCentralUrl"`
+}
+
+// GetOpenRewriteVersions fetches current hardcoded versions and latest from Maven Central
+func GetOpenRewriteVersions(currentPluginVersion, currentRecipeVersion string) ([]OpenRewriteVersionInfo, error) {
+	result := []OpenRewriteVersionInfo{}
+
+	// Fetch rewrite-maven-plugin latest version
+	pluginLatest, err := fetchLatestVersion("https://repo1.maven.org/maven2/org/openrewrite/maven/rewrite-maven-plugin/maven-metadata.xml")
+	if err != nil {
+		pluginLatest = "unknown"
+	}
+
+	result = append(result, OpenRewriteVersionInfo{
+		Component:       "rewrite-maven-plugin",
+		CurrentVersion:  currentPluginVersion,
+		LatestVersion:   pluginLatest,
+		UpdateAvailable: currentPluginVersion != pluginLatest && pluginLatest != "unknown",
+		MavenCentralURL: "https://mvnrepository.com/artifact/org.openrewrite.maven/rewrite-maven-plugin",
+	})
+
+	// Fetch rewrite-spring latest version
+	recipeLatest, err := fetchLatestVersion("https://repo1.maven.org/maven2/org/openrewrite/recipe/rewrite-spring/maven-metadata.xml")
+	if err != nil {
+		recipeLatest = "unknown"
+	}
+
+	result = append(result, OpenRewriteVersionInfo{
+		Component:       "rewrite-spring",
+		CurrentVersion:  currentRecipeVersion,
+		LatestVersion:   recipeLatest,
+		UpdateAvailable: currentRecipeVersion != recipeLatest && recipeLatest != "unknown",
+		MavenCentralURL: "https://mvnrepository.com/artifact/org.openrewrite.recipe/rewrite-spring",
+	})
+
+	return result, nil
+}
+
+func fetchLatestVersion(metadataURL string) (string, error) {
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Get(metadataURL)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+
+	var metadata MavenMetadata
+	if err := xml.Unmarshal(body, &metadata); err != nil {
+		return "", err
+	}
+
+	return metadata.Versioning.Latest, nil
+}

@@ -53,6 +53,7 @@ func main() {
 	http.HandleFunc("/api/analyze-spring", handleAnalyzeSpring)
 	http.HandleFunc("/api/pick-folder", handlePickFolder)
 	http.HandleFunc("/api/list-folders", handleListFolders)
+	http.HandleFunc("/api/openrewrite-versions", handleOpenRewriteVersions)
 
 	port := "8080"
 	url := "http://localhost:" + port
@@ -152,6 +153,22 @@ func handleRun(w http.ResponseWriter, r *http.Request) {
 
 func handleSpringVersions(w http.ResponseWriter, r *http.Request) {
 	versions, err := logic.GetSpringVersions()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(versions)
+}
+
+// Current OpenRewrite versions used in this app
+const (
+	openRewritePluginVersion = "6.24.0"
+	openRewriteRecipeVersion = "6.19.0"
+)
+
+func handleOpenRewriteVersions(w http.ResponseWriter, r *http.Request) {
+	versions, err := logic.GetOpenRewriteVersions(openRewritePluginVersion, openRewriteRecipeVersion)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -403,9 +420,9 @@ func handleAnalyzeSpring(w http.ResponseWriter, r *http.Request) {
 		recipe = fmt.Sprintf("org.openrewrite.java.spring.boot%c.UpgradeSpringBoot_%s", req.TargetVersion[0], cleanVersion)
 	}
 
-	// Plugin versions
-	pluginVersion := "6.24.0"
-	recipeVersion := "6.19.0"
+	// Use globally defined plugin versions
+	pluginVersion := openRewritePluginVersion
+	recipeVersion := openRewriteRecipeVersion
 
 	// 3. Run Analysis in Parallel
 	resultChan := make(chan AnalysisResult, len(repos))

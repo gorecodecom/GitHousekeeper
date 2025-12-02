@@ -54,6 +54,7 @@ GitHousekeeper is a powerful tool designed to automate maintenance tasks and mas
   - 🗑️ **Deprecated Code Removal** (e.g., unnecessary `@Autowired`)
 - **Dry-Run Mode**: Analyzes projects without modifying any files.
 - **Zero-Config**: Injects the OpenRewrite Maven plugin dynamically—no changes to your `pom.xml` required.
+- **Version Monitoring**: Displays current vs. latest OpenRewrite versions with update notifications.
 - **Latest Recipes**: Uses OpenRewrite Maven Plugin 6.24.0 with rewrite-spring 6.19.0 (supports Spring Boot 3.5).
 
 ### 📊 Reporting & Export
