@@ -676,7 +676,20 @@
           Runs 'mvn clean install -DskipTests' for each repository.
         </div>
 
-        <div style="text-align: right; margin-top: 40px">
+        <div
+          style="
+            display: flex;
+            justify-content: space-between;
+            margin-top: 40px;
+          "
+        >
+          <button
+            class="btn btn-secondary"
+            onclick="resetSettings()"
+            title="Clear all saved settings"
+          >
+            🗑️ Reset
+          </button>
           <button class="btn btn-primary" onclick="showTab('pom')">
             Next &rarr;
           </button>
@@ -1261,6 +1274,58 @@
         document.body.classList.add("print-" + section);
         window.print();
         document.body.classList.remove("print-" + section);
+      }
+
+      function resetSettings() {
+        if (
+          !confirm(
+            "Reset all settings? This will clear all saved paths, configurations and return to defaults."
+          )
+        ) {
+          return;
+        }
+
+        // Clear localStorage
+        localStorage.removeItem("gitHousekeeper_settings");
+
+        // Reset all form fields
+        document.getElementById("rootPath").value = "";
+        document.getElementById("parentVersion").value = "";
+        document.getElementById("versionBumpStrategy").value = "patch";
+        document.getElementById("runCleanInstall").checked = false;
+        document.getElementById("customBranchName").value = "";
+
+        // Reset branch strategy to default (No Branch)
+        document.getElementById("branch_none").checked = true;
+        toggleBranchInput();
+
+        // Reset folder list
+        document.getElementById("folder-list-container").innerHTML =
+          '<div class="hint">Select a root path to see folders.</div>';
+
+        // Reset POM replacements to single empty row
+        const pomList = document.getElementById("pom-list");
+        pomList.innerHTML = `
+          <div class="replacement-row">
+            <textarea placeholder="Search Text" class="pom-search"></textarea>
+            <textarea placeholder="Replacement" class="pom-replace"></textarea>
+          </div>
+        `;
+
+        // Reset Project replacements to single empty row
+        const projectList = document.getElementById("project-list");
+        projectList.innerHTML = `
+          <div class="replacement-row">
+            <textarea placeholder="Search Text" class="proj-search"></textarea>
+            <textarea placeholder="Replacement" class="proj-replace"></textarea>
+          </div>
+        `;
+
+        // Clear report logs
+        document.getElementById("report-log").innerHTML =
+          '<div class="log-info">Ready to start...</div>';
+        document.getElementById("deprecation-log").innerHTML =
+          '<div class="log-info">Waiting for results...</div>';
       }
 
       async function runHousekeeper() {
