@@ -153,9 +153,20 @@ If you want to modify the frontend (HTML/CSS/JS) without rebuilding the Go appli
 
 _Coming soon_
 
+## Author
+
+**Hannes Goretzky**  
+GitHub: [@gorecodecom](https://github.com/gorecodecom)
+
+## Version
+
+Current version: **1.0.0**
+
+See [CHANGELOG.md](CHANGELOG.md) for release history.
+
 ## License
 
-[MIT](LICENSE)
+[MIT](LICENSE) © 2025 Hannes Goretzky
 
 ---
 
