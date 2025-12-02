@@ -651,20 +651,31 @@ func parsePatchToSummary(patch string) string {
 		}
 	}
 
-	// Build summary output
-	summary.WriteString("📋 MIGRATION SUMMARY\n")
-	summary.WriteString("════════════════════════════════════════\n\n")
+	// Build HTML summary output for better readability
+	summary.WriteString(`<div class="migration-summary">`)
+	summary.WriteString(`<h2 style="margin:0 0 15px 0; color:#cdd6f4; border-bottom:2px solid #89b4fa; padding-bottom:10px;">📋 Migration Summary</h2>`)
 
 	// Files overview
-	summary.WriteString(fmt.Sprintf("📁 Files affected: %d\n", len(filesChanged)))
+	summary.WriteString(fmt.Sprintf(`<div class="summary-section"><h3 style="color:#89b4fa; margin:15px 0 10px 0;">📁 Files affected: %d</h3>`, len(filesChanged)))
+	summary.WriteString(`<div style="display:flex; flex-wrap:wrap; gap:5px; margin-left:10px;">`)
 	for _, f := range filesChanged {
-		summary.WriteString(fmt.Sprintf("   • %s\n", f))
+		shortFile := filepath.Base(f)
+		summary.WriteString(fmt.Sprintf(`<span style="background:#313244; padding:3px 8px; border-radius:4px; font-size:0.85em;">%s</span>`, shortFile))
 	}
-	summary.WriteString("\n")
+	summary.WriteString(`</div></div>`)
 
-	// Changes by category
+	// Changes by category - use ordered slice for consistent output
+	categoryOrder := []string{
+		"🔄 Annotation Updates",
+		"📦 Import Changes",
+		"🛠️ Code Modernization",
+		"⚙️ Configuration Changes",
+		"🗑️ Deprecated Code Removal",
+	}
+
 	hasChanges := false
-	for category, changes := range categories {
+	for _, category := range categoryOrder {
+		changes := categories[category]
 		if len(changes) > 0 {
 			hasChanges = true
 			// Deduplicate
@@ -672,22 +683,34 @@ func parsePatchToSummary(patch string) string {
 			for _, c := range changes {
 				unique[c] = true
 			}
-			summary.WriteString(fmt.Sprintf("%s (%d)\n", category, len(unique)))
+
+			summary.WriteString(fmt.Sprintf(`<div class="summary-section" style="margin-top:20px;"><h3 style="color:#a6e3a1; margin:0 0 10px 0;">%s <span style="background:#45475a; padding:2px 8px; border-radius:10px; font-size:0.8em;">%d</span></h3>`, category, len(unique)))
+			summary.WriteString(`<table style="width:100%; border-collapse:collapse; font-size:0.9em;">`)
 			for change := range unique {
-				summary.WriteString(fmt.Sprintf("   • %s\n", change))
+				// Split change into file and description
+				parts := strings.SplitN(change, ": ", 2)
+				file := parts[0]
+				desc := ""
+				if len(parts) > 1 {
+					desc = parts[1]
+				}
+				summary.WriteString(fmt.Sprintf(`<tr style="border-bottom:1px solid #313244;"><td style="padding:6px 10px; color:#f9e2af; white-space:nowrap; width:1%%;">%s</td><td style="padding:6px 10px; color:#cdd6f4;">%s</td></tr>`, file, desc))
 			}
-			summary.WriteString("\n")
+			summary.WriteString(`</table></div>`)
 		}
 	}
 
 	if !hasChanges {
-		summary.WriteString("ℹ️ Changes detected but could not be categorized.\n")
-		summary.WriteString("   Run with full patch output for details.\n\n")
+		summary.WriteString(`<div class="summary-section" style="margin-top:20px; padding:15px; background:#313244; border-radius:8px;">`)
+		summary.WriteString(`<p style="margin:0; color:#f9e2af;">ℹ️ Changes detected but could not be automatically categorized.</p>`)
+		summary.WriteString(`<p style="margin:5px 0 0 0; color:#a6adc8;">Run with full patch output for details.</p>`)
+		summary.WriteString(`</div>`)
 	}
 
-	summary.WriteString("════════════════════════════════════════\n")
-	summary.WriteString("💡 TIP: These are recommended changes for Spring Boot upgrade.\n")
-	summary.WriteString("   Review each change before applying.\n")
+	summary.WriteString(`<div style="margin-top:20px; padding:12px; background:#1e1e2e; border-left:3px solid #89b4fa; border-radius:4px;">`)
+	summary.WriteString(`<p style="margin:0; color:#89b4fa;">💡 <strong>Tip:</strong> These are recommended changes for your Spring Boot upgrade. Review each change before applying.</p>`)
+	summary.WriteString(`</div>`)
+	summary.WriteString(`</div>`)
 
 	return summary.String()
 }
