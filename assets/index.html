@@ -1055,7 +1055,13 @@
           const data = await res.json();
 
           container.innerHTML = "";
-          data.forEach((group) => {
+
+          // Show only first 5 branches initially
+          const initialShowCount = 5;
+          let hiddenContainer = null;
+          let showMoreBtn = null;
+
+          data.forEach((group, index) => {
             const groupDiv = document.createElement("div");
             groupDiv.style.marginBottom = "20px";
             groupDiv.style.padding = "15px";
@@ -1082,7 +1088,7 @@
 
             groupDiv.appendChild(title);
 
-            // Add to Dropdown
+            // Add to Dropdown (always add all versions to dropdown)
             const dropdown = document.getElementById("targetBootVersion");
             // Check if option already exists
             if (!dropdown.querySelector(`option[value="${group.Branch}"]`)) {
@@ -1117,8 +1123,45 @@
             }
 
             groupDiv.appendChild(versionsDiv);
-            container.appendChild(groupDiv);
+
+            // Add to visible container or hidden container based on index
+            if (index < initialShowCount) {
+              container.appendChild(groupDiv);
+            } else {
+              // Create hidden container if not exists
+              if (!hiddenContainer) {
+                hiddenContainer = document.createElement("div");
+                hiddenContainer.id = "hidden-versions";
+                hiddenContainer.style.display = "none";
+                container.appendChild(hiddenContainer);
+              }
+              hiddenContainer.appendChild(groupDiv);
+            }
           });
+
+          // Add "Show More" button if there are hidden items
+          if (data.length > initialShowCount) {
+            showMoreBtn = document.createElement("button");
+            showMoreBtn.className = "btn btn-secondary";
+            showMoreBtn.style.width = "100%";
+            showMoreBtn.style.marginTop = "10px";
+            showMoreBtn.innerHTML = `📋 Ältere Versionen anzeigen (+${
+              data.length - initialShowCount
+            })`;
+            showMoreBtn.onclick = () => {
+              const hidden = document.getElementById("hidden-versions");
+              if (hidden.style.display === "none") {
+                hidden.style.display = "block";
+                showMoreBtn.innerHTML = "📋 Ältere Versionen ausblenden";
+              } else {
+                hidden.style.display = "none";
+                showMoreBtn.innerHTML = `📋 Ältere Versionen anzeigen (+${
+                  data.length - initialShowCount
+                })`;
+              }
+            };
+            container.appendChild(showMoreBtn);
+          }
         } catch (e) {
           container.innerHTML = `<div class="log-error">Error loading: ${e.message}</div>`;
         }
