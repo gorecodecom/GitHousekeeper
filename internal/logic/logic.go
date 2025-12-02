@@ -736,7 +736,15 @@ func parseDeprecationsFromOutput(output string, log func(string)) string {
 
 	for _, line := range lines {
 		lower := strings.ToLower(line)
-		if strings.Contains(lower, "deprecation") || strings.Contains(lower, "deprecated") || strings.Contains(lower, "warning") {
+
+		// Skip [INFO] lines - they're not actual warnings
+		if strings.Contains(lower, "[info]") {
+			continue
+		}
+
+		// Only match actual warnings (typically [WARNING] lines with deprecation info)
+		if strings.Contains(lower, "[warning]") ||
+			(strings.Contains(lower, "deprecated") && !strings.Contains(lower, "showdeprecation")) {
 			// Clean up line
 			line = strings.TrimSpace(line)
 			if line != "" {
