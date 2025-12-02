@@ -1,858 +1,1199 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>GitHousekeeper</title>
     <style>
-        :root {
-            --bg-color: #1e1e2e;
-            --sidebar-color: #181825;
-            --text-color: #cdd6f4;
-            --accent-color: #a6e3a1; /* Green */
-            --accent-hover: #94e2d5;
-            --input-bg: #313244;
-            --border-color: #45475a;
-        }
+      :root {
+        --bg-color: #1e1e2e;
+        --sidebar-color: #181825;
+        --text-color: #cdd6f4;
+        --accent-color: #a6e3a1; /* Green */
+        --accent-hover: #94e2d5;
+        --input-bg: #313244;
+        --border-color: #45475a;
+      }
 
+      body {
+        margin: 0;
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        background-color: var(--bg-color);
+        color: var(--text-color);
+        display: flex;
+        height: 100vh;
+        overflow: hidden;
+      }
+
+      /* Sidebar */
+      .sidebar {
+        width: 250px;
+        background-color: var(--sidebar-color);
+        display: flex;
+        flex-direction: column;
+        padding: 20px;
+        border-right: 1px solid var(--border-color);
+      }
+
+      .logo {
+        font-size: 24px;
+        font-weight: bold;
+        color: var(--accent-color);
+        margin-bottom: 40px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .nav-item {
+        padding: 12px 15px;
+        margin-bottom: 5px;
+        cursor: pointer;
+        border-radius: 6px;
+        transition: background-color 0.2s;
+        color: #a6adc8;
+      }
+
+      .nav-item:hover {
+        background-color: #313244;
+        color: var(--text-color);
+      }
+
+      .nav-item.active {
+        background-color: var(--accent-color);
+        color: var(--sidebar-color);
+        font-weight: bold;
+      }
+
+      /* Main Content */
+      .main-content {
+        flex: 1;
+        padding: 40px;
+        overflow-y: auto;
+      }
+
+      .tab-content {
+        display: none;
+      }
+
+      .tab-content.active {
+        display: block;
+        animation: fadeIn 0.3s ease;
+      }
+
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+          transform: translateY(10px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      h2 {
+        margin-top: 0;
+        margin-bottom: 30px;
+        font-size: 28px;
+        border-bottom: 2px solid var(--border-color);
+        padding-bottom: 10px;
+      }
+
+      /* Forms */
+      .form-group {
+        margin-bottom: 25px;
+      }
+
+      label {
+        display: block;
+        margin-bottom: 8px;
+        font-weight: bold;
+      }
+
+      input[type="text"],
+      textarea,
+      select {
+        width: 100%;
+        padding: 12px;
+        background-color: var(--input-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        color: var(--text-color);
+        font-family: inherit;
+        box-sizing: border-box;
+        transition: border-color 0.2s;
+      }
+
+      input[type="text"]:focus,
+      textarea:focus {
+        outline: none;
+        border-color: var(--accent-color);
+      }
+
+      textarea {
+        resize: vertical;
+        min-height: 100px;
+      }
+
+      .hint {
+        font-size: 12px;
+        color: #a6adc8;
+        margin-top: 5px;
+      }
+
+      /* Dynamic Lists */
+      .replacement-row {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 10px;
+      }
+
+      .btn {
+        padding: 10px 20px;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        font-weight: bold;
+        transition: opacity 0.2s;
+      }
+
+      .btn-primary {
+        background-color: var(--accent-color);
+        color: var(--sidebar-color);
+      }
+
+      .btn-secondary {
+        background-color: var(--input-bg);
+        color: var(--text-color);
+      }
+
+      .btn:hover {
+        opacity: 0.9;
+      }
+
+      .btn-add {
+        width: 100%;
+        margin-top: 10px;
+        border: 1px dashed var(--border-color);
+        background: transparent;
+        color: var(--text-color);
+      }
+
+      .btn-add:hover {
+        border-color: var(--accent-color);
+        color: var(--accent-color);
+      }
+
+      /* Report */
+      #report-log {
+        background-color: #11111b;
+        padding: 20px;
+        border-radius: 8px;
+        font-family: "Consolas", "Monaco", monospace;
+        white-space: pre-wrap;
+        height: 400px;
+        overflow-y: auto;
+        border: 1px solid var(--border-color);
+      }
+
+      .log-repo {
+        color: var(--accent-color);
+        font-weight: bold;
+        font-size: 1.2em;
+        margin-top: 25px;
+        margin-bottom: 10px;
+        display: block;
+        border-bottom: 1px solid var(--border-color);
+        padding-bottom: 5px;
+      }
+
+      .log-error {
+        color: #f38ba8;
+        margin-left: 15px;
+        margin-bottom: 2px;
+      }
+
+      .log-info {
+        color: #cdd6f4;
+        margin-left: 15px;
+        margin-bottom: 2px;
+        line-height: 1.4;
+      }
+
+      .log-success {
+        color: #a6e3a1;
+        margin-left: 15px;
+        font-weight: bold;
+        margin-top: 5px;
+      }
+
+      .log-warning {
+        color: #fab387; /* Peach/Orange */
+        margin-left: 15px;
+        margin-bottom: 2px;
+      }
+
+      .hidden {
+        display: none;
+      }
+
+      #deprecation-log {
+        background-color: #11111b;
+        padding: 20px;
+        border-radius: 8px;
+        font-family: "Consolas", "Monaco", monospace;
+        white-space: pre-wrap;
+        height: 400px;
+        overflow-y: auto;
+        border: 1px solid var(--border-color);
+      }
+      @media print {
         body {
-            margin: 0;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: var(--bg-color);
-            color: var(--text-color);
-            display: flex;
-            height: 100vh;
-            overflow: hidden;
+          background-color: white;
+          color: black;
+          height: auto;
+          overflow: visible;
         }
-
-        /* Sidebar */
-        .sidebar {
-            width: 250px;
-            background-color: var(--sidebar-color);
-            display: flex;
-            flex-direction: column;
-            padding: 20px;
-            border-right: 1px solid var(--border-color);
+        .sidebar,
+        .btn,
+        .hint,
+        #loading,
+        .nav-item,
+        .form-group,
+        input,
+        textarea,
+        select {
+          display: none !important;
         }
-
-        .logo {
-            font-size: 24px;
-            font-weight: bold;
-            color: var(--accent-color);
-            margin-bottom: 40px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .nav-item {
-            padding: 12px 15px;
-            margin-bottom: 5px;
-            cursor: pointer;
-            border-radius: 6px;
-            transition: background-color 0.2s;
-            color: #a6adc8;
-        }
-
-        .nav-item:hover {
-            background-color: #313244;
-            color: var(--text-color);
-        }
-
-        .nav-item.active {
-            background-color: var(--accent-color);
-            color: var(--sidebar-color);
-            font-weight: bold;
-        }
-
-        /* Main Content */
         .main-content {
-            flex: 1;
-            padding: 40px;
-            overflow-y: auto;
+          padding: 0;
+          margin: 0;
+          overflow: visible;
         }
-
         .tab-content {
-            display: none;
+          display: none; /* Hide all tabs by default */
+        }
+        #tab-report {
+          display: block !important; /* Show only report */
+          max-width: 100%;
         }
 
-        .tab-content.active {
-            display: block;
-            animation: fadeIn 0.3s ease;
+        /* Hide both columns by default in print */
+        .report-container > div {
+          display: none;
         }
 
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
+        /* Reset container for print to avoid flexbox page break issues */
+        .report-container {
+          display: block !important;
+          height: auto !important;
+          overflow: visible !important;
         }
 
-        h2 {
-            margin-top: 0;
-            margin-bottom: 30px;
-            font-size: 28px;
-            border-bottom: 2px solid var(--border-color);
-            padding-bottom: 10px;
+        /* Show Report Column */
+        body.print-report .report-container > div:first-child {
+          display: block !important;
+          width: 100% !important;
+          height: auto !important;
+          overflow: visible !important;
         }
 
-        /* Forms */
-        .form-group {
-            margin-bottom: 25px;
+        /* Show Deprecation Column */
+        body.print-deprecation .report-container > div:last-child {
+          display: block !important;
+          width: 100% !important;
+          height: auto !important;
+          overflow: visible !important;
         }
 
-        label {
-            display: block;
-            margin-bottom: 8px;
-            font-weight: bold;
-        }
-
-        input[type="text"], textarea, select {
-            width: 100%;
-            padding: 12px;
-            background-color: var(--input-bg);
-            border: 1px solid var(--border-color);
-            border-radius: 6px;
-            color: var(--text-color);
-            font-family: inherit;
-            box-sizing: border-box;
-            transition: border-color 0.2s;
-        }
-
-        input[type="text"]:focus, textarea:focus {
-            outline: none;
-            border-color: var(--accent-color);
-        }
-
-        textarea {
-            resize: vertical;
-            min-height: 100px;
-        }
-
-        .hint {
-            font-size: 12px;
-            color: #a6adc8;
-            margin-top: 5px;
-        }
-
-        /* Dynamic Lists */
-        .replacement-row {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 10px;
-        }
-
-        .btn {
-            padding: 10px 20px;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-            font-weight: bold;
-            transition: opacity 0.2s;
-        }
-
-        .btn-primary {
-            background-color: var(--accent-color);
-            color: var(--sidebar-color);
-        }
-
-        .btn-secondary {
-            background-color: var(--input-bg);
-            color: var(--text-color);
-        }
-
-        .btn:hover {
-            opacity: 0.9;
-        }
-
-        .btn-add {
-            width: 100%;
-            margin-top: 10px;
-            border: 1px dashed var(--border-color);
-            background: transparent;
-            color: var(--text-color);
-        }
-        
-        .btn-add:hover {
-            border-color: var(--accent-color);
-            color: var(--accent-color);
-        }
-
-        /* Report */
-        #report-log {
-            background-color: #11111b;
-            padding: 20px;
-            border-radius: 8px;
-            font-family: 'Consolas', 'Monaco', monospace;
-            white-space: pre-wrap;
-            height: 400px;
-            overflow-y: auto;
-            border: 1px solid var(--border-color);
+        #report-log,
+        #deprecation-log {
+          height: auto !important;
+          max-height: none !important;
+          border: 1px solid #ccc;
+          background-color: #fff;
+          color: #000;
+          overflow: visible !important;
+          white-space: pre-wrap;
         }
 
         .log-repo {
-            color: var(--accent-color);
-            font-weight: bold;
-            font-size: 1.2em;
-            margin-top: 25px;
-            margin-bottom: 10px;
-            display: block;
-            border-bottom: 1px solid var(--border-color);
-            padding-bottom: 5px;
+          color: #000;
+          font-weight: bold;
+          border-bottom: 1px solid #eee;
+          margin-top: 15px;
         }
-
         .log-error {
-            color: #f38ba8;
-            margin-left: 15px;
-            margin-bottom: 2px;
+          color: red;
         }
-        
         .log-info {
-            color: #cdd6f4;
-            margin-left: 15px;
-            margin-bottom: 2px;
-            line-height: 1.4;
-        }
-        
-        .log-success {
-            color: #a6e3a1;
-            margin-left: 15px;
-            font-weight: bold;
-            margin-top: 5px;
+          color: #333;
         }
 
-        .log-warning {
-            color: #fab387; /* Peach/Orange */
-            margin-left: 15px;
-            margin-bottom: 2px;
+        h2,
+        h3 {
+          color: #000;
+          border-bottom: 1px solid #000;
         }
-
-        .hidden {
-            display: none;
-        }
-
-        #deprecation-log {
-            background-color: #11111b;
-            padding: 20px;
-            border-radius: 8px;
-            font-family: 'Consolas', 'Monaco', monospace;
-            white-space: pre-wrap;
-            height: 400px;
-            overflow-y: auto;
-            border: 1px solid var(--border-color);
-        }
-        @media print {
-            body {
-                background-color: white;
-                color: black;
-                height: auto;
-                overflow: visible;
-            }
-            .sidebar, .btn, .hint, #loading, .nav-item, .form-group, input, textarea, select {
-                display: none !important;
-            }
-            .main-content {
-                padding: 0;
-                margin: 0;
-                overflow: visible;
-            }
-            .tab-content {
-                display: none; /* Hide all tabs by default */
-            }
-            #tab-report {
-                display: block !important; /* Show only report */
-                max-width: 100%;
-            }
-            
-            /* Hide both columns by default in print */
-            .report-container > div {
-                display: none;
-            }
-
-            /* Reset container for print to avoid flexbox page break issues */
-            .report-container {
-                display: block !important;
-                height: auto !important;
-                overflow: visible !important;
-            }
-
-            /* Show Report Column */
-            body.print-report .report-container > div:first-child {
-                display: block !important;
-                width: 100% !important;
-                height: auto !important;
-                overflow: visible !important;
-            }
-
-            /* Show Deprecation Column */
-            body.print-deprecation .report-container > div:last-child {
-                display: block !important;
-                width: 100% !important;
-                height: auto !important;
-                overflow: visible !important;
-            }
-
-            #report-log, #deprecation-log {
-                height: auto !important;
-                max-height: none !important;
-                border: 1px solid #ccc;
-                background-color: #fff;
-                color: #000;
-                overflow: visible !important;
-                white-space: pre-wrap;
-            }
-            
-            .log-repo { color: #000; font-weight: bold; border-bottom: 1px solid #eee; margin-top: 15px; }
-            .log-error { color: red; }
-            .log-info { color: #333; }
-            
-            h2, h3 {
-                color: #000;
-                border-bottom: 1px solid #000;
-            }
-        }
+      }
     </style>
-</head>
-<body>
-
-<div class="sidebar">
-    <div class="logo">
-        🏠 GitHousekeeper
+  </head>
+  <body>
+    <div class="sidebar">
+      <div class="logo">🏠 GitHousekeeper</div>
+      <div class="nav-item active" onclick="showTab('settings')">
+        Project Setup
+      </div>
+      <div class="nav-item" onclick="showTab('pom')">POM Replacements</div>
+      <div class="nav-item" onclick="showTab('project')">
+        Project Replacements
+      </div>
+      <div class="nav-item" onclick="showTab('report')">Report</div>
+      <div class="nav-item" onclick="showTab('frameworks')">Frameworks</div>
     </div>
-    <div class="nav-item active" onclick="showTab('settings')">Project Setup</div>
-    <div class="nav-item" onclick="showTab('pom')">POM Replacements</div>
-    <div class="nav-item" onclick="showTab('project')">Project Replacements</div>
-    <div class="nav-item" onclick="showTab('report')">Report</div>
-    <div class="nav-item" onclick="showTab('frameworks')">Frameworks</div>
-</div>
 
-<div class="main-content">
-    <!-- Tab: Settings -->
-    <div id="tab-settings" class="tab-content active">
+    <div class="main-content">
+      <!-- Tab: Settings -->
+      <div id="tab-settings" class="tab-content active">
         <h2>Project Setup</h2>
         <div class="form-group">
-            <label>Project / Folder Path</label>
-            <div style="display: flex; gap: 10px;">
-                <input type="text" id="rootPath" placeholder="C:\Users\Name\Projects">
-                <button class="btn btn-secondary" onclick="pickFolder('rootPath')" title="Select Folder">📂</button>
-            </div>
-            <div class="hint">The root folder where Git repositories will be searched.</div>
+          <label>Project / Folder Path</label>
+          <div style="display: flex; gap: 10px">
+            <input
+              type="text"
+              id="rootPath"
+              placeholder="C:\Users\Name\Projects"
+            />
+            <button
+              class="btn btn-secondary"
+              onclick="pickFolder('rootPath')"
+              title="Select Folder"
+            >
+              📂
+            </button>
+          </div>
+          <div class="hint">
+            The root folder where Git repositories will be searched.
+          </div>
         </div>
         <div class="form-group">
-            <label>Excluded Folders</label>
-            <div style="display: flex; gap: 10px;">
-                <input type="text" id="excluded" placeholder="node_modules, target, dist">
-                <button class="btn btn-secondary" onclick="pickFolder('excluded')" title="Add Folder">📂</button>
-            </div>
-            <div class="hint">Comma-separated list of folders to ignore.</div>
+          <label>Included Projects (Uncheck to Exclude)</label>
+          <div
+            id="folder-list-container"
+            style="
+              max-height: 200px;
+              overflow-y: auto;
+              background: var(--input-bg);
+              border: 1px solid var(--border-color);
+              padding: 10px;
+              border-radius: 6px;
+            "
+          >
+            <div class="hint">Select a root path to see folders.</div>
+          </div>
+          <!-- Hidden input to store standard exclusions if needed, or we just handle it in JS -->
+          <div class="hint">
+            Uncheck folders to ignore them. Standard folders (node_modules,
+            target, .git) are always ignored.
+          </div>
         </div>
         <div class="form-group">
-            <label>Branch Strategy</label>
-            <div style="background-color: var(--input-bg); padding: 15px; border-radius: 6px; border: 1px solid var(--border-color);">
-                <div>
-                    <input type="radio" id="branch_none" name="branchStrategy" value="none" checked onchange="toggleBranchInput()">
-                    <label for="branch_none" style="display: inline; font-weight: normal; margin-left: 5px;">No Branch (directly on Master)</label>
-                </div>
-                <div style="margin-bottom: 10px; margin-top: 10px;">
-                    <input type="radio" id="branch_housekeeping" name="branchStrategy" value="housekeeping" onchange="toggleBranchInput()">
-                    <label for="branch_housekeeping" style="display: inline; font-weight: normal; margin-left: 5px;">housekeeping (Default)</label>
-                </div>
-                <div style="display: flex; align-items: center;">
-                    <input type="radio" id="branch_custom" name="branchStrategy" value="custom" onchange="toggleBranchInput()">
-                    <input type="text" id="customBranchName" placeholder="Custom Branch Name" style="margin-left: 10px; width: 200px; padding: 5px;" disabled>
-                </div>
+          <label>Branch Strategy</label>
+          <div
+            style="
+              background-color: var(--input-bg);
+              padding: 15px;
+              border-radius: 6px;
+              border: 1px solid var(--border-color);
+            "
+          >
+            <div>
+              <input
+                type="radio"
+                id="branch_none"
+                name="branchStrategy"
+                value="none"
+                checked
+                onchange="toggleBranchInput()"
+              />
+              <label
+                for="branch_none"
+                style="display: inline; font-weight: normal; margin-left: 5px"
+                >No Branch (directly on Master)</label
+              >
             </div>
-            <div class="hint">Choose which branch to work on.</div>
+            <div style="margin-bottom: 10px; margin-top: 10px">
+              <input
+                type="radio"
+                id="branch_housekeeping"
+                name="branchStrategy"
+                value="housekeeping"
+                onchange="toggleBranchInput()"
+              />
+              <label
+                for="branch_housekeeping"
+                style="display: inline; font-weight: normal; margin-left: 5px"
+                >housekeeping (Default)</label
+              >
+            </div>
+            <div style="display: flex; align-items: center">
+              <input
+                type="radio"
+                id="branch_custom"
+                name="branchStrategy"
+                value="custom"
+                onchange="toggleBranchInput()"
+              />
+              <input
+                type="text"
+                id="customBranchName"
+                placeholder="Custom Branch Name"
+                style="margin-left: 10px; width: 200px; padding: 5px"
+                disabled
+              />
+            </div>
+          </div>
+          <div class="hint">Choose which branch to work on.</div>
         </div>
 
         <div class="form-group">
-            <label>Parent Version (Optional)</label>
-            <input type="text" id="parentVersion" placeholder="1.2.3">
-            <div class="hint">If specified, the parent version in pom.xml will be updated.</div>
+          <label>Parent Version (Optional)</label>
+          <input type="text" id="parentVersion" placeholder="1.2.3" />
+          <div class="hint">
+            If specified, the parent version in pom.xml will be updated.
+          </div>
         </div>
         <div class="form-group">
-            <label>Version Bump (Microservice)</label>
-            <select id="versionBumpStrategy" style="width: 100%; padding: 12px; background-color: var(--input-bg); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-color);">
-                <option value="patch">Patch (x.x.X) - Default</option>
-                <option value="minor">Minor (x.X.0)</option>
-                <option value="major">Major (X.0.0)</option>
-            </select>
-            <div class="hint">Determines which part of the version number is incremented (based on Git Tag).</div>
+          <label>Version Bump (Microservice)</label>
+          <select
+            id="versionBumpStrategy"
+            style="
+              width: 100%;
+              padding: 12px;
+              background-color: var(--input-bg);
+              border: 1px solid var(--border-color);
+              border-radius: 6px;
+              color: var(--text-color);
+            "
+          >
+            <option value="patch">Patch (x.x.X) - Default</option>
+            <option value="minor">Minor (x.X.0)</option>
+            <option value="major">Major (X.0.0)</option>
+          </select>
+          <div class="hint">
+            Determines which part of the version number is incremented (based on
+            Git Tag).
+          </div>
         </div>
-        <div class="form-group" style="display: flex; align-items: center; gap: 10px;">
-            <input type="checkbox" id="runCleanInstall" style="width: auto;">
-            <label for="runCleanInstall" style="margin: 0; cursor: pointer;">Run Maven Clean Install</label>
+        <div
+          class="form-group"
+          style="display: flex; align-items: center; gap: 10px"
+        >
+          <input type="checkbox" id="runCleanInstall" style="width: auto" />
+          <label for="runCleanInstall" style="margin: 0; cursor: pointer"
+            >Run Maven Clean Install</label
+          >
         </div>
-        <div class="hint" style="margin-top: -15px; margin-bottom: 20px;">Runs 'mvn clean install -DskipTests' for each repository.</div>
-        
-        <div style="text-align: right; margin-top: 40px;">
-            <button class="btn btn-primary" onclick="showTab('pom')">Next &rarr;</button>
+        <div class="hint" style="margin-top: -15px; margin-bottom: 20px">
+          Runs 'mvn clean install -DskipTests' for each repository.
         </div>
-    </div>
 
-    <!-- Tab: POM Replacements -->
-    <div id="tab-pom" class="tab-content">
+        <div style="text-align: right; margin-top: 40px">
+          <button class="btn btn-primary" onclick="showTab('pom')">
+            Next &rarr;
+          </button>
+        </div>
+      </div>
+
+      <!-- Tab: POM Replacements -->
+      <div id="tab-pom" class="tab-content">
         <h2>POM.xml Replacements</h2>
         <div id="pom-list">
-            <div class="replacement-row">
-                <textarea placeholder="Search Text" class="pom-search"></textarea>
-                <textarea placeholder="Replacement" class="pom-replace"></textarea>
-            </div>
+          <div class="replacement-row">
+            <textarea placeholder="Search Text" class="pom-search"></textarea>
+            <textarea placeholder="Replacement" class="pom-replace"></textarea>
+          </div>
         </div>
-        <button class="btn btn-add" onclick="addRow('pom-list')">+ Add Row</button>
-        
-        <div style="text-align: right; margin-top: 40px;">
-            <button class="btn btn-secondary" onclick="showTab('settings')">&larr; Back</button>
-            <button class="btn btn-primary" onclick="showTab('project')">Next &rarr;</button>
-        </div>
-    </div>
+        <button class="btn btn-add" onclick="addRow('pom-list')">
+          + Add Row
+        </button>
 
-    <!-- Tab: Project Replacements -->
-    <div id="tab-project" class="tab-content">
+        <div style="text-align: right; margin-top: 40px">
+          <button class="btn btn-secondary" onclick="showTab('settings')">
+            &larr; Back
+          </button>
+          <button class="btn btn-primary" onclick="showTab('project')">
+            Next &rarr;
+          </button>
+        </div>
+      </div>
+
+      <!-- Tab: Project Replacements -->
+      <div id="tab-project" class="tab-content">
         <h2>Project-wide Replacements</h2>
-        <div class="hint" style="margin-bottom: 20px;">These replacements will be performed in ALL files (except .git, target, etc.).</div>
-        
+        <div class="hint" style="margin-bottom: 20px">
+          These replacements will be performed in ALL files (except .git,
+          target, etc.).
+        </div>
+
         <div id="project-list">
-            <div class="replacement-row">
-                <textarea placeholder="Search Text" class="proj-search"></textarea>
-                <textarea placeholder="Replacement" class="proj-replace"></textarea>
-            </div>
+          <div class="replacement-row">
+            <textarea placeholder="Search Text" class="proj-search"></textarea>
+            <textarea placeholder="Replacement" class="proj-replace"></textarea>
+          </div>
         </div>
-        <button class="btn btn-add" onclick="addRow('project-list')">+ Add Row</button>
+        <button class="btn btn-add" onclick="addRow('project-list')">
+          + Add Row
+        </button>
 
-        <div style="text-align: right; margin-top: 40px;">
-            <button class="btn btn-secondary" onclick="showTab('pom')">&larr; Back</button>
-            <button class="btn btn-primary" onclick="runHousekeeper()">🚀 Start</button>
+        <div style="text-align: right; margin-top: 40px">
+          <button class="btn btn-secondary" onclick="showTab('pom')">
+            &larr; Back
+          </button>
+          <button class="btn btn-primary" onclick="runHousekeeper()">
+            🚀 Start
+          </button>
         </div>
-    </div>
+      </div>
 
-    <!-- Tab: Report -->
-    <div id="tab-report" class="tab-content">
+      <!-- Tab: Report -->
+      <div id="tab-report" class="tab-content">
         <h2>Report</h2>
-        
-        <div class="report-container" style="display: flex; gap: 20px;">
-            <div style="flex: 1; width: 50%;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                    <h3 style="margin: 0;">Log</h3>
-                    <button class="btn btn-secondary" style="padding: 5px 10px; font-size: 0.9em;" onclick="printSection('report')">📄 PDF</button>
-                </div>
-                <div id="report-log">
-                    <div class="log-info">Ready to start...</div>
-                </div>
-            </div>
-            <div style="flex: 1; width: 50%;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                    <h3 style="margin: 0;">Deprecation / Warnings</h3>
-                    <button class="btn btn-secondary" style="padding: 5px 10px; font-size: 0.9em;" onclick="printSection('deprecation')">📄 PDF</button>
-                </div>
-                <div id="deprecation-log">
-                    <div class="log-info">Waiting for results...</div>
-                </div>
-            </div>
-        </div>
-        <div id="loading" class="hidden" style="margin-top: 20px; color: var(--accent-color);">
-            Processing... Please wait.
-        </div>
-    </div>
 
-    <!-- Tab: Frameworks -->
-    <div id="tab-frameworks" class="tab-content">
+        <div class="report-container" style="display: flex; gap: 20px">
+          <div style="flex: 1; width: 50%">
+            <div
+              style="
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 10px;
+              "
+            >
+              <h3 style="margin: 0">Log</h3>
+              <button
+                class="btn btn-secondary"
+                style="padding: 5px 10px; font-size: 0.9em"
+                onclick="printSection('report')"
+              >
+                📄 PDF
+              </button>
+            </div>
+            <div id="report-log">
+              <div class="log-info">Ready to start...</div>
+            </div>
+          </div>
+          <div style="flex: 1; width: 50%">
+            <div
+              style="
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 10px;
+              "
+            >
+              <h3 style="margin: 0">Deprecation / Warnings</h3>
+              <button
+                class="btn btn-secondary"
+                style="padding: 5px 10px; font-size: 0.9em"
+                onclick="printSection('deprecation')"
+              >
+                📄 PDF
+              </button>
+            </div>
+            <div id="deprecation-log">
+              <div class="log-info">Waiting for results...</div>
+            </div>
+          </div>
+        </div>
+        <div
+          id="loading"
+          class="hidden"
+          style="margin-top: 20px; color: var(--accent-color)"
+        >
+          Processing... Please wait.
+        </div>
+      </div>
+
+      <!-- Tab: Frameworks -->
+      <div id="tab-frameworks" class="tab-content">
         <h2>Spring Boot Versions</h2>
-        
-        <div style="display: flex; gap: 20px;">
-            <!-- Left: Available Versions -->
-            <div style="flex: 1;">
-                <h3>Available Versions</h3>
-                <div id="spring-versions-list">
-                    <div class="log-info">Loading versions...</div>
-                </div>
-            </div>
-            
-            <!-- Right: Local Projects -->
-            <div style="flex: 1;">
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <h3>Local Projects</h3>
-                    <button class="btn btn-secondary" onclick="scanSpringProjects()">🔍 Scan</button>
-                </div>
-                <div id="spring-projects-list" style="margin-top: 10px;">
-                    <div class="hint">Click Scan to check local versions.</div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
 
-<script>
-    function showTab(tabId) {
+        <div style="display: flex; gap: 20px">
+          <!-- Left: Available Versions -->
+          <div style="flex: 1">
+            <h3>Available Versions</h3>
+            <div id="spring-versions-list">
+              <div class="log-info">Loading versions...</div>
+            </div>
+          </div>
+
+          <!-- Right: Local Projects -->
+          <div style="flex: 1">
+            <div
+              style="
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+              "
+            >
+              <h3>Local Projects</h3>
+              <button class="btn btn-secondary" onclick="scanSpringProjects()">
+                🔍 Scan
+              </button>
+            </div>
+            <div id="spring-projects-list" style="margin-top: 10px">
+              <div class="hint">Click Scan to check local versions.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      function showTab(tabId) {
         // Update Sidebar
-        document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
-        document.querySelector(`.nav-item[onclick="showTab('${tabId}')"]`).classList.add('active');
+        document
+          .querySelectorAll(".nav-item")
+          .forEach((el) => el.classList.remove("active"));
+        document
+          .querySelector(`.nav-item[onclick="showTab('${tabId}')"]`)
+          .classList.add("active");
 
         // Update Content
-        document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
-        document.getElementById(`tab-${tabId}`).classList.add('active');
-        
-        if (tabId === 'frameworks') {
-            loadSpringVersions();
+        document
+          .querySelectorAll(".tab-content")
+          .forEach((el) => el.classList.remove("active"));
+        document.getElementById(`tab-${tabId}`).classList.add("active");
+
+        if (tabId === "frameworks") {
+          loadSpringVersions();
         }
-    }
-    
-    function toggleBranchInput() {
-        const isCustom = document.getElementById('branch_custom').checked;
-        const input = document.getElementById('customBranchName');
+      }
+
+      function toggleBranchInput() {
+        const isCustom = document.getElementById("branch_custom").checked;
+        const input = document.getElementById("customBranchName");
         input.disabled = !isCustom;
         if (isCustom) input.focus();
-    }
+      }
 
-    function addRow(containerId) {
+      function addRow(containerId) {
         const container = document.getElementById(containerId);
-        const div = document.createElement('div');
-        div.className = 'replacement-row';
+        const div = document.createElement("div");
+        div.className = "replacement-row";
         div.innerHTML = `
-            <textarea placeholder="Search Text" class="${containerId === 'pom-list' ? 'pom-search' : 'proj-search'}"></textarea>
-            <textarea placeholder="Replacement" class="${containerId === 'pom-list' ? 'pom-replace' : 'proj-replace'}"></textarea>
+            <textarea placeholder="Search Text" class="${
+              containerId === "pom-list" ? "pom-search" : "proj-search"
+            }"></textarea>
+            <textarea placeholder="Replacement" class="${
+              containerId === "pom-list" ? "pom-replace" : "proj-replace"
+            }"></textarea>
         `;
         container.appendChild(div);
-    }
+      }
 
-    function printSection(section) {
-        document.body.classList.add('print-' + section);
+      function printSection(section) {
+        document.body.classList.add("print-" + section);
         window.print();
-        document.body.classList.remove('print-' + section);
-    }
+        document.body.classList.remove("print-" + section);
+      }
 
-    async function runHousekeeper() {
-        showTab('report');
-        const log = document.getElementById('report-log');
-        const deprecationLog = document.getElementById('deprecation-log');
-        const loading = document.getElementById('loading');
-        
-        log.innerHTML = '';
-        deprecationLog.innerHTML = '';
-        loading.classList.remove('hidden');
+      async function runHousekeeper() {
+        showTab("report");
+        const log = document.getElementById("report-log");
+        const deprecationLog = document.getElementById("deprecation-log");
+        const loading = document.getElementById("loading");
+
+        log.innerHTML = "";
+        deprecationLog.innerHTML = "";
+        loading.classList.remove("hidden");
 
         // Determine Target Branch
         let targetBranch = "";
-        if (document.getElementById('branch_housekeeping').checked) {
-            targetBranch = "housekeeping";
-        } else if (document.getElementById('branch_custom').checked) {
-            targetBranch = document.getElementById('customBranchName').value.trim();
-            if (!targetBranch) {
-                alert("Please enter a branch name.");
-                loading.classList.add('hidden');
-                return;
-            }
+        if (document.getElementById("branch_housekeeping").checked) {
+          targetBranch = "housekeeping";
+        } else if (document.getElementById("branch_custom").checked) {
+          targetBranch = document
+            .getElementById("customBranchName")
+            .value.trim();
+          if (!targetBranch) {
+            alert("Please enter a branch name.");
+            loading.classList.add("hidden");
+            return;
+          }
         } else {
-            // None selected -> Master
-            targetBranch = "";
+          // None selected -> Master
+          targetBranch = "";
         }
 
         // Collect Data
+        // Calculate Excluded Folders from Checkboxes
+        const excluded = [
+          "node_modules",
+          "target",
+          "dist",
+          ".git",
+          ".idea",
+          ".vscode",
+        ]; // Standard defaults
+        document
+          .querySelectorAll('#folder-list-container input[type="checkbox"]')
+          .forEach((cb) => {
+            if (!cb.checked) {
+              excluded.push(cb.value);
+            }
+          });
+
         const data = {
-            rootPath: document.getElementById('rootPath').value,
-            excluded: document.getElementById('excluded').value.split(',').map(s => s.trim()).filter(s => s),
-            parentVersion: document.getElementById('parentVersion').value,
-            versionBumpStrategy: document.getElementById('versionBumpStrategy').value,
-            runCleanInstall: document.getElementById('runCleanInstall').checked,
-            targetBranch: targetBranch,
-            pomReplacements: [],
-            projectReplacements: []
+          rootPath: document.getElementById("rootPath").value,
+          excluded: excluded,
+          parentVersion: document.getElementById("parentVersion").value,
+          versionBumpStrategy: document.getElementById("versionBumpStrategy")
+            .value,
+          runCleanInstall: document.getElementById("runCleanInstall").checked,
+          targetBranch: targetBranch,
+          pomReplacements: [],
+          projectReplacements: [],
         };
-        
+
         if (!data.rootPath) {
-             alert("Please specify a project path.");
-             loading.classList.add('hidden');
-             showTab('settings');
-             return;
+          alert("Please specify a project path.");
+          loading.classList.add("hidden");
+          showTab("settings");
+          return;
         }
-        
+
         // Save settings to localStorage
-        localStorage.setItem('gitHousekeeper_settings', JSON.stringify({
+        localStorage.setItem(
+          "gitHousekeeper_settings",
+          JSON.stringify({
             rootPath: data.rootPath,
-            excluded: document.getElementById('excluded').value,
+            // excluded: document.getElementById('excluded').value, // No longer saving excluded list as text
             parentVersion: data.parentVersion,
             versionBumpStrategy: data.versionBumpStrategy,
             runCleanInstall: data.runCleanInstall,
-            branchStrategy: document.querySelector('input[name="branchStrategy"]:checked').value,
-            customBranchName: document.getElementById('customBranchName').value
-        }));
+            branchStrategy: document.querySelector(
+              'input[name="branchStrategy"]:checked'
+            ).value,
+            customBranchName: document.getElementById("customBranchName").value,
+          })
+        );
 
         // Collect POM
-        document.querySelectorAll('#pom-list .replacement-row').forEach(row => {
-            const search = row.querySelector('.pom-search').value;
-            const replace = row.querySelector('.pom-replace').value;
+        document
+          .querySelectorAll("#pom-list .replacement-row")
+          .forEach((row) => {
+            const search = row.querySelector(".pom-search").value;
+            const replace = row.querySelector(".pom-replace").value;
             if (search) {
-                data.pomReplacements.push({ Search: search, Replace: replace });
+              data.pomReplacements.push({ Search: search, Replace: replace });
             }
-        });
+          });
 
         // Collect Project
-        document.querySelectorAll('#project-list .replacement-row').forEach(row => {
-            const search = row.querySelector('.proj-search').value;
-            const replace = row.querySelector('.proj-replace').value;
+        document
+          .querySelectorAll("#project-list .replacement-row")
+          .forEach((row) => {
+            const search = row.querySelector(".proj-search").value;
+            const replace = row.querySelector(".proj-replace").value;
             if (search) {
-                data.projectReplacements.push({ Search: search, Replace: replace });
+              data.projectReplacements.push({
+                Search: search,
+                Replace: replace,
+              });
             }
-        });
+          });
 
         try {
-            const response = await fetch('/api/run', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
-            });
+          const response = await fetch("/api/run", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(data),
+          });
 
-            const reader = response.body.getReader();
-            const decoder = new TextDecoder("utf-8");
-            let isDeprecation = false;
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder("utf-8");
+          let isDeprecation = false;
 
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
-                
-                const chunk = decoder.decode(value, { stream: true });
-                const lines = chunk.split('\n');
-                
-                for (let line of lines) {
-                    if (!line.trim()) continue;
-                    
-                    if (line.startsWith('DEPRECATION_START:')) {
-                        isDeprecation = true;
-                        const repoName = line.split(':')[1];
-                        const header = document.createElement('div');
-                        header.className = 'log-repo';
-                        header.textContent = repoName;
-                        deprecationLog.appendChild(header);
-                        continue;
-                    }
-                    if (line.startsWith('DEPRECATION_END')) {
-                        isDeprecation = false;
-                        continue;
-                    }
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
 
-                    if (isDeprecation) {
-                        const div = document.createElement('div');
-                        div.className = 'log-warning';
-                        div.textContent = line;
-                        deprecationLog.appendChild(div);
-                        deprecationLog.scrollTop = deprecationLog.scrollHeight;
-                        continue;
-                    }
+            const chunk = decoder.decode(value, { stream: true });
+            const lines = chunk.split("\n");
 
-                    const div = document.createElement('div');
-                    if (line.startsWith('REPO:')) {
-                        div.className = 'log-repo';
-                        div.textContent = line.substring(5);
-                    } else if (line.includes('[FEHLER]') || line.includes('✗')) {
-                        div.className = 'log-error';
-                        div.textContent = line;
-                    } else if (line.includes('[WARNUNG]') || line.toLowerCase().includes('warning') || line.toLowerCase().includes('deprecated')) {
-                        div.className = 'log-warning';
-                        div.textContent = line;
-                    } else if (line.includes('✓') || line.includes('erfolgreich')) {
-                        div.className = 'log-success';
-                        div.textContent = line;
-                    } else {
-                        div.className = 'log-info';
-                        div.textContent = line;
-                    }
-                    log.appendChild(div);
-                    log.scrollTop = log.scrollHeight;
-                }
+            for (let line of lines) {
+              if (!line.trim()) continue;
+
+              if (line.startsWith("DEPRECATION_START:")) {
+                isDeprecation = true;
+                const repoName = line.split(":")[1];
+                const header = document.createElement("div");
+                header.className = "log-repo";
+                header.textContent = repoName;
+                deprecationLog.appendChild(header);
+                continue;
+              }
+              if (line.startsWith("DEPRECATION_END")) {
+                isDeprecation = false;
+                continue;
+              }
+
+              if (isDeprecation) {
+                const div = document.createElement("div");
+                div.className = "log-warning";
+                div.textContent = line;
+                deprecationLog.appendChild(div);
+                deprecationLog.scrollTop = deprecationLog.scrollHeight;
+                continue;
+              }
+
+              const div = document.createElement("div");
+              if (line.startsWith("REPO:")) {
+                div.className = "log-repo";
+                div.textContent = line.substring(5);
+              } else if (line.includes("[FEHLER]") || line.includes("✗")) {
+                div.className = "log-error";
+                div.textContent = line;
+              } else if (
+                line.includes("[WARNUNG]") ||
+                line.toLowerCase().includes("warning") ||
+                line.toLowerCase().includes("deprecated")
+              ) {
+                div.className = "log-warning";
+                div.textContent = line;
+              } else if (line.includes("✓") || line.includes("erfolgreich")) {
+                div.className = "log-success";
+                div.textContent = line;
+              } else {
+                div.className = "log-info";
+                div.textContent = line;
+              }
+              log.appendChild(div);
+              log.scrollTop = log.scrollHeight;
             }
+          }
         } catch (e) {
-            log.innerHTML += `<div class="log-error">Fehler: ${e.message}</div>`;
+          log.innerHTML += `<div class="log-error">Fehler: ${e.message}</div>`;
         } finally {
-            loading.classList.add('hidden');
-            log.innerHTML += '<div class="log-info" style="margin-top:20px; border-top:1px solid #333; padding-top:10px;">--- Fertig ---</div>';
+          loading.classList.add("hidden");
+          log.innerHTML +=
+            '<div class="log-info" style="margin-top:20px; border-top:1px solid #333; padding-top:10px;">--- Fertig ---</div>';
         }
-    }
-    
-    // Load settings on startup
-    window.addEventListener('DOMContentLoaded', () => {
-        const saved = localStorage.getItem('gitHousekeeper_settings');
+      }
+
+      // Load settings on startup
+      window.addEventListener("DOMContentLoaded", () => {
+        const saved = localStorage.getItem("gitHousekeeper_settings");
         if (saved) {
-            try {
-                const settings = JSON.parse(saved);
-                if (settings.rootPath) document.getElementById('rootPath').value = settings.rootPath;
-                if (settings.excluded) document.getElementById('excluded').value = settings.excluded;
-                if (settings.parentVersion) document.getElementById('parentVersion').value = settings.parentVersion;
-                if (settings.versionBumpStrategy) document.getElementById('versionBumpStrategy').value = settings.versionBumpStrategy;
-                if (settings.runCleanInstall !== undefined) document.getElementById('runCleanInstall').checked = settings.runCleanInstall;
-                
-                if (settings.branchStrategy) {
-                    const rb = document.querySelector(`input[name="branchStrategy"][value="${settings.branchStrategy}"]`);
-                    if (rb) rb.checked = true;
-                }
-                if (settings.customBranchName) document.getElementById('customBranchName').value = settings.customBranchName;
-                toggleBranchInput();
-                
-            } catch (e) {
-                console.error("Failed to load settings", e);
+          try {
+            const settings = JSON.parse(saved);
+            if (settings.rootPath) {
+              document.getElementById("rootPath").value = settings.rootPath;
+              loadFolders(); // Trigger load
             }
-        }
-    });
+            // if (settings.excluded) document.getElementById('excluded').value = settings.excluded;
+            if (settings.parentVersion)
+              document.getElementById("parentVersion").value =
+                settings.parentVersion;
+            if (settings.versionBumpStrategy)
+              document.getElementById("versionBumpStrategy").value =
+                settings.versionBumpStrategy;
+            if (settings.runCleanInstall !== undefined)
+              document.getElementById("runCleanInstall").checked =
+                settings.runCleanInstall;
 
-    // Folder Picker Logic
-    async function pickFolder(targetId) {
+            if (settings.branchStrategy) {
+              const rb = document.querySelector(
+                `input[name="branchStrategy"][value="${settings.branchStrategy}"]`
+              );
+              if (rb) rb.checked = true;
+            }
+            if (settings.customBranchName)
+              document.getElementById("customBranchName").value =
+                settings.customBranchName;
+            toggleBranchInput();
+          } catch (e) {
+            console.error("Failed to load settings", e);
+          }
+        }
+
+        // Auto-load folders when typing/pasting path
+        const rootPathInput = document.getElementById("rootPath");
+        let debounceTimer;
+        rootPathInput.addEventListener("input", () => {
+          clearTimeout(debounceTimer);
+          debounceTimer = setTimeout(() => {
+            loadFolders();
+          }, 500);
+        });
+      });
+
+      // Folder Picker Logic
+      async function pickFolder(targetId) {
         // Feature detection for File System Access API
-        if ('showDirectoryPicker' in window) {
-            try {
-                const handle = await window.showDirectoryPicker();
-                // Note: The API does NOT expose the full absolute path for security reasons.
-                // It only gives the directory name.
-                // However, for a local tool, users expect to pick a path.
-                // Since we can't get the path, we have to inform the user.
-                alert("Hinweis: Browser-Sicherheitsrichtlinien verhindern das Auslesen des vollständigen Pfades. Bitte kopieren Sie den Pfad manuell aus dem Explorer.");
-            } catch (e) {
-                // User cancelled or error
-                console.log(e);
-            }
+        if ("showDirectoryPicker" in window) {
+          try {
+            const handle = await window.showDirectoryPicker();
+            // Note: The API does NOT expose the full absolute path for security reasons.
+            // It only gives the directory name.
+            // However, for a local tool, users expect to pick a path.
+            // Since we can't get the path, we have to inform the user.
+            alert(
+              "Hinweis: Browser-Sicherheitsrichtlinien verhindern das Auslesen des vollständigen Pfades. Bitte kopieren Sie den Pfad manuell aus dem Explorer."
+            );
+          } catch (e) {
+            // User cancelled or error
+            console.log(e);
+          }
         } else {
-            alert("Ihr Browser unterstützt die Ordner-Auswahl nicht. Bitte kopieren Sie den Pfad manuell.");
+          alert(
+            "Ihr Browser unterstützt die Ordner-Auswahl nicht. Bitte kopieren Sie den Pfad manuell."
+          );
         }
-    }
+      }
 
-    async function loadSpringVersions() {
-        const container = document.getElementById('spring-versions-list');
+      async function loadSpringVersions() {
+        const container = document.getElementById("spring-versions-list");
         // Avoid reloading if already loaded? Maybe not, to get fresh data.
-        
-        try {
-            const res = await fetch('/api/spring-versions');
-            if (!res.ok) throw new Error(res.statusText);
-            const data = await res.json();
-            
-            container.innerHTML = '';
-            data.forEach(group => {
-                const groupDiv = document.createElement('div');
-                groupDiv.style.marginBottom = '20px';
-                groupDiv.style.padding = '15px';
-                groupDiv.style.backgroundColor = 'var(--input-bg)';
-                groupDiv.style.borderRadius = '6px';
-                
-                const title = document.createElement('h4');
-                title.style.margin = '0 0 10px 0';
-                title.style.color = 'var(--accent-color)';
-                title.textContent = `Spring Boot ${group.Major}`;
-                
-                if (group.MigrationGuide) {
-                    const link = document.createElement('a');
-                    link.href = group.MigrationGuide;
-                    link.target = '_blank';
-                    link.style.fontSize = '0.8em';
-                    link.style.marginLeft = '10px';
-                    link.style.color = '#89b4fa';
-                    link.textContent = '📖 Migration Guide';
-                    title.appendChild(link);
-                }
-                
-                groupDiv.appendChild(title);
-                
-                const versionsDiv = document.createElement('div');
-                versionsDiv.style.fontSize = '0.9em';
-                versionsDiv.style.color = '#a6adc8';
-                // Show top 5 versions, then "..."
-                const showCount = 5;
-                const visible = group.Versions.slice(0, showCount);
-                versionsDiv.textContent = visible.join(', ');
-                
-                if (group.Versions.length > showCount) {
-                    const more = document.createElement('span');
-                    more.textContent = ` (+${group.Versions.length - showCount} weitere)`;
-                    more.style.cursor = 'pointer';
-                    more.style.textDecoration = 'underline';
-                    more.style.marginLeft = '5px';
-                    more.onclick = () => {
-                        versionsDiv.textContent = group.Versions.join(', ');
-                    };
-                    versionsDiv.appendChild(more);
-                }
-                
-                groupDiv.appendChild(versionsDiv);
-                container.appendChild(groupDiv);
-            });
-            
-        } catch (e) {
-            container.innerHTML = `<div class="log-error">Fehler beim Laden: ${e.message}</div>`;
-        }
-    }
 
-    async function scanSpringProjects() {
-        const container = document.getElementById('spring-projects-list');
-        const rootPath = document.getElementById('rootPath').value;
-        const excluded = document.getElementById('excluded').value.split(',').map(s => s.trim()).filter(s => s);
-        
-        if (!rootPath) {
-            alert("Bitte konfigurieren Sie zuerst den Projekt-Pfad in Project Setup.");
-            return;
-        }
-        
-        container.innerHTML = '<div class="log-info">Scanne...</div>';
-        
         try {
-            const res = await fetch('/api/scan-spring', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ RootPath: rootPath, Excluded: excluded })
-            });
-            if (!res.ok) throw new Error(res.statusText);
-            const results = await res.json();
-            
-            container.innerHTML = '';
-            
-            // Handle new SpringScanResult structure
-            if (!results || !results.Projects || results.Projects.length === 0) {
-                let html = '<div class="hint">Keine Spring Boot Projekte gefunden.</div>';
-                
-                // Show debug log if available
-                if (results && results.DebugLog && results.DebugLog.length > 0) {
-                    html += '<div style="margin-top:20px; border-top:1px solid var(--border-color); padding-top:10px;">';
-                    html += '<h4>Debug Log</h4>';
-                    html += '<div style="font-family:monospace; font-size:0.8em; color:#a6adc8; max-height:200px; overflow-y:auto;">';
-                    results.DebugLog.forEach(line => {
-                        html += `<div>${line}</div>`;
-                    });
-                    html += '</div></div>';
-                }
-                
-                container.innerHTML = html;
-                return;
+          const res = await fetch("/api/spring-versions");
+          if (!res.ok) throw new Error(res.statusText);
+          const data = await res.json();
+
+          container.innerHTML = "";
+          data.forEach((group) => {
+            const groupDiv = document.createElement("div");
+            groupDiv.style.marginBottom = "20px";
+            groupDiv.style.padding = "15px";
+            groupDiv.style.backgroundColor = "var(--input-bg)";
+            groupDiv.style.borderRadius = "6px";
+
+            const title = document.createElement("h4");
+            title.style.margin = "0 0 10px 0";
+            title.style.color = "var(--accent-color)";
+            title.textContent = `Spring Boot ${group.Major}`;
+
+            if (group.MigrationGuide) {
+              const link = document.createElement("a");
+              link.href = group.MigrationGuide;
+              link.target = "_blank";
+              link.style.fontSize = "0.8em";
+              link.style.marginLeft = "10px";
+              link.style.color = "#89b4fa";
+              link.textContent = "📖 Migration Guide";
+              title.appendChild(link);
             }
-            
-            // Display found projects
-            results.Projects.forEach(proj => {
-                const div = document.createElement('div');
-                div.style.padding = '10px';
-                div.style.borderBottom = '1px solid var(--border-color)';
-                
-                div.innerHTML = `
+
+            groupDiv.appendChild(title);
+
+            const versionsDiv = document.createElement("div");
+            versionsDiv.style.fontSize = "0.9em";
+            versionsDiv.style.color = "#a6adc8";
+            // Show top 5 versions, then "..."
+            const showCount = 5;
+            const visible = group.Versions.slice(0, showCount);
+            versionsDiv.textContent = visible.join(", ");
+
+            if (group.Versions.length > showCount) {
+              const more = document.createElement("span");
+              more.textContent = ` (+${
+                group.Versions.length - showCount
+              } weitere)`;
+              more.style.cursor = "pointer";
+              more.style.textDecoration = "underline";
+              more.style.marginLeft = "5px";
+              more.onclick = () => {
+                versionsDiv.textContent = group.Versions.join(", ");
+              };
+              versionsDiv.appendChild(more);
+            }
+
+            groupDiv.appendChild(versionsDiv);
+            container.appendChild(groupDiv);
+          });
+        } catch (e) {
+          container.innerHTML = `<div class="log-error">Fehler beim Laden: ${e.message}</div>`;
+        }
+      }
+
+      async function scanSpringProjects() {
+        const container = document.getElementById("spring-projects-list");
+        const rootPath = document.getElementById("rootPath").value;
+        const excluded = document
+          .getElementById("excluded")
+          .value.split(",")
+          .map((s) => s.trim())
+          .filter((s) => s);
+
+        if (!rootPath) {
+          alert(
+            "Bitte konfigurieren Sie zuerst den Projekt-Pfad in Project Setup."
+          );
+          return;
+        }
+
+        container.innerHTML = '<div class="log-info">Scanne...</div>';
+
+        try {
+          const res = await fetch("/api/scan-spring", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ RootPath: rootPath, Excluded: excluded }),
+          });
+          if (!res.ok) throw new Error(res.statusText);
+          const results = await res.json();
+
+          container.innerHTML = "";
+
+          // Handle new SpringScanResult structure
+          if (!results || !results.Projects || results.Projects.length === 0) {
+            let html =
+              '<div class="hint">Keine Spring Boot Projekte gefunden.</div>';
+
+            // Show debug log if available
+            if (results && results.DebugLog && results.DebugLog.length > 0) {
+              html +=
+                '<div style="margin-top:20px; border-top:1px solid var(--border-color); padding-top:10px;">';
+              html += "<h4>Debug Log</h4>";
+              html +=
+                '<div style="font-family:monospace; font-size:0.8em; color:#a6adc8; max-height:200px; overflow-y:auto;">';
+              results.DebugLog.forEach((line) => {
+                html += `<div>${line}</div>`;
+              });
+              html += "</div></div>";
+            }
+
+            container.innerHTML = html;
+            return;
+          }
+
+          // Display found projects
+          results.Projects.forEach((proj) => {
+            const div = document.createElement("div");
+            div.style.padding = "10px";
+            div.style.borderBottom = "1px solid var(--border-color)";
+
+            div.innerHTML = `
                     <div style="font-weight:bold;">${proj.RepoName}</div>
                     <div style="font-size:0.9em; color: #a6adc8;">Aktuell: <span style="color: var(--accent-color);">${proj.CurrentVersion}</span></div>
                 `;
-                container.appendChild(div);
-            });
-            
+            container.appendChild(div);
+          });
         } catch (e) {
-            container.innerHTML = `<div class="log-error">Fehler beim Scannen: ${e.message}</div>`;
+          container.innerHTML = `<div class="log-error">Fehler beim Scannen: ${e.message}</div>`;
         }
-    }
+      }
 
-    // Folder Picker: Call backend API to open native OS dialog
-    async function pickFolder(targetId) {
+      // Folder Picker: Call backend API to open native OS dialog
+      async function pickFolder(targetId) {
         try {
-            const res = await fetch('/api/pick-folder');
-            if (!res.ok) {
-                const text = await res.text();
-                throw new Error(text);
+          const res = await fetch("/api/pick-folder");
+          if (!res.ok) {
+            const text = await res.text();
+            throw new Error(text);
+          }
+          const data = await res.json();
+          if (data.path) {
+            document.getElementById(targetId).value = data.path;
+            if (targetId === "rootPath") {
+              loadFolders();
             }
-            const data = await res.json();
-            if (data.path) {
-                document.getElementById(targetId).value = data.path;
-            }
+          }
         } catch (e) {
-            console.error(e);
-            alert("Fehler beim Öffnen des Dialogs: " + e.message);
+          console.error(e);
+          alert("Fehler beim Öffnen des Dialogs: " + e.message);
         }
-    }
-</script>
+      }
 
-</body>
+      async function loadFolders() {
+        const rootPath = document.getElementById("rootPath").value;
+        const container = document.getElementById("folder-list-container");
+
+        if (!rootPath) {
+          container.innerHTML = "";
+          return;
+        }
+
+        container.innerHTML = '<div class="log-info">Loading folders...</div>';
+
+        try {
+          const res = await fetch("/api/list-folders", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ Path: rootPath }),
+          });
+
+          if (!res.ok) throw new Error(res.statusText);
+          const data = await res.json();
+
+          container.innerHTML = "";
+
+          if (data.Error) {
+            container.innerHTML = `<div class="log-error">${data.Error}</div>`;
+            return;
+          }
+
+          if (data.IsRepo) {
+            container.innerHTML =
+              '<div class="hint">None (Current folder is a Git Repository)</div>';
+            return;
+          }
+
+          if (!data.Folders || data.Folders.length === 0) {
+            container.innerHTML =
+              '<div class="hint">No subfolders found.</div>';
+            return;
+          }
+
+          // Filter out standard junk from display to keep it clean?
+          // Or just show everything? User said "Auflistung der Ordner".
+          // Usually we don't want to see .git or node_modules in this list if we are selecting projects.
+          const ignoreDisplay = [
+            ".git",
+            "node_modules",
+            "target",
+            "dist",
+            ".idea",
+            ".vscode",
+          ];
+
+          data.Folders.forEach((folder) => {
+            if (ignoreDisplay.includes(folder)) return;
+
+            const div = document.createElement("div");
+            div.style.marginBottom = "5px";
+
+            const checkbox = document.createElement("input");
+            checkbox.type = "checkbox";
+            checkbox.id = "folder_" + folder;
+            checkbox.value = folder;
+            checkbox.checked = true; // Default checked
+            checkbox.style.width = "auto";
+            checkbox.style.marginRight = "10px";
+
+            const label = document.createElement("label");
+            label.htmlFor = "folder_" + folder;
+            label.textContent = folder;
+            label.style.display = "inline";
+            label.style.fontWeight = "normal";
+
+            div.appendChild(checkbox);
+            div.appendChild(label);
+            container.appendChild(div);
+          });
+
+          if (container.children.length === 0) {
+            container.innerHTML =
+              '<div class="hint">No relevant subfolders found.</div>';
+          }
+        } catch (e) {
+          container.innerHTML = `<div class="log-error">Error loading folders: ${e.message}</div>`;
+        }
+      }
+    </script>
+  </body>
 </html>

@@ -50,6 +50,7 @@ func main() {
 	http.HandleFunc("/api/spring-versions", handleSpringVersions)
 	http.HandleFunc("/api/scan-spring", handleScanSpring)
 	http.HandleFunc("/api/pick-folder", handlePickFolder)
+	http.HandleFunc("/api/list-folders", handleListFolders)
 
 	port := "8080"
 	url := "http://localhost:" + port
@@ -176,6 +177,67 @@ func handleScanSpring(w http.ResponseWriter, r *http.Request) {
 	results := logic.ScanProjectsForSpring(req.RootPath, req.Excluded)
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(results)
+}
+
+type ListFoldersRequest struct {
+	Path string
+}
+
+type ListFoldersResponse struct {
+	IsRepo  bool
+	Folders []string
+	Error   string `json:",omitempty"`
+}
+
+func handleListFolders(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	var req ListFoldersRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	resp := ListFoldersResponse{}
+
+	// Check if path exists
+	info, err := os.Stat(req.Path)
+	if err != nil {
+		resp.Error = fmt.Sprintf("Path not found: %v", err)
+		json.NewEncoder(w).Encode(resp)
+		return
+	}
+	if !info.IsDir() {
+		resp.Error = "Path is not a directory"
+		json.NewEncoder(w).Encode(resp)
+		return
+	}
+
+	// Check if it is a git repo
+	if logic.IsGitRepo(req.Path) {
+		resp.IsRepo = true
+		json.NewEncoder(w).Encode(resp)
+		return
+	}
+
+	// List subdirectories
+	entries, err := os.ReadDir(req.Path)
+	if err != nil {
+		resp.Error = fmt.Sprintf("Could not read directory: %v", err)
+		json.NewEncoder(w).Encode(resp)
+		return
+	}
+
+	for _, entry := range entries {
+		if entry.IsDir() {
+			resp.Folders = append(resp.Folders, entry.Name())
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(resp)
 }
 
 func openBrowser(url string) {
