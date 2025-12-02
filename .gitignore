@@ -3,3 +3,4 @@ test_env/
 *.log
 .DS_Store
 bin/
+GitHousekeeper.exe

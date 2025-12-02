@@ -38,6 +38,8 @@ func main() {
 
 	// API
 	http.HandleFunc("/api/run", handleRun)
+	http.HandleFunc("/api/spring-versions", handleSpringVersions)
+	http.HandleFunc("/api/scan-spring", handleScanSpring)
 
 	port := "8080"
 	url := "http://localhost:" + port
@@ -134,6 +136,37 @@ func handleRun(w http.ResponseWriter, r *http.Request) {
 		}
 		flusher.Flush()
 	}
+}
+
+func handleSpringVersions(w http.ResponseWriter, r *http.Request) {
+	versions, err := logic.GetSpringVersions()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(versions)
+}
+
+type ScanRequest struct {
+	RootPath string
+	Excluded []string
+}
+
+func handleScanSpring(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	var req ScanRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	
+	results := logic.ScanProjectsForSpring(req.RootPath, req.Excluded)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(results)
 }
 
 func openBrowser(url string) {

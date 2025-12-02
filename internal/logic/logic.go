@@ -1,11 +1,15 @@
 package logic
 
 import (
+	"encoding/xml"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 )
@@ -747,4 +751,126 @@ func parseDeprecationsFromOutput(output string, log func(string)) string {
 	
 	log("  Keine Deprecation-Warnungen gefunden.")
 	return ""
+}
+
+// Spring Boot Logic
+
+type MavenMetadata struct {
+	Versioning Versioning `xml:"versioning"`
+}
+
+type Versioning struct {
+	Latest   string   `xml:"latest"`
+	Release  string   `xml:"release"`
+	Versions []string `xml:"versions>version"`
+}
+
+type SpringVersionInfo struct {
+	Major          string
+	Versions       []string
+	MigrationGuide string
+}
+
+func GetSpringVersions() ([]SpringVersionInfo, error) {
+	resp, err := http.Get("https://repo1.maven.org/maven2/org/springframework/boot/spring-boot-starter-parent/maven-metadata.xml")
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	var metadata MavenMetadata
+	if err := xml.Unmarshal(body, &metadata); err != nil {
+		return nil, err
+	}
+
+	// Group by Major version
+	grouped := make(map[string][]string)
+	for _, v := range metadata.Versioning.Versions {
+		// Filter for stable versions (no M1, RC1, SNAPSHOT) if desired
+		if strings.Contains(v, "SNAPSHOT") {
+			continue
+		}
+		parts := strings.Split(v, ".")
+		if len(parts) > 0 {
+			major := parts[0]
+			grouped[major] = append(grouped[major], v)
+		}
+	}
+
+	var result []SpringVersionInfo
+	
+	// Define migration guides
+	guides := map[string]string{
+		"2": "https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-2.0-Migration-Guide",
+		"3": "https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-3.0-Migration-Guide",
+		"4": "https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-4.0-Migration-Guide",
+	}
+
+	for major, versions := range grouped {
+		// Reverse sort to show latest first
+		// Since they are strings, we need to be careful with "2.10" vs "2.2"
+		// But for now, simple string sort might be enough or we implement semantic version sort.
+		// Maven metadata usually returns them sorted.
+		// Let's just reverse the slice we got.
+		for i, j := 0, len(versions)-1; i < j; i, j = i+1, j-1 {
+			versions[i], versions[j] = versions[j], versions[i]
+		}
+
+		info := SpringVersionInfo{
+			Major:          major,
+			Versions:       versions,
+			MigrationGuide: guides[major],
+		}
+		result = append(result, info)
+	}
+
+	// Sort result by Major version descending
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].Major > result[j].Major
+	})
+
+	return result, nil
+}
+
+type ProjectSpringStatus struct {
+	Path           string
+	CurrentVersion string
+	RepoName       string
+}
+
+func ScanProjectsForSpring(root string, excluded []string) []ProjectSpringStatus {
+	repos := FindGitRepos(root, excluded)
+	var results []ProjectSpringStatus
+
+	for _, repo := range repos {
+		pomPath := filepath.Join(repo, "pom.xml")
+		contentBytes, err := os.ReadFile(pomPath)
+		if err != nil {
+			continue
+		}
+		content := string(contentBytes)
+		
+		// Find Spring Boot Parent version
+		reParent := regexp.MustCompile(`(?s)<parent>.*?</parent>`)
+		parentBlock := reParent.FindString(content)
+		
+		if strings.Contains(parentBlock, "spring-boot-starter-parent") {
+			reVersion := regexp.MustCompile(`<version>(.*?)</version>`)
+			match := reVersion.FindStringSubmatch(parentBlock)
+			if len(match) > 1 {
+				v := match[1]
+				results = append(results, ProjectSpringStatus{
+					Path:           repo,
+					RepoName:       filepath.Base(repo),
+					CurrentVersion: v,
+				})
+			}
+		}
+	}
+	return results
 }

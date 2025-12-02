@@ -321,6 +321,7 @@
     <div class="nav-item" onclick="showTab('pom')">POM Ersetzungen</div>
     <div class="nav-item" onclick="showTab('project')">Projekt Ersetzungen</div>
     <div class="nav-item" onclick="showTab('report')">Bericht</div>
+    <div class="nav-item" onclick="showTab('frameworks')">Frameworks</div>
 </div>
 
 <div class="main-content">
@@ -451,6 +452,32 @@
             Bearbeitung läuft... Bitte warten.
         </div>
     </div>
+
+    <!-- Tab: Frameworks -->
+    <div id="tab-frameworks" class="tab-content">
+        <h2>Spring Boot Versionen</h2>
+        
+        <div style="display: flex; gap: 20px;">
+            <!-- Left: Available Versions -->
+            <div style="flex: 1;">
+                <h3>Verfügbare Versionen</h3>
+                <div id="spring-versions-list">
+                    <div class="log-info">Lade Versionen...</div>
+                </div>
+            </div>
+            
+            <!-- Right: Local Projects -->
+            <div style="flex: 1;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <h3>Lokale Projekte</h3>
+                    <button class="btn btn-secondary" onclick="scanSpringProjects()">🔍 Scannen</button>
+                </div>
+                <div id="spring-projects-list" style="margin-top: 10px;">
+                    <div class="hint">Klicken Sie auf Scannen, um lokale Versionen zu prüfen.</div>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <script>
@@ -462,6 +489,10 @@
         // Update Content
         document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
         document.getElementById(`tab-${tabId}`).classList.add('active');
+        
+        if (tabId === 'frameworks') {
+            loadSpringVersions();
+        }
     }
     
     function toggleBranchInput() {
@@ -677,6 +708,114 @@
             }
         } else {
             alert("Ihr Browser unterstützt die Ordner-Auswahl nicht. Bitte kopieren Sie den Pfad manuell.");
+        }
+    }
+
+    async function loadSpringVersions() {
+        const container = document.getElementById('spring-versions-list');
+        // Avoid reloading if already loaded? Maybe not, to get fresh data.
+        
+        try {
+            const res = await fetch('/api/spring-versions');
+            if (!res.ok) throw new Error(res.statusText);
+            const data = await res.json();
+            
+            container.innerHTML = '';
+            data.forEach(group => {
+                const groupDiv = document.createElement('div');
+                groupDiv.style.marginBottom = '20px';
+                groupDiv.style.padding = '15px';
+                groupDiv.style.backgroundColor = 'var(--input-bg)';
+                groupDiv.style.borderRadius = '6px';
+                
+                const title = document.createElement('h4');
+                title.style.margin = '0 0 10px 0';
+                title.style.color = 'var(--accent-color)';
+                title.textContent = `Spring Boot ${group.Major}`;
+                
+                if (group.MigrationGuide) {
+                    const link = document.createElement('a');
+                    link.href = group.MigrationGuide;
+                    link.target = '_blank';
+                    link.style.fontSize = '0.8em';
+                    link.style.marginLeft = '10px';
+                    link.style.color = '#89b4fa';
+                    link.textContent = '📖 Migration Guide';
+                    title.appendChild(link);
+                }
+                
+                groupDiv.appendChild(title);
+                
+                const versionsDiv = document.createElement('div');
+                versionsDiv.style.fontSize = '0.9em';
+                versionsDiv.style.color = '#a6adc8';
+                // Show top 5 versions, then "..."
+                const showCount = 5;
+                const visible = group.Versions.slice(0, showCount);
+                versionsDiv.textContent = visible.join(', ');
+                
+                if (group.Versions.length > showCount) {
+                    const more = document.createElement('span');
+                    more.textContent = ` (+${group.Versions.length - showCount} weitere)`;
+                    more.style.cursor = 'pointer';
+                    more.style.textDecoration = 'underline';
+                    more.style.marginLeft = '5px';
+                    more.onclick = () => {
+                        versionsDiv.textContent = group.Versions.join(', ');
+                    };
+                    versionsDiv.appendChild(more);
+                }
+                
+                groupDiv.appendChild(versionsDiv);
+                container.appendChild(groupDiv);
+            });
+            
+        } catch (e) {
+            container.innerHTML = `<div class="log-error">Fehler beim Laden: ${e.message}</div>`;
+        }
+    }
+
+    async function scanSpringProjects() {
+        const container = document.getElementById('spring-projects-list');
+        const rootPath = document.getElementById('rootPath').value;
+        const excluded = document.getElementById('excluded').value.split(',').map(s => s.trim()).filter(s => s);
+        
+        if (!rootPath) {
+            alert("Bitte konfigurieren Sie zuerst den Projekt-Pfad in den Einstellungen.");
+            return;
+        }
+        
+        container.innerHTML = '<div class="log-info">Scanne...</div>';
+        
+        try {
+            const res = await fetch('/api/scan-spring', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ RootPath: rootPath, Excluded: excluded })
+            });
+            if (!res.ok) throw new Error(res.statusText);
+            const results = await res.json();
+            
+            container.innerHTML = '';
+            if (results.length === 0) {
+                container.innerHTML = '<div class="hint">Keine Spring Boot Projekte gefunden.</div>';
+                return;
+            }
+            
+            results.forEach(proj => {
+                const div = document.createElement('div');
+                div.style.padding = '10px';
+                div.style.borderBottom = '1px solid var(--border-color)';
+                
+                div.innerHTML = `
+                    <div style="font-weight:bold;">${proj.RepoName}</div>
+                    <div style="font-size:0.9em; color: #a6adc8;">Aktuell: <span style="color: var(--accent-color);">${proj.CurrentVersion}</span></div>
+                `;
+                container.appendChild(div);
+            });
+            
+        } catch (e) {
+            container.innerHTML = `<div class="log-error">Fehler beim Scannen: ${e.message}</div>`;
         }
     }
 </script>

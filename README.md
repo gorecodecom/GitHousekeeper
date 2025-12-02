@@ -21,6 +21,10 @@ GitHousekeeper is a powerful tool designed to automate maintenance tasks and mas
   - Updates `<parent>` versions in `pom.xml`.
   - **Optimized Build**: Runs `mvn clean install` and checks for deprecation warnings in a single efficient pass.
   - **Deprecation Reporting**: Captures and displays the top 100 deprecation warnings per repository in a dedicated view.
+- **Spring Boot Insights**:
+  - **Version Dashboard**: View currently available Spring Boot versions (Major/Minor) fetched live from Maven Central.
+  - **Migration Guides**: Direct links to official migration guides for major version upgrades.
+  - **Project Scanning**: Scans local repositories to identify their current Spring Boot parent version.
 - **Reporting & Export**:
   - Detailed execution log.
   - **PDF Export**: Export the general log or the deprecation report as a PDF file.
@@ -43,8 +47,8 @@ To build from source:
 ## Installation & Usage
 
 ### Option A: Run Pre-built Executable (Windows)
-1. Simply download or build `housekeeper.exe`.
-2. Double-click `housekeeper.exe`.
+1. Simply download or build `GitHousekeeper.exe`.
+2. Double-click `GitHousekeeper.exe`.
 3. The application will start and open your browser at `http://localhost:8080`.
 
 ### Option B: Build from Source
@@ -56,13 +60,13 @@ To build from source:
 
 2. **Build the application**:
    ```bash
-   go build -o housekeeper.exe main.go
+   go build -o GitHousekeeper.exe main.go
    ```
    *Note: The HTML/CSS assets are embedded directly into the executable. You only need the `.exe` file to run the app.*
 
 3. **Run**:
    ```bash
-   ./housekeeper.exe
+   ./GitHousekeeper.exe
    ```
 
 ## Workflow
