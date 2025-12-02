@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 
 	"github.com/gorecode/updates/internal/logic"
 )
@@ -340,6 +341,15 @@ type AnalyzeSpringRequest struct {
 	TargetVersion string   `json:"TargetVersion"`
 }
 
+// AnalysisResult holds the result of analyzing a single repo
+type AnalysisResult struct {
+	Index    int
+	RepoName string
+	Output   string
+	Success  bool
+	Duration time.Duration
+}
+
 func handleAnalyzeSpring(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -374,22 +384,15 @@ func handleAnalyzeSpring(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fmt.Fprintf(w, "Found %d projects. Starting analysis for Spring Boot %s...\n\n", len(repos), req.TargetVersion)
+	fmt.Fprintf(w, "PROGRESS_INIT:%d\n", len(repos))
+	fmt.Fprintf(w, "Found %d projects. Starting parallel analysis for Spring Boot %s...\n", len(repos), req.TargetVersion)
+	fmt.Fprintf(w, "(Processing in background, results will appear as each project completes)\n\n")
 	flusher.Flush()
 
+	overallStart := time.Now()
+
 	// 2. Determine Recipe
-	// Mapping Target Version -> OpenRewrite Recipe
-	// Using latest stable rewrite-spring recipes
-	// See: https://docs.openrewrite.org/recipes/java/spring/boot3
 	var recipe string
-
-	// Dynamic Recipe Construction
-	// We assume the recipe follows the pattern: org.openrewrite.java.spring.boot3.UpgradeSpringBoot_X_Y
-	// e.g. UpgradeSpringBoot_3_3, UpgradeSpringBoot_3_4
-	// For 4.x, it might be boot4.UpgradeSpringBoot_4_0 (Need to verify if 4.x recipes exist yet in rewrite-spring)
-	// As of now, Spring Boot 4 is not out, but user asked for "4er Versionen".
-	// If they mean 3.4, 3.5 etc, the pattern holds.
-
 	cleanVersion := strings.ReplaceAll(req.TargetVersion, ".", "_")
 
 	if strings.HasPrefix(req.TargetVersion, "3.") {
@@ -397,86 +400,112 @@ func handleAnalyzeSpring(w http.ResponseWriter, r *http.Request) {
 	} else if strings.HasPrefix(req.TargetVersion, "2.") {
 		recipe = fmt.Sprintf("org.openrewrite.java.spring.boot2.UpgradeSpringBoot_%s", cleanVersion)
 	} else {
-		// Fallback for future versions (e.g. 4.0) - assuming naming convention persists
-		// Note: This might fail if the recipe doesn't exist in the plugin version used.
 		recipe = fmt.Sprintf("org.openrewrite.java.spring.boot%c.UpgradeSpringBoot_%s", req.TargetVersion[0], cleanVersion)
 	}
 
-	// 3. Run Analysis per Repo
-	for _, repo := range repos {
-		repoName := filepath.Base(repo)
-		fmt.Fprintf(w, ">>> Analyzing %s...\n", repoName)
-		flusher.Flush()
+	// Plugin versions
+	pluginVersion := "6.24.0"
+	recipeVersion := "6.19.0"
 
-		// Check if it's a Maven project
-		if _, err := os.Stat(filepath.Join(repo, "pom.xml")); os.IsNotExist(err) {
-			fmt.Fprintf(w, "Skipping (no pom.xml)\n")
-			continue
+	// 3. Run Analysis in Parallel
+	resultChan := make(chan AnalysisResult, len(repos))
+
+	for i, repo := range repos {
+		go func(index int, repoPath string) {
+			result := analyzeRepo(index, repoPath, recipe, pluginVersion, recipeVersion)
+			resultChan <- result
+		}(i, repo)
+	}
+
+	// 4. Collect and output results in order of completion
+	completed := 0
+	var totalDuration time.Duration
+	for completed < len(repos) {
+		result := <-resultChan
+		completed++
+		totalDuration += result.Duration
+
+		// Calculate average time per project and estimate remaining
+		avgDuration := totalDuration / time.Duration(completed)
+		remaining := len(repos) - completed
+		estimatedRemaining := avgDuration * time.Duration(remaining)
+
+		// Output progress update
+		fmt.Fprintf(w, "PROGRESS_UPDATE:%d:%d:%.1f\n", completed, len(repos), estimatedRemaining.Seconds())
+
+		// Output the complete result block for this repo
+		statusIcon := "✓"
+		if !result.Success {
+			statusIcon = "✗"
 		}
-
-		// Construct Maven Command
-		// We use the rewrite-maven-plugin directly from command line
-		// Command: mvn -U org.openrewrite.maven:rewrite-maven-plugin:RELEASE:dryRun
-		//          -Drewrite.recipeArtifactCoordinates=org.openrewrite.recipe:rewrite-spring:RELEASE
-		//          -Drewrite.activeRecipes=<recipe>
-
-		// Note: We use "RELEASE" to get latest, or pin specific versions if needed.
-		// Pinning is safer for stability.
-		pluginVersion := "5.41.0" // Recent stable as of late 2024
-		recipeVersion := "5.18.0" // Recent stable rewrite-spring
-
-		cmd := exec.Command("mvn",
-			"-U", // Force update snapshots
-			"-B", // Batch mode
-			fmt.Sprintf("org.openrewrite.maven:rewrite-maven-plugin:%s:dryRun", pluginVersion),
-			fmt.Sprintf("-Drewrite.recipeArtifactCoordinates=org.openrewrite.recipe:rewrite-spring:%s", recipeVersion),
-			fmt.Sprintf("-Drewrite.activeRecipes=%s", recipe),
-		)
-		cmd.Dir = repo
-
-		// Capture output
-		// We want to capture stdout/stderr to show progress or errors
-		// But mainly we are interested in the generated patch file or the "Changes" log.
-		// dryRun usually prints a summary to stdout and generates target/rewrite/rewrite.patch
-
-		output, err := cmd.CombinedOutput()
-		if err != nil {
-			fmt.Fprintf(w, "Error running OpenRewrite: %v\n", err)
-			// Print last few lines of output for debug
-			lines := strings.Split(string(output), "\n")
-			start := len(lines) - 10
-			if start < 0 {
-				start = 0
-			}
-			for _, line := range lines[start:] {
-				fmt.Fprintf(w, "  %s\n", line)
-			}
-			flusher.Flush()
-			continue
-		}
-
-		// Check for patch file
-		patchFile := filepath.Join(repo, "target", "rewrite", "rewrite.patch")
-		if _, err := os.Stat(patchFile); err == nil {
-			// Patch exists -> Changes found
-			content, err := os.ReadFile(patchFile)
-			if err == nil && len(content) > 0 {
-				fmt.Fprintf(w, "Changes detected:\n")
-				fmt.Fprintf(w, "%s\n", string(content))
-			} else {
-				fmt.Fprintf(w, "No changes required (or empty patch).\n")
-			}
-		} else {
-			// No patch file -> No changes or failed to generate
-			// Check output for "No changes" message
-			if strings.Contains(string(output), "No changes") {
-				fmt.Fprintf(w, "No changes required.\n")
-			} else {
-				fmt.Fprintf(w, "Analysis finished (no patch file generated).\n")
-			}
-		}
-
+		fmt.Fprintf(w, ">>> [%d/%d] %s %s (%.1fs)\n", completed, len(repos), statusIcon, result.RepoName, result.Duration.Seconds())
+		fmt.Fprintf(w, "%s", result.Output)
 		fmt.Fprintf(w, "\n")
 		flusher.Flush()
 	}
+
+	close(resultChan)
+
+	// Final summary
+	overallDuration := time.Since(overallStart)
+	fmt.Fprintf(w, "PROGRESS_DONE:%.1f\n", overallDuration.Seconds())
+	flusher.Flush()
+}
+
+// analyzeRepo performs the OpenRewrite analysis on a single repository
+func analyzeRepo(index int, repoPath, recipe, pluginVersion, recipeVersion string) AnalysisResult {
+	startTime := time.Now()
+	repoName := filepath.Base(repoPath)
+	var output strings.Builder
+
+	// Check if it's a Maven project
+	if _, err := os.Stat(filepath.Join(repoPath, "pom.xml")); os.IsNotExist(err) {
+		output.WriteString("Skipping (no pom.xml)\n")
+		return AnalysisResult{Index: index, RepoName: repoName, Output: output.String(), Success: true, Duration: time.Since(startTime)}
+	}
+
+	// Construct Maven Command
+	cmd := exec.Command("mvn",
+		"-U",
+		"-B",
+		fmt.Sprintf("org.openrewrite.maven:rewrite-maven-plugin:%s:dryRun", pluginVersion),
+		fmt.Sprintf("-Drewrite.recipeArtifactCoordinates=org.openrewrite.recipe:rewrite-spring:%s", recipeVersion),
+		fmt.Sprintf("-Drewrite.activeRecipes=%s", recipe),
+	)
+	cmd.Dir = repoPath
+
+	cmdOutput, err := cmd.CombinedOutput()
+	if err != nil {
+		output.WriteString(fmt.Sprintf("Error running OpenRewrite: %v\n", err))
+		lines := strings.Split(string(cmdOutput), "\n")
+		start := len(lines) - 10
+		if start < 0 {
+			start = 0
+		}
+		for _, line := range lines[start:] {
+			output.WriteString(fmt.Sprintf("  %s\n", line))
+		}
+		return AnalysisResult{Index: index, RepoName: repoName, Output: output.String(), Success: false, Duration: time.Since(startTime)}
+	}
+
+	// Check for patch file
+	patchFile := filepath.Join(repoPath, "target", "rewrite", "rewrite.patch")
+	if _, err := os.Stat(patchFile); err == nil {
+		content, err := os.ReadFile(patchFile)
+		if err == nil && len(content) > 0 {
+			output.WriteString("Changes detected:\n")
+			output.WriteString(string(content))
+			output.WriteString("\n")
+		} else {
+			output.WriteString("No changes required (or empty patch).\n")
+		}
+	} else {
+		if strings.Contains(string(cmdOutput), "No changes") {
+			output.WriteString("No changes required.\n")
+		} else {
+			output.WriteString("Analysis finished (no patch file generated).\n")
+		}
+	}
+
+	return AnalysisResult{Index: index, RepoName: repoName, Output: output.String(), Success: true, Duration: time.Since(startTime)}
 }

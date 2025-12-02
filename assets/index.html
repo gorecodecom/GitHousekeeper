@@ -705,6 +705,58 @@
               </div>
 
               <div id="migration-report-container" class="hidden">
+                <!-- Progress Bar -->
+                <div
+                  id="migration-progress"
+                  class="hidden"
+                  style="margin-bottom: 20px"
+                >
+                  <div
+                    style="
+                      display: flex;
+                      justify-content: space-between;
+                      margin-bottom: 5px;
+                    "
+                  >
+                    <span id="progress-text">Analyzing... 0/0</span>
+                    <span id="progress-eta">Estimated: calculating...</span>
+                  </div>
+                  <div
+                    style="
+                      background-color: var(--input-bg);
+                      border-radius: 10px;
+                      height: 20px;
+                      overflow: hidden;
+                    "
+                  >
+                    <div
+                      id="progress-bar"
+                      style="
+                        background: linear-gradient(
+                          90deg,
+                          var(--accent-color),
+                          var(--accent-hover)
+                        );
+                        height: 100%;
+                        width: 0%;
+                        transition: width 0.3s ease;
+                        border-radius: 10px;
+                      "
+                    ></div>
+                  </div>
+                  <div style="text-align: center; margin-top: 5px">
+                    <span
+                      id="progress-percent"
+                      style="
+                        font-size: 1.2em;
+                        font-weight: bold;
+                        color: var(--accent-color);
+                      "
+                      >0%</span
+                    >
+                  </div>
+                </div>
+
                 <div
                   style="
                     display: flex;
@@ -1357,6 +1409,11 @@
           document.getElementById("targetBootVersion").value;
         const container = document.getElementById("migration-report-container");
         const log = document.getElementById("migration-log");
+        const progressContainer = document.getElementById("migration-progress");
+        const progressBar = document.getElementById("progress-bar");
+        const progressText = document.getElementById("progress-text");
+        const progressEta = document.getElementById("progress-eta");
+        const progressPercent = document.getElementById("progress-percent");
 
         // Get excluded folders
         const excluded = [
@@ -1385,8 +1442,11 @@
         }
 
         container.classList.remove("hidden");
+        progressContainer.classList.add("hidden");
         log.innerHTML =
           '<div class="log-info">Starting OpenRewrite analysis... This may take a while.</div>';
+
+        let totalProjects = 0;
 
         try {
           const res = await fetch("/api/analyze-spring", {
@@ -1407,20 +1467,87 @@
             if (done) break;
 
             const chunk = decoder.decode(value, { stream: true });
-            // Simple append for now, could be parsed for better formatting
-            const formattedChunk = chunk
-              .replace(/</g, "&lt;")
-              .replace(/>/g, "&gt;")
-              .replace(/\n/g, "<br>");
+            const lines = chunk.split("\n");
 
-            log.innerHTML += `<span class="log-info">${formattedChunk}</span>`;
-            log.scrollTop = log.scrollHeight;
+            for (let line of lines) {
+              if (!line.trim()) continue;
+
+              // Handle progress markers
+              if (line.startsWith("PROGRESS_INIT:")) {
+                totalProjects = parseInt(line.split(":")[1]);
+                progressContainer.classList.remove("hidden");
+                progressBar.style.width = "0%";
+                progressText.textContent = `Analyzing... 0/${totalProjects}`;
+                progressEta.textContent = "Estimated: calculating...";
+                progressPercent.textContent = "0%";
+                continue;
+              }
+
+              if (line.startsWith("PROGRESS_UPDATE:")) {
+                const parts = line.split(":");
+                const completed = parseInt(parts[1]);
+                const total = parseInt(parts[2]);
+                const remainingSecs = parseFloat(parts[3]);
+
+                const percent = Math.round((completed / total) * 100);
+                progressBar.style.width = percent + "%";
+                progressText.textContent = `Analyzing... ${completed}/${total}`;
+                progressPercent.textContent = percent + "%";
+
+                if (remainingSecs > 0) {
+                  const mins = Math.floor(remainingSecs / 60);
+                  const secs = Math.round(remainingSecs % 60);
+                  if (mins > 0) {
+                    progressEta.textContent = `Estimated: ~${mins}m ${secs}s remaining`;
+                  } else {
+                    progressEta.textContent = `Estimated: ~${secs}s remaining`;
+                  }
+                } else {
+                  progressEta.textContent = "Finishing...";
+                }
+                continue;
+              }
+
+              if (line.startsWith("PROGRESS_DONE:")) {
+                const totalSecs = parseFloat(line.split(":")[1]);
+                const mins = Math.floor(totalSecs / 60);
+                const secs = Math.round(totalSecs % 60);
+                progressBar.style.width = "100%";
+                progressPercent.textContent = "100%";
+                progressText.textContent = `Completed ${totalProjects}/${totalProjects}`;
+                if (mins > 0) {
+                  progressEta.textContent = `Total time: ${mins}m ${secs}s`;
+                } else {
+                  progressEta.textContent = `Total time: ${secs}s`;
+                }
+                continue;
+              }
+
+              // Regular log output
+              const formattedLine = line
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;");
+
+              // Color coding
+              let cssClass = "log-info";
+              if (line.includes("✗") || line.toLowerCase().includes("error")) {
+                cssClass = "log-error";
+              } else if (line.includes("✓") || line.includes(">>>")) {
+                cssClass = "log-success";
+              } else if (line.includes("Changes detected")) {
+                cssClass = "log-warning";
+              }
+
+              log.innerHTML += `<div class="${cssClass}">${formattedLine}</div>`;
+              log.scrollTop = log.scrollHeight;
+            }
           }
 
           log.innerHTML +=
             '<div class="log-success" style="margin-top: 20px; border-top: 1px solid #444; padding-top: 10px;">--- Analysis Complete ---</div>';
         } catch (e) {
           log.innerHTML += `<div class="log-error">Error: ${e.message}</div>`;
+          progressContainer.classList.add("hidden");
         }
       }
     </script>
