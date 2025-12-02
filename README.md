@@ -155,7 +155,7 @@ _Coming soon_
 
 ## Author
 
-**Hannes Goretzky**  
+**GoreCode**  
 GitHub: [@gorecodecom](https://github.com/gorecodecom)
 
 ## Version
@@ -166,7 +166,7 @@ See [CHANGELOG.md](CHANGELOG.md) for release history.
 
 ## License
 
-[MIT](LICENSE) © 2025 Hannes Goretzky
+[MIT](LICENSE) © 2025 GoreCode
 
 ---
 
