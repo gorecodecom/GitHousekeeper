@@ -52,16 +52,21 @@ func FindGitRepos(root string, excluded []string) []string {
 		}
 
 		if info.IsDir() {
-			for _, ex := range excluded {
-				if info.Name() == ex {
-					return filepath.SkipDir
-				}
-			}
-
+			// Check for .git FIRST, before exclusions
 			if info.Name() == ".git" {
 				repoPath := filepath.Dir(path)
 				repos = append(repos, repoPath)
 				return filepath.SkipDir
+			}
+
+			// Then check exclusions (but .git should never be excluded from detection)
+			for _, ex := range excluded {
+				if ex == ".git" {
+					continue // Don't exclude .git from detection - we need it to find repos
+				}
+				if info.Name() == ex {
+					return filepath.SkipDir
+				}
 			}
 		}
 		return nil

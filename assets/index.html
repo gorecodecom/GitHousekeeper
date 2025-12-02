@@ -611,7 +611,7 @@
               <label
                 for="branch_housekeeping"
                 style="display: inline; font-weight: normal; margin-left: 5px"
-                >housekeeping (Default)</label
+                >Housekeeping</label
               >
             </div>
             <div style="display: flex; align-items: center">
@@ -1293,14 +1293,7 @@
 
         // Collect Data
         // Calculate Excluded Folders from Checkboxes
-        const excluded = [
-          "node_modules",
-          "target",
-          "dist",
-          ".git",
-          ".idea",
-          ".vscode",
-        ]; // Standard defaults
+        const excluded = ["node_modules", "target", "dist", ".idea", ".vscode"]; // Standard defaults
         document
           .querySelectorAll('#folder-list-container input[type="checkbox"]')
           .forEach((cb) => {
@@ -1698,14 +1691,7 @@
         const rootPath = document.getElementById("rootPath").value;
 
         // Calculate Excluded Folders from Checkboxes
-        const excluded = [
-          "node_modules",
-          "target",
-          "dist",
-          ".git",
-          ".idea",
-          ".vscode",
-        ]; // Standard defaults
+        const excluded = ["node_modules", "target", "dist", ".idea", ".vscode"]; // Standard defaults
         document
           .querySelectorAll('#folder-list-container input[type="checkbox"]')
           .forEach((cb) => {
@@ -1890,14 +1876,7 @@
         const progressPercent = document.getElementById("progress-percent");
 
         // Get excluded folders
-        const excluded = [
-          "node_modules",
-          "target",
-          "dist",
-          ".git",
-          ".idea",
-          ".vscode",
-        ];
+        const excluded = ["node_modules", "target", "dist", ".idea", ".vscode"];
         document
           .querySelectorAll('#folder-list-container input[type="checkbox"]')
           .forEach((cb) => {
