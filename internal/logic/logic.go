@@ -630,11 +630,6 @@ func performFuzzyReplacement(content, search, replace string) (string, bool) {
 	search = strings.ReplaceAll(search, "\u00A0", " ")
 	replace = strings.ReplaceAll(replace, "\u00A0", " ")
 
-	// Try exact match first
-	if strings.Contains(content, search) {
-		return strings.ReplaceAll(content, search, replace), true
-	}
-
 	// Fuzzy match: treat whitespace as flexible
 	parts := strings.Fields(search)
 	if len(parts) == 0 {
@@ -654,11 +649,59 @@ func performFuzzyReplacement(content, search, replace string) (string, bool) {
 		return content, false
 	}
 
-	if re.MatchString(content) {
-		return re.ReplaceAllString(content, replace), true
+	// We need to replace ALL occurrences, but respecting indentation for each.
+	// Since we can't easily do this with ReplaceAllStringFunc (no index provided),
+	// we have to iterate manually.
+	
+	currentContent := content
+	changed := false
+	
+	// Loop until no more matches found
+	// To avoid infinite loops if replacement contains the search pattern, we need to be careful.
+	// However, usually replacement is different. But if it's fuzzy, it might match again.
+	// A safer approach is to find all indices first, then replace from back to front.
+	
+	matches := re.FindAllStringIndex(currentContent, -1)
+	if matches == nil {
+		return content, false
+	}
+	
+	// Iterate backwards to keep indices valid
+	for i := len(matches) - 1; i >= 0; i-- {
+		match := matches[i]
+		startIdx := match[0]
+		endIdx := match[1]
+		
+		// Determine indentation of the start line
+		lineStartIdx := startIdx
+		for lineStartIdx > 0 && currentContent[lineStartIdx-1] != '\n' {
+			lineStartIdx--
+		}
+		indent := currentContent[lineStartIdx:startIdx]
+		
+		// Only use indent if it is purely whitespace
+		if strings.TrimSpace(indent) != "" {
+			indent = "" // Match didn't start after whitespace
+		}
+		
+		// Adjust replacement
+		currentReplace := replace
+		currentReplace = strings.ReplaceAll(currentReplace, "\r\n", "\n")
+		lines := strings.Split(currentReplace, "\n")
+		
+		if len(lines) > 1 && indent != "" {
+			for j := 1; j < len(lines); j++ {
+				lines[j] = indent + lines[j]
+			}
+			currentReplace = strings.Join(lines, "\n")
+		}
+		
+		// Perform replacement
+		currentContent = currentContent[:startIdx] + currentReplace + currentContent[endIdx:]
+		changed = true
 	}
 
-	return content, false
+	return currentContent, changed
 }
 
 func checkDeprecations(path string, log func(string)) string {

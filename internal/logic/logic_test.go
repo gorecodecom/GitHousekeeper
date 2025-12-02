@@ -103,3 +103,93 @@ func TestProcessRepo_Options(t *testing.T) {
 		t.Error("RepoOptions Log should not be nil")
 	}
 }
+
+func TestPerformFuzzyReplacement_Indentation(t *testing.T) {
+	tests := []struct {
+		name     string
+		content  string
+		search   string
+		replace  string
+		expected string
+	}{
+		{
+			name: "Preserve indentation for multiline replacement",
+			content: `
+    <parent>
+        <child>old</child>
+    </parent>
+`,
+			search: `<parent> <child>old</child> </parent>`,
+			replace: `<parent>
+    <child>new</child>
+</parent>`,
+			expected: `
+    <parent>
+        <child>new</child>
+    </parent>
+`,
+		},
+		{
+			name: "Preserve indentation 2 spaces",
+			content: `
+  <foo>bar</foo>
+`,
+			search: `<foo>bar</foo>`,
+			replace: `<foo>
+baz
+</foo>`,
+			expected: `
+  <foo>
+  baz
+  </foo>
+`,
+		},
+		{
+			name: "No indentation match",
+			content: `<root><item>val</item></root>`,
+			search:  `<item>val</item>`,
+			replace: `<item>
+new
+</item>`,
+			expected: `<root><item>
+new
+</item></root>`,
+		},
+		{
+			name: "Mixed content",
+			content: `
+    // Comment
+    if (foo) {
+        doSomething();
+    }
+`,
+			search: `if (foo) { doSomething(); }`,
+			replace: `if (bar) {
+    doOther();
+}`,
+			expected: `
+    // Comment
+    if (bar) {
+        doOther();
+    }
+`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, changed := performFuzzyReplacement(tt.content, tt.search, tt.replace)
+			if !changed {
+				t.Error("Expected change, but got none")
+			}
+			
+			// Normalize newlines for comparison
+			result = strings.ReplaceAll(result, "\r\n", "\n")
+			expected := strings.ReplaceAll(tt.expected, "\r\n", "\n")
+			
+			if result != expected {
+				t.Errorf("Result mismatch.\nExpected:\n%q\nGot:\n%q", expected, result)
+			}
+		})
+	}
+}

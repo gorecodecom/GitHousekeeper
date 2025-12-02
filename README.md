@@ -16,6 +16,7 @@ GitHousekeeper is a powerful tool designed to automate maintenance tasks and mas
 - **Mass Search & Replace**:
   - **POM Replacements**: Targeted fuzzy search and replace within `pom.xml` files.
   - **Project-Wide Replacements**: Fuzzy search and replace across all project files (excluding `.git`, `target`, etc.).
+  - **Smart Indentation**: Automatically detects and preserves the indentation of replaced blocks, ensuring clean XML/code formatting.
 - **Maven Integration**:
   - Updates `<parent>` versions in `pom.xml`.
   - **Optimized Build**: Runs `mvn clean install` and checks for deprecation warnings in a single efficient pass.
