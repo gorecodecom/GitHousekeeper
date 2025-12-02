@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 
 	"github.com/gorecode/updates/internal/logic"
 )
@@ -40,6 +41,7 @@ func main() {
 	http.HandleFunc("/api/run", handleRun)
 	http.HandleFunc("/api/spring-versions", handleSpringVersions)
 	http.HandleFunc("/api/scan-spring", handleScanSpring)
+	http.HandleFunc("/api/pick-folder", handlePickFolder)
 
 	port := "8080"
 	url := "http://localhost:" + port
@@ -185,3 +187,80 @@ func openBrowser(url string) {
 		fmt.Printf("Konnte Browser nicht öffnen: %v\n", err)
 	}
 }
+
+func handlePickFolder(w http.ResponseWriter, r *http.Request) {
+	path, err := openFolderDialog()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"path": path})
+}
+
+func openFolderDialog() (string, error) {
+	switch runtime.GOOS {
+	case "windows":
+		return openFolderDialogWindows()
+	case "darwin":
+		return openFolderDialogMac()
+	case "linux":
+		return openFolderDialogLinux()
+	default:
+		return "", fmt.Errorf("unsupported platform: %s", runtime.GOOS)
+	}
+}
+
+func openFolderDialogWindows() (string, error) {
+	psScript := `
+		Add-Type -AssemblyName System.Windows.Forms
+		$f = New-Object System.Windows.Forms.FolderBrowserDialog
+		$f.ShowNewFolderButton = $true
+		if ($f.ShowDialog() -eq 'OK') {
+			Write-Host $f.SelectedPath
+		}
+	`
+	cmd := exec.Command("powershell", "-NoProfile", "-Command", psScript)
+	output, err := cmd.Output()
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(output)), nil
+}
+
+func openFolderDialogMac() (string, error) {
+	script := `POSIX path of (choose folder)`
+	cmd := exec.Command("osascript", "-e", script)
+	output, err := cmd.Output()
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(output)), nil
+}
+
+func openFolderDialogLinux() (string, error) {
+	// Try zenity first (common on GNOME/GTK)
+	path, err := runCommandOutput("zenity", "--file-selection", "--directory")
+	if err == nil && path != "" {
+		return path, nil
+	}
+
+	// Try kdialog (common on KDE)
+	path, err = runCommandOutput("kdialog", "--getexistingdirectory")
+	if err == nil && path != "" {
+		return path, nil
+	}
+
+	return "", fmt.Errorf("kein GUI-Dialog-Tool gefunden (zenity oder kdialog benötigt)")
+}
+
+func runCommandOutput(name string, args ...string) (string, error) {
+	cmd := exec.Command(name, args...)
+	output, err := cmd.Output()
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(output)), nil
+}
+

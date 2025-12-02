@@ -317,7 +317,7 @@
     <div class="logo">
         🏠 GitHousekeeper
     </div>
-    <div class="nav-item active" onclick="showTab('settings')">Einstellungen</div>
+    <div class="nav-item active" onclick="showTab('settings')">Project Setup</div>
     <div class="nav-item" onclick="showTab('pom')">POM Ersetzungen</div>
     <div class="nav-item" onclick="showTab('project')">Projekt Ersetzungen</div>
     <div class="nav-item" onclick="showTab('report')">Bericht</div>
@@ -327,7 +327,7 @@
 <div class="main-content">
     <!-- Tab: Settings -->
     <div id="tab-settings" class="tab-content active">
-        <h2>Einstellungen</h2>
+        <h2>Project Setup</h2>
         <div class="form-group">
             <label>Pfad zum Projekt / Ordner</label>
             <div style="display: flex; gap: 10px;">
@@ -781,7 +781,7 @@
         const excluded = document.getElementById('excluded').value.split(',').map(s => s.trim()).filter(s => s);
         
         if (!rootPath) {
-            alert("Bitte konfigurieren Sie zuerst den Projekt-Pfad in den Einstellungen.");
+            alert("Bitte konfigurieren Sie zuerst den Projekt-Pfad in Project Setup.");
             return;
         }
         
@@ -797,12 +797,28 @@
             const results = await res.json();
             
             container.innerHTML = '';
-            if (results.length === 0) {
-                container.innerHTML = '<div class="hint">Keine Spring Boot Projekte gefunden.</div>';
+            
+            // Handle new SpringScanResult structure
+            if (!results || !results.Projects || results.Projects.length === 0) {
+                let html = '<div class="hint">Keine Spring Boot Projekte gefunden.</div>';
+                
+                // Show debug log if available
+                if (results && results.DebugLog && results.DebugLog.length > 0) {
+                    html += '<div style="margin-top:20px; border-top:1px solid var(--border-color); padding-top:10px;">';
+                    html += '<h4>Debug Log</h4>';
+                    html += '<div style="font-family:monospace; font-size:0.8em; color:#a6adc8; max-height:200px; overflow-y:auto;">';
+                    results.DebugLog.forEach(line => {
+                        html += `<div>${line}</div>`;
+                    });
+                    html += '</div></div>';
+                }
+                
+                container.innerHTML = html;
                 return;
             }
             
-            results.forEach(proj => {
+            // Display found projects
+            results.Projects.forEach(proj => {
                 const div = document.createElement('div');
                 div.style.padding = '10px';
                 div.style.borderBottom = '1px solid var(--border-color)';
@@ -816,6 +832,24 @@
             
         } catch (e) {
             container.innerHTML = `<div class="log-error">Fehler beim Scannen: ${e.message}</div>`;
+        }
+    }
+
+    // Folder Picker: Call backend API to open native OS dialog
+    async function pickFolder(targetId) {
+        try {
+            const res = await fetch('/api/pick-folder');
+            if (!res.ok) {
+                const text = await res.text();
+                throw new Error(text);
+            }
+            const data = await res.json();
+            if (data.path) {
+                document.getElementById(targetId).value = data.path;
+            }
+        } catch (e) {
+            console.error(e);
+            alert("Fehler beim Öffnen des Dialogs: " + e.message);
         }
     }
 </script>

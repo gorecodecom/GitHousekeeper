@@ -843,34 +843,139 @@ type ProjectSpringStatus struct {
 	RepoName       string
 }
 
-func ScanProjectsForSpring(root string, excluded []string) []ProjectSpringStatus {
-	repos := FindGitRepos(root, excluded)
-	var results []ProjectSpringStatus
+type SpringScanResult struct {
+	Projects []ProjectSpringStatus
+	DebugLog []string
+}
 
-	for _, repo := range repos {
-		pomPath := filepath.Join(repo, "pom.xml")
-		contentBytes, err := os.ReadFile(pomPath)
+func ScanProjectsForSpring(root string, excluded []string) SpringScanResult {
+	var result SpringScanResult
+	result.Projects = make([]ProjectSpringStatus, 0)
+	result.DebugLog = make([]string, 0)
+
+	log := func(msg string) {
+		result.DebugLog = append(result.DebugLog, msg)
+		fmt.Println("[SPRING SCAN]", msg) // Also print to stdout
+	}
+
+	log(fmt.Sprintf("Starte Scan in: %s", root))
+
+	// Walk through directory and find ALL pom.xml files (not just in git repos)
+	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
-			continue
+			log(fmt.Sprintf("Fehler beim Zugriff auf %s: %v", path, err))
+			return err
 		}
-		content := string(contentBytes)
-		
-		// Find Spring Boot Parent version
-		reParent := regexp.MustCompile(`(?s)<parent>.*?</parent>`)
-		parentBlock := reParent.FindString(content)
-		
-		if strings.Contains(parentBlock, "spring-boot-starter-parent") {
-			reVersion := regexp.MustCompile(`<version>(.*?)</version>`)
-			match := reVersion.FindStringSubmatch(parentBlock)
-			if len(match) > 1 {
-				v := match[1]
-				results = append(results, ProjectSpringStatus{
-					Path:           repo,
-					RepoName:       filepath.Base(repo),
-					CurrentVersion: v,
-				})
+
+		if info.IsDir() {
+			// Check exclusions
+			for _, ex := range excluded {
+				if info.Name() == ex {
+					log(fmt.Sprintf("Überspringe ausgeschlossenen Ordner: %s", info.Name()))
+					return filepath.SkipDir
+				}
+			}
+			// Always skip standard build/git folders
+			if info.Name() == ".git" || info.Name() == "target" || info.Name() == "node_modules" {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+
+		// Found a pom.xml
+		if strings.ToLower(info.Name()) == "pom.xml" {
+			log(fmt.Sprintf("Prüfe POM: %s", path))
+			contentBytes, err := os.ReadFile(path)
+			if err != nil {
+				log(fmt.Sprintf("  Konnte Datei nicht lesen: %v", err))
+				return nil
+			}
+			content := string(contentBytes)
+
+			// Find Spring Boot Parent version
+			reParent := regexp.MustCompile(`(?s)<parent>.*?</parent>`)
+			parentBlock := reParent.FindString(content)
+
+			if parentBlock == "" {
+				log("  Kein <parent> Block gefunden.")
+				return nil
+			}
+
+			// Check if it's directly spring-boot-starter-parent
+			if strings.Contains(parentBlock, "spring-boot-starter-parent") {
+				reVersion := regexp.MustCompile(`<version>(.*?)</version>`)
+				match := reVersion.FindStringSubmatch(parentBlock)
+				if len(match) > 1 {
+					v := match[1]
+					log(fmt.Sprintf("  Gefunden (direkt): %s", v))
+					result.Projects = append(result.Projects, ProjectSpringStatus{
+						Path:           filepath.Dir(path),
+						RepoName:       filepath.Base(filepath.Dir(path)),
+						CurrentVersion: v,
+					})
+				} else {
+					log("  spring-boot-starter-parent gefunden, aber keine Version extrahierbar.")
+				}
+			} else {
+				log("  <parent> ist nicht spring-boot-starter-parent. Versuche Effective-POM Analyse...")
+				// Fallback: Run Maven to get effective pom
+				v, err := getSpringBootVersionFromMaven(filepath.Dir(path))
+				if err == nil && v != "" {
+					log(fmt.Sprintf("  Gefunden (via Maven): %s", v))
+					result.Projects = append(result.Projects, ProjectSpringStatus{
+						Path:           filepath.Dir(path),
+						RepoName:       filepath.Base(filepath.Dir(path)),
+						CurrentVersion: v,
+					})
+				} else {
+					log(fmt.Sprintf("  Maven Analyse fehlgeschlagen oder keine Version gefunden: %v", err))
+				}
 			}
 		}
+		return nil
+	})
+
+	if err != nil {
+		log(fmt.Sprintf("Fehler beim Walk: %v", err))
 	}
-	return results
+
+	log(fmt.Sprintf("Scan beendet. Gefunden: %d Projekte", len(result.Projects)))
+	return result
+}
+
+func getSpringBootVersionFromMaven(dir string) (string, error) {
+	// Use help:effective-pom to see the resolved versions
+	var cmd *exec.Cmd
+	if strings.Contains(strings.ToLower(os.Getenv("OS")), "windows") {
+		cmd = exec.Command("cmd", "/C", "mvn", "help:effective-pom", "-N")
+	} else {
+		cmd = exec.Command("mvn", "help:effective-pom", "-N")
+	}
+	cmd.Dir = dir
+
+	// Capture output
+	outputBytes, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", err
+	}
+	output := string(outputBytes)
+
+	// Look for spring-boot dependency version
+	// Try to find:  <groupId>org.springframework.boot</groupId>
+	//               <artifactId>spring-boot</artifactId>
+	//               <version>3.0.0</version>
+	re := regexp.MustCompile(`(?s)<groupId>org\.springframework\.boot</groupId>\s*<artifactId>spring-boot(-starter)?</artifactId>\s*<version>(.*?)</version>`)
+	match := re.FindStringSubmatch(output)
+	if len(match) > 2 {
+		return match[2], nil
+	}
+
+	// Fallback: Check for spring-boot-dependencies in dependencyManagement
+	reDep := regexp.MustCompile(`(?s)<artifactId>spring-boot-dependencies</artifactId>\s*<version>(.*?)</version>`)
+	matchDep := reDep.FindStringSubmatch(output)
+	if len(matchDep) > 1 {
+		return matchDep[1], nil
+	}
+
+	return "", fmt.Errorf("keine Spring Boot Version im Effective POM gefunden")
 }
