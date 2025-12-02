@@ -4,57 +4,88 @@ GitHousekeeper is a powerful tool designed to automate maintenance tasks and mas
 
 ## Features
 
-- **Multi-Repository Scanning**: Automatically finds all Git repositories within a specified root directory.
-- **Modern Web Interface**:
-  - **Live-Logging**: Real-time feedback during the build and update process.
-  - **Settings Persistence**: Automatically remembers your paths and configuration between sessions.
-  - **Folder Picker**: Helper buttons to easily select folders (with clipboard support).
-- **Automated Versioning**:
-  - Detects the latest Git tag.
-  - Updates the project version in `pom.xml`.
-  - Supports **Major**, **Minor**, and **Patch** version bumping strategies.
-- **Mass Search & Replace**:
-  - **POM Replacements**: Targeted fuzzy search and replace within `pom.xml` files.
-  - **Project-Wide Replacements**: Fuzzy search and replace across all project files (excluding `.git`, `target`, etc.).
-  - **Smart Indentation**: Automatically detects and preserves the indentation of replaced blocks, ensuring clean XML/code formatting.
-- **Maven Integration**:
-  - Updates `<parent>` versions in `pom.xml`.
-  - **Optimized Build**: Runs `mvn clean install` and checks for deprecation warnings in a single efficient pass.
-  - **Deprecation Reporting**: Captures and displays the top 100 deprecation warnings per repository in a dedicated view.
-- **Spring Boot Insights**:
-  - **Version Dashboard**: View currently available Spring Boot versions (Major/Minor) fetched live from Maven Central.
-  - **Migration Guides**: Direct links to official migration guides for major version upgrades.
-  - **Project Scanning**: Scans local repositories to identify their current Spring Boot parent version.
-- **Spring Boot Migration Analysis**:
-  - **Dry-Run Analysis**: Uses OpenRewrite to analyze projects for Spring Boot upgrades (e.g., 3.3 -> 3.4) without modifying files.
-  - **Patch Generation**: Generates and displays a patch file showing exactly what changes would be made.
-  - **Zero-Config**: Injects the OpenRewrite Maven plugin dynamically, requiring no changes to your project's `pom.xml`.
-- **Reporting & Export**:
-  - Detailed execution log.
-  - **PDF Export**: Export the general log or the deprecation report as a PDF file.
-- **Git Automation**:
-  - **Flexible Branching Strategy**:
-    - **Housekeeping**: Default mode. Manages a `housekeeping` branch (resets if stale > 1 month).
-    - **Custom Branch**: Work on a specific feature branch (e.g., `feature/upgrade-v2`).
-    - **Direct Master**: Option to apply changes directly to the `master` branch.
-  - Automatically commits changes with descriptive messages.
+### 🔍 Multi-Repository Management
+
+- **Auto-Discovery**: Automatically finds all Git repositories within a specified root directory.
+- **Selective Processing**: Include/exclude specific projects via checkbox selection.
+- **Batch Operations**: Apply changes across dozens of repositories simultaneously.
+
+### 🌐 Modern Web Interface
+
+- **Live-Logging**: Real-time feedback during build and update processes.
+- **Settings Persistence**: Automatically remembers your paths and configuration between sessions.
+- **Native Folder Picker**: OS-native dialog to select folders easily.
+- **Dark Theme**: Easy on the eyes for extended use.
+
+### 🏷️ Automated Versioning
+
+- Detects the latest Git tag per repository.
+- Updates the project version in `pom.xml`.
+- Supports **Major**, **Minor**, and **Patch** version bumping strategies.
+
+### 🔄 Mass Search & Replace
+
+- **POM Replacements**: Targeted fuzzy search and replace within `pom.xml` files.
+- **Project-Wide Replacements**: Fuzzy search and replace across all project files (excluding `.git`, `target`, etc.).
+- **Smart Indentation**: Automatically detects and preserves the indentation of replaced blocks, ensuring clean XML/code formatting.
+
+### 🛠️ Maven Integration
+
+- Updates `<parent>` versions in `pom.xml`.
+- **Optimized Build**: Runs `mvn clean install` and checks for deprecation warnings in a single efficient pass.
+- **Deprecation Reporting**: Captures and displays the top 100 deprecation warnings per repository in a dedicated view.
+
+### 🍃 Spring Boot Insights
+
+- **Version Dashboard**: View all available Spring Boot versions (grouped by Major.Minor) fetched live from Maven Central.
+- **Migration Guides**: Direct links to official migration guides for major version upgrades.
+- **Project Scanning**: Scans local repositories to identify their current Spring Boot parent version.
+- **Expandable Version List**: Shows the 5 newest version branches by default, with option to show older versions.
+
+### 🚀 Spring Boot Migration Analysis (OpenRewrite)
+
+- **Parallel Processing**: Analyzes multiple projects simultaneously using Go routines for maximum speed.
+- **Progress Tracking**: Visual progress bar with percentage, ETA, and estimated remaining time.
+- **Smart Summary**: Categorizes proposed changes instead of showing raw patch output:
+  - 🔄 **Annotation Updates** (e.g., `@RequestMapping` → `@GetMapping`)
+  - 📦 **Import Changes**
+  - 🛠️ **Code Modernization** (e.g., Pattern Matching, `String.formatted()`)
+  - ⚙️ **Configuration Changes** (deprecated properties)
+  - 🗑️ **Deprecated Code Removal** (e.g., unnecessary `@Autowired`)
+- **Dry-Run Mode**: Analyzes projects without modifying any files.
+- **Zero-Config**: Injects the OpenRewrite Maven plugin dynamically—no changes to your `pom.xml` required.
+- **Latest Recipes**: Uses OpenRewrite Maven Plugin 6.24.0 with rewrite-spring 6.19.0 (supports Spring Boot 3.5).
+
+### 📊 Reporting & Export
+
+- Detailed execution log with color-coded output.
+- **PDF Export**: Export the general log or the deprecation report as a PDF file.
+
+### 🔀 Git Automation
+
+- **Flexible Branching Strategy**:
+  - **Housekeeping**: Default mode. Manages a `housekeeping` branch (resets if stale > 1 month).
+  - **Custom Branch**: Work on a specific feature branch (e.g., `feature/upgrade-v2`).
+  - **Direct Master**: Option to apply changes directly to the `master` branch.
+- Automatically commits changes with descriptive messages.
 
 ## Prerequisites
 
 To run the pre-built executable:
 
 - **Git**: Must be installed and available in the system PATH.
-- **Maven**: Required for project verification steps (`mvn` command).
+- **Maven**: Required for project builds and OpenRewrite analysis (`mvn` command).
+- **Java**: JDK 17+ recommended for Spring Boot 3.x projects.
 
 To build from source:
 
-- **Go**: Version 1.16 or higher.
+- **Go**: Version 1.21 or higher.
 
 ## Installation & Usage
 
 ### Option A: Run Pre-built Executable (Windows)
 
-1. Simply download or build `GitHousekeeper.exe`.
+1. Download or build `GitHousekeeper.exe`.
 2. Double-click `GitHousekeeper.exe`.
 3. The application will start and open your browser at `http://localhost:8080`.
 
@@ -70,10 +101,10 @@ To build from source:
 2. **Build the application**:
 
    ```bash
-   go build -o GitHousekeeper.exe main.go
+   go build -o GitHousekeeper.exe .
    ```
 
-   _Note: The HTML/CSS assets are embedded directly into the executable. You only need the `.exe` file to run the app._
+   _Note: The HTML/CSS/JS assets are embedded directly into the executable. You only need the `.exe` file to run the app._
 
 3. **Run**:
    ```bash
@@ -90,23 +121,42 @@ If you want to modify the frontend (HTML/CSS/JS) without rebuilding the Go appli
 
 ## Workflow
 
+### General Housekeeping
+
 1. **Configure**:
 
    - **Root Path**: Select the directory containing your Git repositories.
-   - **Included Projects**: Dynamically select which subfolders (repositories) to include or exclude via checkboxes.
+   - **Included Projects**: Select which subfolders (repositories) to include or exclude.
    - **Settings**: Choose version bump strategy and whether to run a full Maven build.
 
 2. **Define Replacements**:
 
    - Use the **POM Replacements** tab for specific changes in `pom.xml`.
-   - Use the **Project Replacements** tab for global changes.
+   - Use the **Project Replacements** tab for global changes across all files.
 
-3. **Start**:
+3. **Execute**:
    - Click **Start** to begin.
    - Follow the **Live Log** in the Report tab.
    - Review **Deprecation Warnings** in the side panel.
    - Export reports to PDF if needed.
 
+### Spring Boot Migration Analysis
+
+1. Navigate to the **Frameworks** tab.
+2. View available Spring Boot versions and click **Scan** to detect local project versions.
+3. Select a **Target Version** from the dropdown.
+4. Click **Run Analysis** to start the OpenRewrite dry-run.
+5. Review the categorized summary showing what changes would be made.
+6. Apply changes manually or use OpenRewrite's `run` goal to apply them automatically.
+
+## Screenshots
+
+_Coming soon_
+
 ## License
 
 [MIT](LICENSE)
+
+---
+
+Made with ❤️ for developers who manage multiple Spring Boot microservices.

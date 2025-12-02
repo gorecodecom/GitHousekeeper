@@ -493,19 +493,184 @@ func analyzeRepo(index int, repoPath, recipe, pluginVersion, recipeVersion strin
 	if _, err := os.Stat(patchFile); err == nil {
 		content, err := os.ReadFile(patchFile)
 		if err == nil && len(content) > 0 {
-			output.WriteString("Changes detected:\n")
-			output.WriteString(string(content))
-			output.WriteString("\n")
+			// Parse and summarize the patch
+			summary := parsePatchToSummary(string(content))
+			output.WriteString(summary)
 		} else {
-			output.WriteString("No changes required (or empty patch).\n")
+			output.WriteString("✅ No changes required.\n")
 		}
 	} else {
 		if strings.Contains(string(cmdOutput), "No changes") {
-			output.WriteString("No changes required.\n")
+			output.WriteString("✅ No changes required.\n")
 		} else {
 			output.WriteString("Analysis finished (no patch file generated).\n")
 		}
 	}
 
 	return AnalysisResult{Index: index, RepoName: repoName, Output: output.String(), Success: true, Duration: time.Since(startTime)}
+}
+
+// parsePatchToSummary converts a raw patch file into a readable summary
+func parsePatchToSummary(patch string) string {
+	var summary strings.Builder
+
+	// Track changes by category
+	categories := map[string][]string{
+		"🔄 Annotation Updates":       {},
+		"📦 Import Changes":           {},
+		"🛠️ Code Modernization":      {},
+		"⚙️ Configuration Changes":   {},
+		"🗑️ Deprecated Code Removal": {},
+	}
+
+	// Track files changed
+	filesChanged := []string{}
+	currentFile := ""
+
+	lines := strings.Split(patch, "\n")
+	for i, line := range lines {
+		// Track file names
+		if strings.HasPrefix(line, "diff --git") {
+			parts := strings.Split(line, " ")
+			if len(parts) >= 4 {
+				file := strings.TrimPrefix(parts[2], "a/")
+				currentFile = file
+				filesChanged = append(filesChanged, file)
+			}
+			continue
+		}
+
+		// Skip header lines
+		if strings.HasPrefix(line, "index ") || strings.HasPrefix(line, "---") || strings.HasPrefix(line, "+++") || strings.HasPrefix(line, "@@") {
+			continue
+		}
+
+		// Analyze removed lines (-)
+		if strings.HasPrefix(line, "-") && !strings.HasPrefix(line, "---") {
+			removed := strings.TrimPrefix(line, "-")
+			removed = strings.TrimSpace(removed)
+
+			// Look for the corresponding added line
+			added := ""
+			for j := i + 1; j < len(lines) && j < i+5; j++ {
+				if strings.HasPrefix(lines[j], "+") && !strings.HasPrefix(lines[j], "+++") {
+					added = strings.TrimPrefix(lines[j], "+")
+					added = strings.TrimSpace(added)
+					break
+				}
+			}
+
+			// Categorize changes
+			shortFile := filepath.Base(currentFile)
+
+			// RequestMapping -> GetMapping/PostMapping/etc.
+			if strings.Contains(removed, "@RequestMapping") && strings.Contains(removed, "RequestMethod") {
+				if strings.Contains(added, "@GetMapping") {
+					categories["🔄 Annotation Updates"] = append(categories["🔄 Annotation Updates"],
+						fmt.Sprintf("%s: @RequestMapping(method=GET) → @GetMapping", shortFile))
+				} else if strings.Contains(added, "@PostMapping") {
+					categories["🔄 Annotation Updates"] = append(categories["🔄 Annotation Updates"],
+						fmt.Sprintf("%s: @RequestMapping(method=POST) → @PostMapping", shortFile))
+				} else if strings.Contains(added, "@PutMapping") {
+					categories["🔄 Annotation Updates"] = append(categories["🔄 Annotation Updates"],
+						fmt.Sprintf("%s: @RequestMapping(method=PUT) → @PutMapping", shortFile))
+				} else if strings.Contains(added, "@DeleteMapping") {
+					categories["🔄 Annotation Updates"] = append(categories["🔄 Annotation Updates"],
+						fmt.Sprintf("%s: @RequestMapping(method=DELETE) → @DeleteMapping", shortFile))
+				}
+			}
+
+			// Import changes
+			if strings.Contains(removed, "import ") && strings.Contains(added, "import ") {
+				oldImport := strings.TrimPrefix(removed, "import ")
+				oldImport = strings.TrimSuffix(oldImport, ";")
+				newImport := strings.TrimPrefix(added, "import ")
+				newImport = strings.TrimSuffix(newImport, ";")
+				if oldImport != newImport {
+					// Only show significant import changes
+					if strings.Contains(oldImport, "RequestMethod") {
+						// Skip, already covered by annotation changes
+					} else {
+						categories["📦 Import Changes"] = append(categories["📦 Import Changes"],
+							fmt.Sprintf("%s: %s", shortFile, filepath.Base(newImport)))
+					}
+				}
+			}
+
+			// HibernateProxy pattern matching
+			if strings.Contains(removed, "instanceof HibernateProxy") && strings.Contains(removed, "((HibernateProxy)") {
+				if strings.Contains(added, "instanceof HibernateProxy hp") {
+					categories["🛠️ Code Modernization"] = append(categories["🛠️ Code Modernization"],
+						fmt.Sprintf("%s: instanceof + cast → Pattern Matching (Java 16+)", shortFile))
+				}
+			}
+
+			// String.format -> formatted
+			if strings.Contains(removed, "String.format(") && strings.Contains(added, ".formatted(") {
+				categories["🛠️ Code Modernization"] = append(categories["🛠️ Code Modernization"],
+					fmt.Sprintf("%s: String.format() → String.formatted()", shortFile))
+			}
+
+			// @Autowired removal
+			if strings.Contains(removed, "@Autowired") && !strings.Contains(added, "@Autowired") {
+				categories["🗑️ Deprecated Code Removal"] = append(categories["🗑️ Deprecated Code Removal"],
+					fmt.Sprintf("%s: Removed unnecessary @Autowired (constructor injection)", shortFile))
+			}
+
+			// Configuration property changes
+			if strings.HasSuffix(currentFile, ".properties") || strings.HasSuffix(currentFile, ".yml") || strings.HasSuffix(currentFile, ".yaml") {
+				if strings.Contains(removed, "=") || strings.Contains(removed, ":") {
+					if strings.Contains(line, "deprecated") || strings.Contains(added, "#") {
+						propName := strings.Split(removed, "=")[0]
+						propName = strings.Split(propName, ":")[0]
+						propName = strings.TrimSpace(propName)
+						if propName != "" && !strings.HasPrefix(propName, "#") {
+							categories["⚙️ Configuration Changes"] = append(categories["⚙️ Configuration Changes"],
+								fmt.Sprintf("%s: Property '%s' deprecated/changed", shortFile, propName))
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// Build summary output
+	summary.WriteString("📋 MIGRATION SUMMARY\n")
+	summary.WriteString("════════════════════════════════════════\n\n")
+
+	// Files overview
+	summary.WriteString(fmt.Sprintf("📁 Files affected: %d\n", len(filesChanged)))
+	for _, f := range filesChanged {
+		summary.WriteString(fmt.Sprintf("   • %s\n", f))
+	}
+	summary.WriteString("\n")
+
+	// Changes by category
+	hasChanges := false
+	for category, changes := range categories {
+		if len(changes) > 0 {
+			hasChanges = true
+			// Deduplicate
+			unique := make(map[string]bool)
+			for _, c := range changes {
+				unique[c] = true
+			}
+			summary.WriteString(fmt.Sprintf("%s (%d)\n", category, len(unique)))
+			for change := range unique {
+				summary.WriteString(fmt.Sprintf("   • %s\n", change))
+			}
+			summary.WriteString("\n")
+		}
+	}
+
+	if !hasChanges {
+		summary.WriteString("ℹ️ Changes detected but could not be categorized.\n")
+		summary.WriteString("   Run with full patch output for details.\n\n")
+	}
+
+	summary.WriteString("════════════════════════════════════════\n")
+	summary.WriteString("💡 TIP: These are recommended changes for Spring Boot upgrade.\n")
+	summary.WriteString("   Review each change before applying.\n")
+
+	return summary.String()
 }
