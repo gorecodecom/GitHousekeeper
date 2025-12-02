@@ -58,81 +58,100 @@ func FindGitRepos(root string, excluded []string) []string {
 	return repos
 }
 
-func ProcessRepo(path string, pomReplacements []Replacement, projectReplacements []Replacement, targetParentVersion string, versionBumpStrategy string, runCleanInstall bool, excludedFolders []string) ReportEntry {
+type RepoOptions struct {
+	PomReplacements     []Replacement
+	ProjectReplacements []Replacement
+	TargetParentVersion string
+	VersionBumpStrategy string
+	RunCleanInstall     bool
+	ExcludedFolders     []string
+	Log                 func(string)
+}
+
+func ProcessRepo(path string, opts RepoOptions) ReportEntry {
 	entry := ReportEntry{RepoPath: path, Success: true}
-	log := func(msg string) {
+	// Use provided logger or fallback to stdout
+	log := opts.Log
+	if log == nil {
+		log = func(msg string) {
+			fmt.Println(msg)
+		}
+	}
+	
+	// Internal helper to capture messages for the report entry AND stream them
+	captureLog := func(msg string) {
 		entry.Messages = append(entry.Messages, msg)
-		fmt.Println(msg) // Also print to stdout for CLI
+		log(msg)
 	}
 
-	log(fmt.Sprintf("Bearbeite: %s", path))
+	captureLog(fmt.Sprintf("Bearbeite: %s", path))
 
-	isCurrent := checkAndDeleteOldHousekeeping(path, log)
+	isCurrent := checkAndDeleteOldHousekeeping(path, captureLog)
 
 	if isCurrent {
-		log("  Branch 'housekeeping' existiert bereits und ist aktuell.")
+		captureLog("  Branch 'housekeeping' existiert bereits und ist aktuell.")
 		err := runGitCommand(path, "checkout", "housekeeping")
 		if err != nil {
-			log(fmt.Sprintf("  [FEHLER] Checkout housekeeping fehlgeschlagen: %v", err))
+			captureLog(fmt.Sprintf("  [FEHLER] Checkout housekeeping fehlgeschlagen: %v", err))
 			entry.Success = false
 			return entry
 		}
-		log("  Checkout housekeeping erfolgreich.")
+		captureLog("  Checkout housekeeping erfolgreich.")
 
 		err = runGitCommand(path, "fetch", "-p")
 		if err != nil {
-			log(fmt.Sprintf("  [FEHLER] Fetch -p fehlgeschlagen: %v", err))
+			captureLog(fmt.Sprintf("  [FEHLER] Fetch -p fehlgeschlagen: %v", err))
 			entry.Success = false
 			return entry
 		}
-		log("  Fetch -p erfolgreich.")
+		captureLog("  Fetch -p erfolgreich.")
 	} else {
 		err := runGitCommand(path, "checkout", "master")
 		if err != nil {
-			log(fmt.Sprintf("  [FEHLER] Checkout master fehlgeschlagen: %v", err))
+			captureLog(fmt.Sprintf("  [FEHLER] Checkout master fehlgeschlagen: %v", err))
 			entry.Success = false
 			return entry
 		}
-		log("  Checkout master erfolgreich.")
+		captureLog("  Checkout master erfolgreich.")
 
 		err = runGitCommand(path, "fetch", "--tags")
 		if err != nil {
-			log(fmt.Sprintf("  [FEHLER] Fetch --tags fehlgeschlagen: %v", err))
+			captureLog(fmt.Sprintf("  [FEHLER] Fetch --tags fehlgeschlagen: %v", err))
 			entry.Success = false
 			return entry
 		}
-		log("  Fetch --tags erfolgreich.")
+		captureLog("  Fetch --tags erfolgreich.")
 
 		err = runGitCommand(path, "pull")
 		if err != nil {
-			log(fmt.Sprintf("  [FEHLER] Pull fehlgeschlagen: %v", err))
+			captureLog(fmt.Sprintf("  [FEHLER] Pull fehlgeschlagen: %v", err))
 			entry.Success = false
 			return entry
 		}
-		log("  Pull erfolgreich.")
+		captureLog("  Pull erfolgreich.")
 
 		err = runGitCommand(path, "checkout", "-b", "housekeeping")
 		if err != nil {
-			log(fmt.Sprintf("  [INFO] Konnte Branch 'housekeeping' nicht neu anlegen (existiert evtl. schon?): %v", err))
+			captureLog(fmt.Sprintf("  [INFO] Konnte Branch 'housekeeping' nicht neu anlegen (existiert evtl. schon?): %v", err))
 		} else {
-			log("  Branch 'housekeeping' angelegt.")
+			captureLog("  Branch 'housekeeping' angelegt.")
 		}
 	}
 
 	tag := getLatestTag(path)
-	log(fmt.Sprintf("  Aktueller Tag: %s", tag))
+	captureLog(fmt.Sprintf("  Aktueller Tag: %s", tag))
 
-	processPomXml(path, tag, pomReplacements, targetParentVersion, versionBumpStrategy, log)
-	processCiSettingsXml(path, log)
-	projectChangesMade := processProjectReplacements(path, projectReplacements, excludedFolders, log)
+	processPomXml(path, tag, opts.PomReplacements, opts.TargetParentVersion, opts.VersionBumpStrategy, captureLog)
+	processCiSettingsXml(path, captureLog)
+	projectChangesMade := processProjectReplacements(path, opts.ProjectReplacements, opts.ExcludedFolders, captureLog)
 
 	var buildOutput string
 
-	if projectChangesMade || runCleanInstall {
-		if runCleanInstall {
-			log("  Führe Maven Clean Install aus (explizit angefordert)...")
+	if projectChangesMade || opts.RunCleanInstall {
+		if opts.RunCleanInstall {
+			captureLog("  Führe Maven Clean Install aus (explizit angefordert)...")
 		} else {
-			log("  Änderungen wurden durchgeführt. Führe Maven Re-import aus...")
+			captureLog("  Änderungen wurden durchgeführt. Führe Maven Re-import aus...")
 		}
 		
 		var cmd *exec.Cmd
@@ -148,21 +167,21 @@ func ProcessRepo(path string, pomReplacements []Replacement, projectReplacements
 		buildOutput = string(outputBytes)
 		
 		if err != nil {
-			log(fmt.Sprintf("  [FEHLER] Maven Build fehlgeschlagen: %v\nOutput:\n%s", err, buildOutput))
+			captureLog(fmt.Sprintf("  [FEHLER] Maven Build fehlgeschlagen: %v\nOutput:\n%s", err, buildOutput))
 			entry.Success = false
 		} else {
-			log("  Maven Build erfolgreich.")
+			captureLog("  Maven Build erfolgreich.")
 		}
 	}
 
 	if buildOutput != "" {
 		// Parse deprecations from the build we just ran
-		entry.DeprecationOutput = parseDeprecationsFromOutput(buildOutput, log)
+		entry.DeprecationOutput = parseDeprecationsFromOutput(buildOutput, captureLog)
 	} else {
 		// No build ran yet. If we want to check deprecations, we must run a build now.
 		// Since the user didn't ask for a build (runCleanInstall=false) and no changes were made,
 		// we run 'clean compile' just for deprecations.
-		entry.DeprecationOutput = checkDeprecations(path, log)
+		entry.DeprecationOutput = checkDeprecations(path, captureLog)
 	}
 
 	return entry

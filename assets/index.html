@@ -48,6 +48,75 @@
         .nav-item {
             padding: 12px 15px;
             margin-bottom: 5px;
+            cursor: pointer;
+            border-radius: 6px;
+            transition: background-color 0.2s;
+            color: #a6adc8;
+        }
+
+        .nav-item:hover {
+            background-color: #313244;
+            color: var(--text-color);
+        }
+
+        .nav-item.active {
+            background-color: var(--accent-color);
+            color: var(--sidebar-color);
+            font-weight: bold;
+        }
+
+        /* Main Content */
+        .main-content {
+            flex: 1;
+            padding: 40px;
+            overflow-y: auto;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        h2 {
+            margin-top: 0;
+            margin-bottom: 30px;
+            font-size: 28px;
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 10px;
+        }
+
+        /* Forms */
+        .form-group {
+            margin-bottom: 25px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+        }
+
+        input[type="text"], textarea, select {
+            width: 100%;
+            padding: 12px;
+            background-color: var(--input-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            color: var(--text-color);
+            font-family: inherit;
+            box-sizing: border-box;
+            transition: border-color 0.2s;
+        }
+
         input[type="text"]:focus, textarea:focus {
             outline: none;
             border-color: var(--accent-color);
@@ -260,12 +329,18 @@
         <h2>Einstellungen</h2>
         <div class="form-group">
             <label>Pfad zum Projekt / Ordner</label>
-            <input type="text" id="rootPath" placeholder="C:\Users\Name\Projects">
+            <div style="display: flex; gap: 10px;">
+                <input type="text" id="rootPath" placeholder="C:\Users\Name\Projects">
+                <button class="btn btn-secondary" onclick="pickFolder('rootPath')" title="Ordner auswählen">📂</button>
+            </div>
             <div class="hint">Der Stammordner, in dem nach Git-Repositories gesucht wird.</div>
         </div>
         <div class="form-group">
             <label>Ausgeschlossene Ordner</label>
-            <input type="text" id="excluded" placeholder="node_modules, target, dist">
+            <div style="display: flex; gap: 10px;">
+                <input type="text" id="excluded" placeholder="node_modules, target, dist">
+                <button class="btn btn-secondary" onclick="pickFolder('excluded')" title="Ordner hinzufügen">📂</button>
+            </div>
             <div class="hint">Komma-getrennte Liste von Ordnern, die ignoriert werden sollen.</div>
         </div>
         <div class="form-group">
@@ -390,9 +465,11 @@
     async function runHousekeeper() {
         showTab('report');
         const log = document.getElementById('report-log');
+        const deprecationLog = document.getElementById('deprecation-log');
         const loading = document.getElementById('loading');
         
         log.innerHTML = '';
+        deprecationLog.innerHTML = '';
         loading.classList.remove('hidden');
 
         // Collect Data
@@ -405,57 +482,76 @@
             pomReplacements: [],
             projectReplacements: []
         };
+        
+        // Save settings to localStorage
+        localStorage.setItem('gitHousekeeper_settings', JSON.stringify({
+            rootPath: data.rootPath,
+            excluded: document.getElementById('excluded').value,
+            parentVersion: data.parentVersion,
+            versionBumpStrategy: data.versionBumpStrategy,
+            runCleanInstall: data.runCleanInstall
+        }));
 
         // Collect POM
         document.querySelectorAll('#pom-list .replacement-row').forEach(row => {
-            const s = row.querySelector('.pom-search').value;
-            const r = row.querySelector('.pom-replace').value;
-            if(s) data.pomReplacements.push({Search: s, Replace: r});
+            const search = row.querySelector('.pom-search').value;
+            const replace = row.querySelector('.pom-replace').value;
+            if (search) {
+                data.pomReplacements.push({ Search: search, Replace: replace });
+            }
         });
 
         // Collect Project
         document.querySelectorAll('#project-list .replacement-row').forEach(row => {
-            const s = row.querySelector('.proj-search').value;
-            const r = row.querySelector('.proj-replace').value;
-            if(s) data.projectReplacements.push({Search: s, Replace: r});
+            const search = row.querySelector('.proj-search').value;
+            const replace = row.querySelector('.proj-replace').value;
+            if (search) {
+                data.projectReplacements.push({ Search: search, Replace: replace });
+            }
         });
 
         try {
             const response = await fetch('/api/run', {
                 method: 'POST',
-                headers: {'Content-Type': 'application/json'},
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(data)
             });
 
             const reader = response.body.getReader();
-            const decoder = new TextDecoder();
-            
+            const decoder = new TextDecoder("utf-8");
             let isDeprecation = false;
-            const depLog = document.getElementById('deprecation-log');
-            depLog.innerHTML = '';
 
             while (true) {
-                const {value, done} = await reader.read();
+                const { done, value } = await reader.read();
                 if (done) break;
                 
-                const text = decoder.decode(value);
-                // Simple parsing for color highlighting
-                const lines = text.split('\n');
-                lines.forEach(line => {
-                    if(!line) return;
+                const chunk = decoder.decode(value, { stream: true });
+                const lines = chunk.split('\n');
+                
+                for (let line of lines) {
+                    if (!line.trim()) continue;
                     
                     if (line.startsWith('DEPRECATION_START:')) {
                         isDeprecation = true;
-                        const repo = line.substring(18);
-                        const div = document.createElement('div');
-                        div.className = 'log-repo';
-                        div.textContent = repo;
-                        depLog.appendChild(div);
-                        return;
+                        const repoName = line.split(':')[1];
+                        const header = document.createElement('div');
+                        header.className = 'log-repo';
+                        header.textContent = repoName;
+                        deprecationLog.appendChild(header);
+                        continue;
                     }
-                    if (line === 'DEPRECATION_END') {
+                    if (line.startsWith('DEPRECATION_END')) {
                         isDeprecation = false;
-                        return;
+                        continue;
+                    }
+
+                    if (isDeprecation) {
+                        const div = document.createElement('div');
+                        div.className = 'log-warning';
+                        div.textContent = line;
+                        deprecationLog.appendChild(div);
+                        deprecationLog.scrollTop = deprecationLog.scrollHeight;
+                        continue;
                     }
 
                     const div = document.createElement('div');
@@ -475,21 +571,52 @@
                         div.className = 'log-info';
                         div.textContent = line;
                     }
-                    
-                    if (isDeprecation) {
-                        depLog.appendChild(div);
-                        depLog.scrollTop = depLog.scrollHeight;
-                    } else {
-                        log.appendChild(div);
-                        log.scrollTop = log.scrollHeight;
-                    }
-                });
+                    log.appendChild(div);
+                    log.scrollTop = log.scrollHeight;
+                }
             }
         } catch (e) {
-            log.innerHTML += `<div class="log-error">Netzwerkfehler: ${e.message}</div>`;
+            log.innerHTML += `<div class="log-error">Fehler: ${e.message}</div>`;
         } finally {
             loading.classList.add('hidden');
             log.innerHTML += '<div class="log-info" style="margin-top:20px; border-top:1px solid #333; padding-top:10px;">--- Fertig ---</div>';
+        }
+    }
+    
+    // Load settings on startup
+    window.addEventListener('DOMContentLoaded', () => {
+        const saved = localStorage.getItem('gitHousekeeper_settings');
+        if (saved) {
+            try {
+                const settings = JSON.parse(saved);
+                if (settings.rootPath) document.getElementById('rootPath').value = settings.rootPath;
+                if (settings.excluded) document.getElementById('excluded').value = settings.excluded;
+                if (settings.parentVersion) document.getElementById('parentVersion').value = settings.parentVersion;
+                if (settings.versionBumpStrategy) document.getElementById('versionBumpStrategy').value = settings.versionBumpStrategy;
+                if (settings.runCleanInstall !== undefined) document.getElementById('runCleanInstall').checked = settings.runCleanInstall;
+            } catch (e) {
+                console.error("Failed to load settings", e);
+            }
+        }
+    });
+
+    // Folder Picker Logic
+    async function pickFolder(targetId) {
+        // Feature detection for File System Access API
+        if ('showDirectoryPicker' in window) {
+            try {
+                const handle = await window.showDirectoryPicker();
+                // Note: The API does NOT expose the full absolute path for security reasons.
+                // It only gives the directory name.
+                // However, for a local tool, users expect to pick a path.
+                // Since we can't get the path, we have to inform the user.
+                alert("Hinweis: Browser-Sicherheitsrichtlinien verhindern das Auslesen des vollständigen Pfades. Bitte kopieren Sie den Pfad manuell aus dem Explorer.");
+            } catch (e) {
+                // User cancelled or error
+                console.log(e);
+            }
+        } else {
+            alert("Ihr Browser unterstützt die Ordner-Auswahl nicht. Bitte kopieren Sie den Pfad manuell.");
         }
     }
 </script>

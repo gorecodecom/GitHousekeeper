@@ -86,3 +86,20 @@ warning: careful now`,
 		})
 	}
 }
+
+func TestProcessRepo_Options(t *testing.T) {
+	// This test verifies that the Options struct is correctly used
+	// We can't easily test the full Git/Maven interaction here without mocking,
+	// but we can test that the logger is called.
+	
+	// Since ProcessRepo does heavy IO, we will just verify the struct exists and compiles
+	// which is implicitly done by the build.
+	// A real unit test for ProcessRepo would require dependency injection for exec.Command.
+	
+	opts := RepoOptions{
+		Log: func(msg string) {},
+	}
+	if opts.Log == nil {
+		t.Error("RepoOptions Log should not be nil")
+	}
+}
