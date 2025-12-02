@@ -5,7 +5,10 @@ GitHousekeeper is a powerful tool designed to automate maintenance tasks and mas
 ## Features
 
 - **Multi-Repository Scanning**: Automatically finds all Git repositories within a specified root directory.
-- **Web Interface**: Intuitive local web interface for configuration and monitoring.
+- **Modern Web Interface**:
+  - **Live-Logging**: Real-time feedback during the build and update process.
+  - **Settings Persistence**: Automatically remembers your paths and configuration between sessions.
+  - **Folder Picker**: Helper buttons to easily select folders (with clipboard support).
 - **Automated Versioning**:
   - Detects the latest Git tag.
   - Updates the project version in `pom.xml`.
@@ -15,7 +18,11 @@ GitHousekeeper is a powerful tool designed to automate maintenance tasks and mas
   - **Project-Wide Replacements**: Fuzzy search and replace across all project files (excluding `.git`, `target`, etc.).
 - **Maven Integration**:
   - Updates `<parent>` versions in `pom.xml`.
-  - Automatically runs `mvn clean install -DskipTests` to verify changes after project-wide replacements.
+  - **Optimized Build**: Runs `mvn clean install` and checks for deprecation warnings in a single efficient pass.
+  - **Deprecation Reporting**: Captures and displays the top 100 deprecation warnings per repository in a dedicated view.
+- **Reporting & Export**:
+  - Detailed execution log.
+  - **PDF Export**: Export the general log or the deprecation report as a PDF file.
 - **Git Automation**:
   - Automatically manages a `housekeeping` branch.
   - Resets the branch if it is stale (older than 1 month).
@@ -23,47 +30,54 @@ GitHousekeeper is a powerful tool designed to automate maintenance tasks and mas
 
 ## Prerequisites
 
-- **Go**: To build and run the application.
+To run the pre-built executable:
 - **Git**: Must be installed and available in the system PATH.
-- **Maven**: Required for project verification steps.
+- **Maven**: Required for project verification steps (`mvn` command).
+
+To build from source:
+- **Go**: Version 1.16 or higher.
 
 ## Installation & Usage
 
+### Option A: Run Pre-built Executable (Windows)
+1. Simply download or build `housekeeper.exe`.
+2. Double-click `housekeeper.exe`.
+3. The application will start and open your browser at `http://localhost:8080`.
+
+### Option B: Build from Source
 1. **Clone the repository**:
    ```bash
    git clone https://github.com/gorecodecom/GitHousekeeper.git
    cd GitHousekeeper
    ```
 
-2. **Run the application**:
+2. **Build the application**:
    ```bash
-   go run main.go
+   go build -o housekeeper.exe main.go
    ```
-   The application will start a local web server and attempt to open your default browser to `http://localhost:8080`.
+   *Note: The HTML/CSS assets are embedded directly into the executable. You only need the `.exe` file to run the app.*
 
-3. **Configure the Housekeeping Run**:
-   - **Root Path**: Enter the directory containing your Git repositories.
+3. **Run**:
+   ```bash
+   ./housekeeper.exe
+   ```
+
+## Workflow
+
+1. **Configure**:
+   - **Root Path**: Select the directory containing your Git repositories.
    - **Excluded Folders**: Specify folders to ignore (e.g., `node_modules`, `dist`).
-   - **Parent Version**: (Optional) Target version for the Maven parent POM.
-   - **Version Bump**: Choose how to increment the version (Patch, Minor, Major).
+   - **Settings**: Choose version bump strategy and whether to run a full Maven build.
 
-4. **Define Replacements**:
+2. **Define Replacements**:
    - Use the **POM Replacements** tab for specific changes in `pom.xml`.
    - Use the **Project Replacements** tab for global changes.
 
-5. **Start**:
-   - Click **Start** to begin the process.
-   - Monitor the progress in the **Report** tab.
-
-## How it Works
-
-For each repository found:
-1. Checks out or creates a `housekeeping` branch.
-2. Fetches the latest tags and updates.
-3. Updates `pom.xml` version based on the latest Git tag and selected strategy.
-4. Performs defined text replacements.
-5. If project files were modified, runs a Maven build to ensure integrity.
-6. Commits changes if successful.
+3. **Start**:
+   - Click **Start** to begin.
+   - Follow the **Live Log** in the Report tab.
+   - Review **Deprecation Warnings** in the side panel.
+   - Export reports to PDF if needed.
 
 ## License
 
