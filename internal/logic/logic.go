@@ -45,19 +45,19 @@ func IsGitRepo(path string) bool {
 
 func FindGitRepos(root string, excluded []string) []string {
 	var repos []string
-	
+
 	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
-		
+
 		if info.IsDir() {
 			for _, ex := range excluded {
 				if info.Name() == ex {
 					return filepath.SkipDir
 				}
 			}
-			
+
 			if info.Name() == ".git" {
 				repoPath := filepath.Dir(path)
 				repos = append(repos, repoPath)
@@ -66,9 +66,9 @@ func FindGitRepos(root string, excluded []string) []string {
 		}
 		return nil
 	})
-	
+
 	if err != nil {
-		fmt.Printf("Fehler beim Durchsuchen: %v\n", err)
+		fmt.Printf("Error searching: %v\n", err)
 	}
 	return repos
 }
@@ -82,81 +82,81 @@ func ProcessRepo(path string, opts RepoOptions) ReportEntry {
 			fmt.Println(msg)
 		}
 	}
-	
+
 	// Internal helper to capture messages for the report entry AND stream them
 	captureLog := func(msg string) {
 		entry.Messages = append(entry.Messages, msg)
 		log(msg)
 	}
 
-	captureLog(fmt.Sprintf("Bearbeite: %s", path))
+	captureLog(fmt.Sprintf("Processing: %s", path))
 
 	// 1. Always update master first
-	captureLog("  Wechsle zu master und aktualisiere...")
+	captureLog("  Switching to master and updating...")
 	err := runGitCommand(path, "checkout", "master")
 	if err != nil {
-		captureLog(fmt.Sprintf("  [FEHLER] Checkout master fehlgeschlagen: %v", err))
+		captureLog(fmt.Sprintf("  [ERROR] Checkout master failed: %v", err))
 		entry.Success = false
 		return entry
 	}
-	
+
 	err = runGitCommand(path, "fetch", "-p")
 	if err != nil {
-		captureLog(fmt.Sprintf("  [WARNUNG] Fetch -p fehlgeschlagen: %v", err))
+		captureLog(fmt.Sprintf("  [WARNING] Fetch -p failed: %v", err))
 	}
 
 	err = runGitCommand(path, "pull")
 	if err != nil {
-		captureLog(fmt.Sprintf("  [FEHLER] Pull master fehlgeschlagen: %v", err))
+		captureLog(fmt.Sprintf("  [ERROR] Pull master failed: %v", err))
 		entry.Success = false
 		return entry
 	}
-	captureLog("  Master erfolgreich aktualisiert.")
+	captureLog("  Master successfully updated.")
 
 	// 2. Branch Logic
 	targetBranch := strings.TrimSpace(opts.TargetBranch)
-	
+
 	if targetBranch == "" {
-		captureLog("  Kein Ziel-Branch angegeben. Arbeite auf master weiter.")
+		captureLog("  No target branch specified. Continuing on master.")
 	} else {
 		// Special logic for "housekeeping"
 		if targetBranch == "housekeeping" {
 			checkAndDeleteOldHousekeeping(path, captureLog)
 		}
-		
+
 		if branchExists(path, targetBranch) {
-			captureLog(fmt.Sprintf("  Wechsle zu existierendem Branch '%s'...", targetBranch))
+			captureLog(fmt.Sprintf("  Switching to existing branch '%s'...", targetBranch))
 			err := runGitCommand(path, "checkout", targetBranch)
 			if err != nil {
-				captureLog(fmt.Sprintf("  [FEHLER] Checkout %s fehlgeschlagen: %v", targetBranch, err))
+				captureLog(fmt.Sprintf("  [ERROR] Checkout %s failed: %v", targetBranch, err))
 				entry.Success = false
 				return entry
 			}
-			
+
 			// For custom branches (not housekeeping), try to pull updates if tracking remote
 			if targetBranch != "housekeeping" {
 				err := runGitCommand(path, "pull")
 				if err == nil {
-					captureLog("  Branch aktualisiert (Pull).")
+					captureLog("  Branch updated (Pull).")
 				} else {
 					// It's okay if pull fails (e.g. local only branch), just log info
-					captureLog("  Pull nicht möglich (evtl. nur lokal), mache weiter.")
+					captureLog("  Pull not possible (maybe local only), continuing.")
 				}
 			}
 		} else {
-			captureLog(fmt.Sprintf("  Erstelle neuen Branch '%s' von master...", targetBranch))
+			captureLog(fmt.Sprintf("  Creating new branch '%s' from master...", targetBranch))
 			err := runGitCommand(path, "checkout", "-b", targetBranch)
 			if err != nil {
-				captureLog(fmt.Sprintf("  [FEHLER] Konnte Branch '%s' nicht erstellen: %v", targetBranch, err))
+				captureLog(fmt.Sprintf("  [ERROR] Could not create branch '%s': %v", targetBranch, err))
 				entry.Success = false
 				return entry
 			}
-			captureLog(fmt.Sprintf("  Branch '%s' erstellt.", targetBranch))
+			captureLog(fmt.Sprintf("  Branch '%s' created.", targetBranch))
 		}
 	}
 
 	tag := getLatestTag(path)
-	captureLog(fmt.Sprintf("  Aktueller Tag: %s", tag))
+	captureLog(fmt.Sprintf("  Current Tag: %s", tag))
 
 	processPomXml(path, tag, opts.PomReplacements, opts.TargetParentVersion, opts.VersionBumpStrategy, captureLog)
 	processCiSettingsXml(path, captureLog)
@@ -166,11 +166,11 @@ func ProcessRepo(path string, opts RepoOptions) ReportEntry {
 
 	if projectChangesMade || opts.RunCleanInstall {
 		if opts.RunCleanInstall {
-			captureLog("  Führe Maven Clean Install aus (explizit angefordert)...")
+			captureLog("  Running Maven Clean Install (explicitly requested)...")
 		} else {
-			captureLog("  Änderungen wurden durchgeführt. Führe Maven Re-import aus...")
+			captureLog("  Changes were made. Running Maven Re-import...")
 		}
-		
+
 		var cmd *exec.Cmd
 		// Add -Dmaven.compiler.showDeprecation=true to capture deprecations in the same run
 		if strings.Contains(strings.ToLower(os.Getenv("OS")), "windows") {
@@ -179,15 +179,15 @@ func ProcessRepo(path string, opts RepoOptions) ReportEntry {
 			cmd = exec.Command("mvn", "clean", "install", "-DskipTests", "-Dmaven.compiler.showDeprecation=true")
 		}
 		cmd.Dir = path
-		
+
 		outputBytes, err := cmd.CombinedOutput()
 		buildOutput = string(outputBytes)
-		
+
 		if err != nil {
-			captureLog(fmt.Sprintf("  [FEHLER] Maven Build fehlgeschlagen: %v\nOutput:\n%s", err, buildOutput))
+			captureLog(fmt.Sprintf("  [ERROR] Maven Build failed: %v\nOutput:\n%s", err, buildOutput))
 			entry.Success = false
 		} else {
-			captureLog("  Maven Build erfolgreich.")
+			captureLog("  Maven Build successful.")
 		}
 	}
 
@@ -218,13 +218,13 @@ func checkAndDeleteOldHousekeeping(path string, log func(string)) {
 	cmd.Dir = path
 	output, err := cmd.Output()
 	if err != nil {
-		log(fmt.Sprintf("  [WARNUNG] Konnte Datum von housekeeping nicht lesen: %v", err))
+		log(fmt.Sprintf("  [WARNING] Could not read date of housekeeping: %v", err))
 		return
 	}
 	dateStr := strings.TrimSpace(string(output))
 	branchDate, err := time.Parse(time.RFC3339, dateStr)
 	if err != nil {
-		log(fmt.Sprintf("  [WARNUNG] Konnte Datum '%s' nicht parsen: %v", dateStr, err))
+		log(fmt.Sprintf("  [WARNING] Could not parse date '%s': %v", dateStr, err))
 		return
 	}
 
@@ -233,12 +233,12 @@ func checkAndDeleteOldHousekeeping(path string, log func(string)) {
 	threshold := currentMonthFirst.AddDate(0, -1, 0)
 
 	if branchDate.Before(threshold) {
-		log(fmt.Sprintf("  [INFO] Branch housekeeping ist alt (%s), lösche ihn...", branchDate.Format("2006-01-02")))
+		log(fmt.Sprintf("  [INFO] Branch housekeeping is old (%s), deleting it...", branchDate.Format("2006-01-02")))
 		err := runGitCommand(path, "branch", "-D", "housekeeping")
 		if err != nil {
-			log(fmt.Sprintf("  [FEHLER] Konnte housekeeping nicht löschen: %v", err))
+			log(fmt.Sprintf("  [ERROR] Could not delete housekeeping: %v", err))
 		} else {
-			log("  Branch housekeeping gelöscht.")
+			log("  Branch housekeeping deleted.")
 		}
 	}
 }
@@ -258,13 +258,13 @@ func getLatestTag(path string) string {
 	cmd.Dir = path
 	output, err := cmd.Output()
 	if err != nil {
-		return "Keine Tags"
+		return "No Tags"
 	}
 	lines := strings.Split(string(output), "\n")
 	if len(lines) > 0 && lines[0] != "" {
 		return strings.TrimSpace(lines[0])
 	}
-	return "Keine Tags"
+	return "No Tags"
 }
 
 func processPomXml(repoPath, tag string, replacements []Replacement, targetParentVersion string, versionBumpStrategy string, log func(string)) {
@@ -274,15 +274,15 @@ func processPomXml(repoPath, tag string, replacements []Replacement, targetParen
 		if os.IsNotExist(err) {
 			return
 		}
-		log(fmt.Sprintf("  [FEHLER] Konnte pom.xml nicht lesen: %v", err))
+		log(fmt.Sprintf("  [ERROR] Could not read pom.xml: %v", err))
 		return
 	}
 	content := string(contentBytes)
 	originalContent := content
-	
+
 	cleanTag := strings.TrimPrefix(tag, "v")
-	
-	if cleanTag != "" && cleanTag != "Keine Tags" {
+
+	if cleanTag != "" && cleanTag != "No Tags" {
 		excludePatterns := []string{
 			`(?s)<parent>.*?</parent>`,
 			`(?s)<dependencies>.*?</dependencies>`,
@@ -290,23 +290,23 @@ func processPomXml(repoPath, tag string, replacements []Replacement, targetParen
 			`(?s)<build>.*?</build>`,
 			`(?s)<profiles>.*?</profiles>`,
 		}
-		
+
 		var excludedRanges [][]int
 		for _, pat := range excludePatterns {
 			re := regexp.MustCompile(pat)
 			matches := re.FindAllStringIndex(content, -1)
 			excludedRanges = append(excludedRanges, matches...)
 		}
-		
+
 		reVersion := regexp.MustCompile(`<version>(.*?)</version>`)
 		versionMatches := reVersion.FindAllStringSubmatchIndex(content, -1)
-		
+
 		var projectVersionMatch []int
-		
+
 		for _, match := range versionMatches {
 			vStart := match[0]
 			vEnd := match[1]
-			
+
 			isExcluded := false
 			for _, rng := range excludedRanges {
 				if vStart >= rng[0] && vEnd <= rng[1] {
@@ -314,30 +314,30 @@ func processPomXml(repoPath, tag string, replacements []Replacement, targetParen
 					break
 				}
 			}
-			
+
 			if !isExcluded {
 				projectVersionMatch = match
 				break
 			}
 		}
-		
+
 		if projectVersionMatch != nil {
 			currentProjectVersion := content[projectVersionMatch[2]:projectVersionMatch[3]]
-			
+
 			if currentProjectVersion == cleanTag {
 				parts := strings.Split(cleanTag, ".")
 				var newVersion string
-				
+
 				if len(parts) >= 3 {
 					major := parts[0]
 					minor := parts[1]
 					patch := parts[2]
-					
+
 					var majorInt, minorInt, patchInt int
 					fmt.Sscanf(major, "%d", &majorInt)
 					fmt.Sscanf(minor, "%d", &minorInt)
 					fmt.Sscanf(patch, "%d", &patchInt)
-					
+
 					switch versionBumpStrategy {
 					case "major":
 						majorInt++
@@ -349,17 +349,17 @@ func processPomXml(repoPath, tag string, replacements []Replacement, targetParen
 					default: // "patch" or empty
 						patchInt++
 					}
-					
+
 					newVersion = fmt.Sprintf("%d.%d.%d", majorInt, minorInt, patchInt)
-					
+
 				} else if len(parts) == 2 {
 					major := parts[0]
 					minor := parts[1]
-					
+
 					var majorInt, minorInt int
 					fmt.Sscanf(major, "%d", &majorInt)
 					fmt.Sscanf(minor, "%d", &minorInt)
-					
+
 					switch versionBumpStrategy {
 					case "major":
 						majorInt++
@@ -373,7 +373,7 @@ func processPomXml(repoPath, tag string, replacements []Replacement, targetParen
 						// If we treat as Major.Minor, minor bump is 1.3
 						// Major bump is 2.0
 					}
-					
+
 					if newVersion == "" {
 						newVersion = fmt.Sprintf("%d.%d", majorInt, minorInt)
 					}
@@ -382,16 +382,16 @@ func processPomXml(repoPath, tag string, replacements []Replacement, targetParen
 				if newVersion != "" {
 					absStart := projectVersionMatch[2]
 					absEnd := projectVersionMatch[3]
-					
+
 					content = content[:absStart] + newVersion + content[absEnd:]
-					
-					log(fmt.Sprintf("  [INFO] Version in pom.xml aktualisiert (%s): %s -> %s", versionBumpStrategy, currentProjectVersion, newVersion))
+
+					log(fmt.Sprintf("  [INFO] Version in pom.xml updated (%s): %s -> %s", versionBumpStrategy, currentProjectVersion, newVersion))
 				}
 			} else {
-				log(fmt.Sprintf("  [INFO] Version in pom.xml (%s) stimmt nicht mit Tag (%s) überein. Keine Aktualisierung.", currentProjectVersion, cleanTag))
+				log(fmt.Sprintf("  [INFO] Version in pom.xml (%s) does not match Tag (%s). No update.", currentProjectVersion, cleanTag))
 			}
 		} else {
-			log("  [WARNUNG] Keine Projekt-Version in pom.xml gefunden (evtl. nur in Parent definiert?).")
+			log("  [WARNING] No project version found in pom.xml (maybe only defined in Parent?).")
 		}
 	}
 
@@ -400,9 +400,9 @@ func processPomXml(repoPath, tag string, replacements []Replacement, targetParen
 			newContent, changed := performFuzzyReplacement(content, r.Search, r.Replace)
 			if changed {
 				content = newContent
-				log(fmt.Sprintf("  [INFO] Benutzerdefinierte Ersetzung durchgeführt: '%s' -> '%s'", r.Search, r.Replace))
+				log(fmt.Sprintf("  [INFO] Custom replacement performed: '%s' -> '%s'", r.Search, r.Replace))
 			} else {
-				log(fmt.Sprintf("  [INFO] Suchtext '%s' nicht gefunden, keine Ersetzung.", r.Search))
+				log(fmt.Sprintf("  [INFO] Search text '%s' not found, no replacement.", r.Search))
 			}
 		}
 	}
@@ -410,7 +410,7 @@ func processPomXml(repoPath, tag string, replacements []Replacement, targetParen
 	if targetParentVersion != "" {
 		re := regexp.MustCompile(`(?s)<parent>.*?</parent>`)
 		parentBlock := re.FindString(content)
-		
+
 		if parentBlock != "" {
 			reVersion := regexp.MustCompile(`<version>(.*?)</version>`)
 			match := reVersion.FindStringSubmatch(parentBlock)
@@ -419,9 +419,9 @@ func processPomXml(repoPath, tag string, replacements []Replacement, targetParen
 				if currentParentVersion != targetParentVersion {
 					newParentBlock := strings.Replace(parentBlock, "<version>"+currentParentVersion+"</version>", "<version>"+targetParentVersion+"</version>", 1)
 					content = strings.Replace(content, parentBlock, newParentBlock, 1)
-					log(fmt.Sprintf("  [INFO] Parent-Version aktualisiert: %s -> %s", currentParentVersion, targetParentVersion))
+					log(fmt.Sprintf("  [INFO] Parent version updated: %s -> %s", currentParentVersion, targetParentVersion))
 				} else {
-					log("  [INFO] Parent-Version ist bereits aktuell.")
+					log("  [INFO] Parent version is already up to date.")
 				}
 			}
 		}
@@ -447,30 +447,30 @@ func processPomXml(repoPath, tag string, replacements []Replacement, targetParen
 
 	if strings.Contains(content, singleRepo) {
 		content = strings.Replace(content, singleRepo, doubleRepo, 1)
-		log("  [INFO] Repositories Block aktualisiert.")
+		log("  [INFO] Repositories block updated.")
 	}
 
 	if content != originalContent {
 		err = os.WriteFile(pomPath, []byte(content), 0644)
 		if err != nil {
-			log(fmt.Sprintf("  [FEHLER] Konnte pom.xml nicht schreiben: %v", err))
+			log(fmt.Sprintf("  [ERROR] Could not write pom.xml: %v", err))
 			return
 		}
-		
+
 		err = runGitCommand(repoPath, "add", "pom.xml")
 		if err != nil {
-			log(fmt.Sprintf("  [FEHLER] git add pom.xml fehlgeschlagen: %v", err))
+			log(fmt.Sprintf("  [ERROR] git add pom.xml failed: %v", err))
 			return
 		}
-		
+
 		err = runGitCommand(repoPath, "commit", "-m", "Update pom.xml")
 		if err != nil {
-			log(fmt.Sprintf("  [FEHLER] git commit fehlgeschlagen: %v", err))
+			log(fmt.Sprintf("  [ERROR] git commit failed: %v", err))
 			return
 		}
-		log("  pom.xml aktualisiert und committet.")
+		log("  pom.xml updated and committed.")
 	} else {
-		log("  Keine Änderungen an pom.xml.")
+		log("  No changes to pom.xml.")
 	}
 }
 
@@ -479,7 +479,7 @@ func processCiSettingsXml(repoPath string, log func(string)) {
 	contentBytes, err := os.ReadFile(ciPath)
 	if err != nil {
 		if !os.IsNotExist(err) {
-			log(fmt.Sprintf("  [FEHLER] Konnte ci-settings.xml nicht lesen: %v", err))
+			log(fmt.Sprintf("  [ERROR] Could not read ci-settings.xml: %v", err))
 		}
 		return
 	}
@@ -525,30 +525,30 @@ func processCiSettingsXml(repoPath string, log func(string)) {
 
 	if strings.Contains(content, singleServer) {
 		content = strings.Replace(content, singleServer, doubleServer, 1)
-		log("  [INFO] ci-settings.xml Server Block aktualisiert.")
+		log("  [INFO] ci-settings.xml Server Block updated.")
 	}
 
 	if content != originalContent {
 		err = os.WriteFile(ciPath, []byte(content), 0644)
 		if err != nil {
-			log(fmt.Sprintf("  [FEHLER] Konnte ci-settings.xml nicht schreiben: %v", err))
+			log(fmt.Sprintf("  [ERROR] Could not write ci-settings.xml: %v", err))
 			return
 		}
 
 		err = runGitCommand(repoPath, "add", "ci-settings.xml")
 		if err != nil {
-			log(fmt.Sprintf("  [FEHLER] git add ci-settings.xml fehlgeschlagen: %v", err))
+			log(fmt.Sprintf("  [ERROR] git add ci-settings.xml failed: %v", err))
 			return
 		}
 
 		err = runGitCommand(repoPath, "commit", "-m", "Update ci-settings.xml")
 		if err != nil {
-			log(fmt.Sprintf("  [FEHLER] git commit fehlgeschlagen: %v", err))
+			log(fmt.Sprintf("  [ERROR] git commit failed: %v", err))
 			return
 		}
-		log("  ci-settings.xml aktualisiert und committet.")
+		log("  ci-settings.xml updated and committed.")
 	} else {
-		log("  Keine Änderungen an ci-settings.xml.")
+		log("  No changes to ci-settings.xml.")
 	}
 }
 
@@ -578,10 +578,10 @@ func processProjectReplacements(root string, replacements []Replacement, exclude
 
 		contentBytes, err := os.ReadFile(path)
 		if err != nil {
-			log(fmt.Sprintf("    [WARNUNG] Konnte Datei %s nicht lesen: %v", path, err))
+			log(fmt.Sprintf("    [WARNING] Could not read file %s: %v", path, err))
 			return nil
 		}
-		
+
 		for i := 0; i < len(contentBytes) && i < 1024; i++ {
 			if contentBytes[i] == 0 {
 				return nil
@@ -602,15 +602,15 @@ func processProjectReplacements(root string, replacements []Replacement, exclude
 		if fileChanged {
 			err = os.WriteFile(path, []byte(content), info.Mode())
 			if err != nil {
-				log(fmt.Sprintf("    [FEHLER] Konnte Datei %s nicht schreiben: %v", path, err))
+				log(fmt.Sprintf("    [ERROR] Could not write file %s: %v", path, err))
 			} else {
-				log(fmt.Sprintf("    [INFO] Datei aktualisiert: %s", path))
-				
+				log(fmt.Sprintf("    [INFO] File updated: %s", path))
+
 				err = runGitCommand(root, "add", path)
 				if err == nil {
 					runGitCommand(root, "commit", "-m", fmt.Sprintf("Update %s via project-wide replacement", filepath.Base(path)))
 				}
-				
+
 				changesMade = true
 			}
 		}
@@ -619,7 +619,7 @@ func processProjectReplacements(root string, replacements []Replacement, exclude
 	})
 
 	if err != nil {
-		log(fmt.Sprintf("  [FEHLER] Fehler beim Durchsuchen für Ersetzungen: %v", err))
+		log(fmt.Sprintf("  [ERROR] Error searching for replacements: %v", err))
 	}
 
 	return changesMade
@@ -647,7 +647,7 @@ func performFuzzyReplacement(content, search, replace string) (string, bool) {
 
 	// Join parts with \s+ to allow any whitespace (spaces, tabs, newlines) between tokens
 	pattern := strings.Join(escapedParts, `\s+`)
-	
+
 	re, err := regexp.Compile("(?s)" + pattern)
 	if err != nil {
 		return content, false
@@ -656,50 +656,50 @@ func performFuzzyReplacement(content, search, replace string) (string, bool) {
 	// We need to replace ALL occurrences, but respecting indentation for each.
 	// Since we can't easily do this with ReplaceAllStringFunc (no index provided),
 	// we have to iterate manually.
-	
+
 	currentContent := content
 	changed := false
-	
+
 	// Loop until no more matches found
 	// To avoid infinite loops if replacement contains the search pattern, we need to be careful.
 	// However, usually replacement is different. But if it's fuzzy, it might match again.
 	// A safer approach is to find all indices first, then replace from back to front.
-	
+
 	matches := re.FindAllStringIndex(currentContent, -1)
 	if matches == nil {
 		return content, false
 	}
-	
+
 	// Iterate backwards to keep indices valid
 	for i := len(matches) - 1; i >= 0; i-- {
 		match := matches[i]
 		startIdx := match[0]
 		endIdx := match[1]
-		
+
 		// Determine indentation of the start line
 		lineStartIdx := startIdx
 		for lineStartIdx > 0 && currentContent[lineStartIdx-1] != '\n' {
 			lineStartIdx--
 		}
 		indent := currentContent[lineStartIdx:startIdx]
-		
+
 		// Only use indent if it is purely whitespace
 		if strings.TrimSpace(indent) != "" {
 			indent = "" // Match didn't start after whitespace
 		}
-		
+
 		// Adjust replacement
 		currentReplace := replace
 		currentReplace = strings.ReplaceAll(currentReplace, "\r\n", "\n")
 		lines := strings.Split(currentReplace, "\n")
-		
+
 		if len(lines) > 1 && indent != "" {
 			for j := 1; j < len(lines); j++ {
 				lines[j] = indent + lines[j]
 			}
 			currentReplace = strings.Join(lines, "\n")
 		}
-		
+
 		// Perform replacement
 		currentContent = currentContent[:startIdx] + currentReplace + currentContent[endIdx:]
 		changed = true
@@ -709,8 +709,8 @@ func performFuzzyReplacement(content, search, replace string) (string, bool) {
 }
 
 func checkDeprecations(path string, log func(string)) string {
-	log("  Prüfe auf Deprecations (separater Lauf)...")
-	
+	log("  Checking for deprecations (separate run)...")
+
 	var cmd *exec.Cmd
 	if strings.Contains(strings.ToLower(os.Getenv("OS")), "windows") {
 		cmd = exec.Command("cmd", "/C", "mvn", "clean", "compile", "-Dmaven.compiler.showDeprecation=true")
@@ -718,7 +718,7 @@ func checkDeprecations(path string, log func(string)) string {
 		cmd = exec.Command("mvn", "clean", "compile", "-Dmaven.compiler.showDeprecation=true")
 	}
 	cmd.Dir = path
-	
+
 	// We ignore error here because we only care about the output logs
 	output, _ := cmd.CombinedOutput()
 	return parseDeprecationsFromOutput(string(output), log)
@@ -728,7 +728,7 @@ func parseDeprecationsFromOutput(output string, log func(string)) string {
 	lines := strings.Split(output, "\n")
 	var warnings []string
 	count := 0
-	
+
 	for _, line := range lines {
 		lower := strings.ToLower(line)
 		if strings.Contains(lower, "deprecation") || strings.Contains(lower, "deprecated") || strings.Contains(lower, "warning") {
@@ -743,13 +743,13 @@ func parseDeprecationsFromOutput(output string, log func(string)) string {
 			}
 		}
 	}
-	
+
 	if len(warnings) > 0 {
-		log(fmt.Sprintf("  %d Deprecation-Warnungen gefunden.", len(warnings)))
+		log(fmt.Sprintf("  %d deprecation warnings found.", len(warnings)))
 		return strings.Join(warnings, "\n")
 	}
-	
-	log("  Keine Deprecation-Warnungen gefunden.")
+
+	log("  No deprecation warnings found.")
 	return ""
 }
 
@@ -803,7 +803,7 @@ func GetSpringVersions() ([]SpringVersionInfo, error) {
 	}
 
 	var result []SpringVersionInfo
-	
+
 	// Define migration guides
 	guides := map[string]string{
 		"2": "https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-2.0-Migration-Guide",
@@ -858,12 +858,12 @@ func ScanProjectsForSpring(root string, excluded []string) SpringScanResult {
 		fmt.Println("[SPRING SCAN]", msg) // Also print to stdout
 	}
 
-	log(fmt.Sprintf("Starte Scan in: %s", root))
+	log(fmt.Sprintf("Starting scan in: %s", root))
 
 	// Walk through directory and find ALL pom.xml files (not just in git repos)
 	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
-			log(fmt.Sprintf("Fehler beim Zugriff auf %s: %v", path, err))
+			log(fmt.Sprintf("Error accessing %s: %v", path, err))
 			return err
 		}
 
@@ -871,7 +871,7 @@ func ScanProjectsForSpring(root string, excluded []string) SpringScanResult {
 			// Check exclusions
 			for _, ex := range excluded {
 				if info.Name() == ex {
-					log(fmt.Sprintf("Überspringe ausgeschlossenen Ordner: %s", info.Name()))
+					log(fmt.Sprintf("Skipping excluded folder: %s", info.Name()))
 					return filepath.SkipDir
 				}
 			}
@@ -884,10 +884,10 @@ func ScanProjectsForSpring(root string, excluded []string) SpringScanResult {
 
 		// Found a pom.xml
 		if strings.ToLower(info.Name()) == "pom.xml" {
-			log(fmt.Sprintf("Prüfe POM: %s", path))
+			log(fmt.Sprintf("Checking POM: %s", path))
 			contentBytes, err := os.ReadFile(path)
 			if err != nil {
-				log(fmt.Sprintf("  Konnte Datei nicht lesen: %v", err))
+				log(fmt.Sprintf("  Could not read file: %v", err))
 				return nil
 			}
 			content := string(contentBytes)
@@ -897,7 +897,7 @@ func ScanProjectsForSpring(root string, excluded []string) SpringScanResult {
 			parentBlock := reParent.FindString(content)
 
 			if parentBlock == "" {
-				log("  Kein <parent> Block gefunden.")
+				log("  No <parent> block found.")
 				return nil
 			}
 
@@ -907,28 +907,28 @@ func ScanProjectsForSpring(root string, excluded []string) SpringScanResult {
 				match := reVersion.FindStringSubmatch(parentBlock)
 				if len(match) > 1 {
 					v := match[1]
-					log(fmt.Sprintf("  Gefunden (direkt): %s", v))
+					log(fmt.Sprintf("  Found (direct): %s", v))
 					result.Projects = append(result.Projects, ProjectSpringStatus{
 						Path:           filepath.Dir(path),
 						RepoName:       filepath.Base(filepath.Dir(path)),
 						CurrentVersion: v,
 					})
 				} else {
-					log("  spring-boot-starter-parent gefunden, aber keine Version extrahierbar.")
+					log("  spring-boot-starter-parent found, but no version extractable.")
 				}
 			} else {
-				log("  <parent> ist nicht spring-boot-starter-parent. Versuche Effective-POM Analyse...")
+				log("  <parent> is not spring-boot-starter-parent. Trying Effective-POM analysis...")
 				// Fallback: Run Maven to get effective pom
 				v, err := getSpringBootVersionFromMaven(filepath.Dir(path))
 				if err == nil && v != "" {
-					log(fmt.Sprintf("  Gefunden (via Maven): %s", v))
+					log(fmt.Sprintf("  Found (via Maven): %s", v))
 					result.Projects = append(result.Projects, ProjectSpringStatus{
 						Path:           filepath.Dir(path),
 						RepoName:       filepath.Base(filepath.Dir(path)),
 						CurrentVersion: v,
 					})
 				} else {
-					log(fmt.Sprintf("  Maven Analyse fehlgeschlagen oder keine Version gefunden: %v", err))
+					log(fmt.Sprintf("  Maven analysis failed or no version found: %v", err))
 				}
 			}
 		}
@@ -936,10 +936,10 @@ func ScanProjectsForSpring(root string, excluded []string) SpringScanResult {
 	})
 
 	if err != nil {
-		log(fmt.Sprintf("Fehler beim Walk: %v", err))
+		log(fmt.Sprintf("Error during walk: %v", err))
 	}
 
-	log(fmt.Sprintf("Scan beendet. Gefunden: %d Projekte", len(result.Projects)))
+	log(fmt.Sprintf("Scan finished. Found: %d projects", len(result.Projects)))
 	return result
 }
 
@@ -977,5 +977,5 @@ func getSpringBootVersionFromMaven(dir string) (string, error) {
 		return matchDep[1], nil
 	}
 
-	return "", fmt.Errorf("keine Spring Boot Version im Effective POM gefunden")
+	return "", fmt.Errorf("no Spring Boot version found in Effective POM")
 }

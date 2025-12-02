@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -318,9 +318,9 @@
         🏠 GitHousekeeper
     </div>
     <div class="nav-item active" onclick="showTab('settings')">Project Setup</div>
-    <div class="nav-item" onclick="showTab('pom')">POM Ersetzungen</div>
-    <div class="nav-item" onclick="showTab('project')">Projekt Ersetzungen</div>
-    <div class="nav-item" onclick="showTab('report')">Bericht</div>
+    <div class="nav-item" onclick="showTab('pom')">POM Replacements</div>
+    <div class="nav-item" onclick="showTab('project')">Project Replacements</div>
+    <div class="nav-item" onclick="showTab('report')">Report</div>
     <div class="nav-item" onclick="showTab('frameworks')">Frameworks</div>
 </div>
 
@@ -329,113 +329,113 @@
     <div id="tab-settings" class="tab-content active">
         <h2>Project Setup</h2>
         <div class="form-group">
-            <label>Pfad zum Projekt / Ordner</label>
+            <label>Project / Folder Path</label>
             <div style="display: flex; gap: 10px;">
                 <input type="text" id="rootPath" placeholder="C:\Users\Name\Projects">
-                <button class="btn btn-secondary" onclick="pickFolder('rootPath')" title="Ordner auswählen">📂</button>
+                <button class="btn btn-secondary" onclick="pickFolder('rootPath')" title="Select Folder">📂</button>
             </div>
-            <div class="hint">Der Stammordner, in dem nach Git-Repositories gesucht wird.</div>
+            <div class="hint">The root folder where Git repositories will be searched.</div>
         </div>
         <div class="form-group">
-            <label>Ausgeschlossene Ordner</label>
+            <label>Excluded Folders</label>
             <div style="display: flex; gap: 10px;">
                 <input type="text" id="excluded" placeholder="node_modules, target, dist">
-                <button class="btn btn-secondary" onclick="pickFolder('excluded')" title="Ordner hinzufügen">📂</button>
+                <button class="btn btn-secondary" onclick="pickFolder('excluded')" title="Add Folder">📂</button>
             </div>
-            <div class="hint">Komma-getrennte Liste von Ordnern, die ignoriert werden sollen.</div>
+            <div class="hint">Comma-separated list of folders to ignore.</div>
         </div>
         <div class="form-group">
-            <label>Branch Strategie</label>
+            <label>Branch Strategy</label>
             <div style="background-color: var(--input-bg); padding: 15px; border-radius: 6px; border: 1px solid var(--border-color);">
-                <div style="margin-bottom: 10px;">
-                    <input type="radio" id="branch_housekeeping" name="branchStrategy" value="housekeeping" checked onchange="toggleBranchInput()">
-                    <label for="branch_housekeeping" style="display: inline; font-weight: normal; margin-left: 5px;">housekeeping (Standard)</label>
-                </div>
-                <div style="margin-bottom: 10px; display: flex; align-items: center;">
-                    <input type="radio" id="branch_custom" name="branchStrategy" value="custom" onchange="toggleBranchInput()">
-                    <input type="text" id="customBranchName" placeholder="Eigener Branch Name" style="margin-left: 10px; width: 200px; padding: 5px;" disabled>
-                </div>
                 <div>
-                    <input type="radio" id="branch_none" name="branchStrategy" value="none" onchange="toggleBranchInput()">
-                    <label for="branch_none" style="display: inline; font-weight: normal; margin-left: 5px;">Kein Branch (direkt auf Master)</label>
+                    <input type="radio" id="branch_none" name="branchStrategy" value="none" checked onchange="toggleBranchInput()">
+                    <label for="branch_none" style="display: inline; font-weight: normal; margin-left: 5px;">No Branch (directly on Master)</label>
+                </div>
+                <div style="margin-bottom: 10px; margin-top: 10px;">
+                    <input type="radio" id="branch_housekeeping" name="branchStrategy" value="housekeeping" onchange="toggleBranchInput()">
+                    <label for="branch_housekeeping" style="display: inline; font-weight: normal; margin-left: 5px;">housekeeping (Default)</label>
+                </div>
+                <div style="display: flex; align-items: center;">
+                    <input type="radio" id="branch_custom" name="branchStrategy" value="custom" onchange="toggleBranchInput()">
+                    <input type="text" id="customBranchName" placeholder="Custom Branch Name" style="margin-left: 10px; width: 200px; padding: 5px;" disabled>
                 </div>
             </div>
-            <div class="hint">Wählen Sie, auf welchem Branch gearbeitet werden soll.</div>
+            <div class="hint">Choose which branch to work on.</div>
         </div>
 
         <div class="form-group">
             <label>Parent Version (Optional)</label>
             <input type="text" id="parentVersion" placeholder="1.2.3">
-            <div class="hint">Falls angegeben, wird die Parent-Version in pom.xml aktualisiert.</div>
+            <div class="hint">If specified, the parent version in pom.xml will be updated.</div>
         </div>
         <div class="form-group">
-            <label>Versions-Erhöhung (Microservice)</label>
+            <label>Version Bump (Microservice)</label>
             <select id="versionBumpStrategy" style="width: 100%; padding: 12px; background-color: var(--input-bg); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-color);">
-                <option value="patch">Patch (x.x.X) - Standard</option>
+                <option value="patch">Patch (x.x.X) - Default</option>
                 <option value="minor">Minor (x.X.0)</option>
                 <option value="major">Major (X.0.0)</option>
             </select>
-            <div class="hint">Bestimmt, welche Stelle der Versionsnummer erhöht wird (basierend auf Git Tag).</div>
+            <div class="hint">Determines which part of the version number is incremented (based on Git Tag).</div>
         </div>
         <div class="form-group" style="display: flex; align-items: center; gap: 10px;">
             <input type="checkbox" id="runCleanInstall" style="width: auto;">
-            <label for="runCleanInstall" style="margin: 0; cursor: pointer;">Maven Clean Install ausführen</label>
+            <label for="runCleanInstall" style="margin: 0; cursor: pointer;">Run Maven Clean Install</label>
         </div>
-        <div class="hint" style="margin-top: -15px; margin-bottom: 20px;">Führt 'mvn clean install -DskipTests' für jedes Repository aus.</div>
+        <div class="hint" style="margin-top: -15px; margin-bottom: 20px;">Runs 'mvn clean install -DskipTests' for each repository.</div>
         
         <div style="text-align: right; margin-top: 40px;">
-            <button class="btn btn-primary" onclick="showTab('pom')">Weiter &rarr;</button>
+            <button class="btn btn-primary" onclick="showTab('pom')">Next &rarr;</button>
         </div>
     </div>
 
     <!-- Tab: POM Replacements -->
     <div id="tab-pom" class="tab-content">
-        <h2>POM.xml Ersetzungen</h2>
+        <h2>POM.xml Replacements</h2>
         <div id="pom-list">
             <div class="replacement-row">
-                <textarea placeholder="Suchtext" class="pom-search"></textarea>
-                <textarea placeholder="Ersetzung" class="pom-replace"></textarea>
+                <textarea placeholder="Search Text" class="pom-search"></textarea>
+                <textarea placeholder="Replacement" class="pom-replace"></textarea>
             </div>
         </div>
-        <button class="btn btn-add" onclick="addRow('pom-list')">+ Zeile hinzufügen</button>
+        <button class="btn btn-add" onclick="addRow('pom-list')">+ Add Row</button>
         
         <div style="text-align: right; margin-top: 40px;">
-            <button class="btn btn-secondary" onclick="showTab('settings')">&larr; Zurück</button>
-            <button class="btn btn-primary" onclick="showTab('project')">Weiter &rarr;</button>
+            <button class="btn btn-secondary" onclick="showTab('settings')">&larr; Back</button>
+            <button class="btn btn-primary" onclick="showTab('project')">Next &rarr;</button>
         </div>
     </div>
 
     <!-- Tab: Project Replacements -->
     <div id="tab-project" class="tab-content">
-        <h2>Projektweite Ersetzungen</h2>
-        <div class="hint" style="margin-bottom: 20px;">Diese Ersetzungen werden in ALLEN Dateien (außer .git, target, etc.) durchgeführt.</div>
+        <h2>Project-wide Replacements</h2>
+        <div class="hint" style="margin-bottom: 20px;">These replacements will be performed in ALL files (except .git, target, etc.).</div>
         
         <div id="project-list">
             <div class="replacement-row">
-                <textarea placeholder="Suchtext" class="proj-search"></textarea>
-                <textarea placeholder="Ersetzung" class="proj-replace"></textarea>
+                <textarea placeholder="Search Text" class="proj-search"></textarea>
+                <textarea placeholder="Replacement" class="proj-replace"></textarea>
             </div>
         </div>
-        <button class="btn btn-add" onclick="addRow('project-list')">+ Zeile hinzufügen</button>
+        <button class="btn btn-add" onclick="addRow('project-list')">+ Add Row</button>
 
         <div style="text-align: right; margin-top: 40px;">
-            <button class="btn btn-secondary" onclick="showTab('pom')">&larr; Zurück</button>
-            <button class="btn btn-primary" onclick="runHousekeeper()">🚀 Starten</button>
+            <button class="btn btn-secondary" onclick="showTab('pom')">&larr; Back</button>
+            <button class="btn btn-primary" onclick="runHousekeeper()">🚀 Start</button>
         </div>
     </div>
 
     <!-- Tab: Report -->
     <div id="tab-report" class="tab-content">
-        <h2>Bericht</h2>
+        <h2>Report</h2>
         
         <div class="report-container" style="display: flex; gap: 20px;">
             <div style="flex: 1; width: 50%;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                    <h3 style="margin: 0;">Verlauf</h3>
+                    <h3 style="margin: 0;">Log</h3>
                     <button class="btn btn-secondary" style="padding: 5px 10px; font-size: 0.9em;" onclick="printSection('report')">📄 PDF</button>
                 </div>
                 <div id="report-log">
-                    <div class="log-info">Bereit zum Starten...</div>
+                    <div class="log-info">Ready to start...</div>
                 </div>
             </div>
             <div style="flex: 1; width: 50%;">
@@ -444,36 +444,36 @@
                     <button class="btn btn-secondary" style="padding: 5px 10px; font-size: 0.9em;" onclick="printSection('deprecation')">📄 PDF</button>
                 </div>
                 <div id="deprecation-log">
-                    <div class="log-info">Warte auf Ergebnisse...</div>
+                    <div class="log-info">Waiting for results...</div>
                 </div>
             </div>
         </div>
         <div id="loading" class="hidden" style="margin-top: 20px; color: var(--accent-color);">
-            Bearbeitung läuft... Bitte warten.
+            Processing... Please wait.
         </div>
     </div>
 
     <!-- Tab: Frameworks -->
     <div id="tab-frameworks" class="tab-content">
-        <h2>Spring Boot Versionen</h2>
+        <h2>Spring Boot Versions</h2>
         
         <div style="display: flex; gap: 20px;">
             <!-- Left: Available Versions -->
             <div style="flex: 1;">
-                <h3>Verfügbare Versionen</h3>
+                <h3>Available Versions</h3>
                 <div id="spring-versions-list">
-                    <div class="log-info">Lade Versionen...</div>
+                    <div class="log-info">Loading versions...</div>
                 </div>
             </div>
             
             <!-- Right: Local Projects -->
             <div style="flex: 1;">
                 <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <h3>Lokale Projekte</h3>
-                    <button class="btn btn-secondary" onclick="scanSpringProjects()">🔍 Scannen</button>
+                    <h3>Local Projects</h3>
+                    <button class="btn btn-secondary" onclick="scanSpringProjects()">🔍 Scan</button>
                 </div>
                 <div id="spring-projects-list" style="margin-top: 10px;">
-                    <div class="hint">Klicken Sie auf Scannen, um lokale Versionen zu prüfen.</div>
+                    <div class="hint">Click Scan to check local versions.</div>
                 </div>
             </div>
         </div>
@@ -507,8 +507,8 @@
         const div = document.createElement('div');
         div.className = 'replacement-row';
         div.innerHTML = `
-            <textarea placeholder="Suchtext" class="${containerId === 'pom-list' ? 'pom-search' : 'proj-search'}"></textarea>
-            <textarea placeholder="Ersetzung" class="${containerId === 'pom-list' ? 'pom-replace' : 'proj-replace'}"></textarea>
+            <textarea placeholder="Search Text" class="${containerId === 'pom-list' ? 'pom-search' : 'proj-search'}"></textarea>
+            <textarea placeholder="Replacement" class="${containerId === 'pom-list' ? 'pom-replace' : 'proj-replace'}"></textarea>
         `;
         container.appendChild(div);
     }
@@ -536,7 +536,7 @@
         } else if (document.getElementById('branch_custom').checked) {
             targetBranch = document.getElementById('customBranchName').value.trim();
             if (!targetBranch) {
-                alert("Bitte geben Sie einen Branch-Namen ein.");
+                alert("Please enter a branch name.");
                 loading.classList.add('hidden');
                 return;
             }
@@ -558,7 +558,7 @@
         };
         
         if (!data.rootPath) {
-             alert("Bitte geben Sie einen Projekt-Pfad an.");
+             alert("Please specify a project path.");
              loading.classList.add('hidden');
              showTab('settings');
              return;

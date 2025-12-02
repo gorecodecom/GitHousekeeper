@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/fs"
 	"net/http"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
@@ -30,12 +31,19 @@ type RunRequest struct {
 
 func main() {
 	// Setup File Server
-	// We strip "assets" prefix because embed.FS includes the directory structure
-	fsys, err := fs.Sub(assets, "assets")
-	if err != nil {
-		panic(err)
+	// Check if "assets" folder exists locally (Dev Mode)
+	if _, err := os.Stat("assets"); err == nil {
+		fmt.Println("Development Mode: Serving assets from local disk")
+		http.Handle("/", http.FileServer(http.Dir("assets")))
+	} else {
+		// Production Mode: Use embedded assets
+		// We strip "assets" prefix because embed.FS includes the directory structure
+		fsys, err := fs.Sub(assets, "assets")
+		if err != nil {
+			panic(err)
+		}
+		http.Handle("/", http.FileServer(http.FS(fsys)))
 	}
-	http.Handle("/", http.FileServer(http.FS(fsys)))
 
 	// API
 	http.HandleFunc("/api/run", handleRun)
@@ -47,12 +55,11 @@ func main() {
 	url := "http://localhost:" + port
 
 	fmt.Printf("Starte Web-Interface auf %s ...\n", url)
-	
+
 	// Open Browser
 	go openBrowser(url)
 
-	err = http.ListenAndServe(":"+port, nil)
-	if err != nil {
+	if err := http.ListenAndServe(":"+port, nil); err != nil {
 		fmt.Printf("Fehler beim Starten des Servers: %v\n", err)
 	}
 }
@@ -99,7 +106,7 @@ func handleRun(w http.ResponseWriter, r *http.Request) {
 
 	for _, repo := range repos {
 		repoName := filepath.Base(repo)
-		
+
 		// Special prefix for frontend highlighting
 		fmt.Fprintf(w, "REPO:%s\n", repoName)
 		flusher.Flush()
@@ -122,7 +129,7 @@ func handleRun(w http.ResponseWriter, r *http.Request) {
 		}
 
 		entry := logic.ProcessRepo(repo, opts)
-		
+
 		// Deprecation output is handled separately in the UI, so we stream it with markers
 		if entry.DeprecationOutput != "" {
 			fmt.Fprintf(w, "DEPRECATION_START:%s\n", repoName)
@@ -130,7 +137,7 @@ func handleRun(w http.ResponseWriter, r *http.Request) {
 			fmt.Fprintf(w, "DEPRECATION_END\n")
 			flusher.Flush()
 		}
-		
+
 		if entry.Success {
 			fmt.Fprintf(w, "✓ %s erfolgreich bearbeitet.\n", repoName)
 		} else {
@@ -165,7 +172,7 @@ func handleScanSpring(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	
+
 	results := logic.ScanProjectsForSpring(req.RootPath, req.Excluded)
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(results)
@@ -194,7 +201,7 @@ func handlePickFolder(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"path": path})
 }
@@ -263,4 +270,3 @@ func runCommandOutput(name string, args ...string) (string, error) {
 	}
 	return strings.TrimSpace(string(output)), nil
 }
-
