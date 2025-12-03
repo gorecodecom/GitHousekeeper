@@ -153,22 +153,28 @@ If you want to modify the frontend (HTML/CSS/JS) without rebuilding the Go appli
 ## Screenshots
 
 ### Project Setup
+
 ![Project Setup](screenshots/01_project_setup.png)
 
 ### POM Replacements
+
 ![POM Replacements](screenshots/02_pom_replacements.png)
 
 ### Project Replacements
+
 ![Project Replacements](screenshots/03_project_replacements.png)
 
 ### Report
+
 ![Report](screenshots/04_report.png)
 
 ### Frameworks & Spring Boot Analysis
+
 ![Frameworks](screenshots/05_frameworks.png)
 ![Frameworks Selection](screenshots/06_frameworks_selection.png)
 
 ### About
+
 ![About](screenshots/07_about.png)
 
 ## Author
