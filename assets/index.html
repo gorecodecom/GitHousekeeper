@@ -185,6 +185,28 @@
         color: var(--accent-color);
       }
 
+      .btn-remove {
+        background-color: #f38ba8;
+        color: var(--sidebar-color);
+        border: none;
+        border-radius: 6px;
+        width: 40px;
+        min-width: 40px;
+        height: 40px;
+        cursor: pointer;
+        font-weight: bold;
+        font-size: 24px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: opacity 0.2s;
+        align-self: flex-start;
+      }
+
+      .btn-remove:hover {
+        opacity: 0.8;
+      }
+
       /* Report */
       #report-log {
         background-color: #11111b;
@@ -525,7 +547,7 @@
           color: #6c7086;
         "
       >
-        <div>v1.0.0</div>
+        <div>v1.0.1</div>
         <div style="margin-top: 5px">© 2025 GoreCode</div>
       </div>
     </div>
@@ -701,8 +723,9 @@
         <h2>POM.xml Replacements</h2>
         <div id="pom-list">
           <div class="replacement-row">
-            <textarea placeholder="Search Text" class="pom-search"></textarea>
-            <textarea placeholder="Replacement" class="pom-replace"></textarea>
+            <button class="btn-remove" onclick="removeRow(this)" title="Remove Row">-</button>
+            <textarea placeholder="Search Text" class="pom-search" oninput="autoResize(this)"></textarea>
+            <textarea placeholder="Replacement" class="pom-replace" oninput="autoResize(this)"></textarea>
           </div>
         </div>
         <button class="btn btn-add" onclick="addRow('pom-list')">
@@ -729,8 +752,9 @@
 
         <div id="project-list">
           <div class="replacement-row">
-            <textarea placeholder="Search Text" class="proj-search"></textarea>
-            <textarea placeholder="Replacement" class="proj-replace"></textarea>
+            <button class="btn-remove" onclick="removeRow(this)" title="Remove Row">-</button>
+            <textarea placeholder="Search Text" class="proj-search" oninput="autoResize(this)"></textarea>
+            <textarea placeholder="Replacement" class="proj-replace" oninput="autoResize(this)"></textarea>
           </div>
         </div>
         <button class="btn btn-add" onclick="addRow('project-list')">
@@ -1027,7 +1051,7 @@
                 >
                   GitHousekeeper
                 </h3>
-                <div style="color: #a6adc8; margin-top: 5px">Version 1.0.0</div>
+                <div style="color: #a6adc8; margin-top: 5px">Version 1.0.1</div>
               </div>
             </div>
             <p style="line-height: 1.6; color: #a6adc8">
@@ -1260,14 +1284,27 @@
         const div = document.createElement("div");
         div.className = "replacement-row";
         div.innerHTML = `
+            <button class="btn-remove" onclick="removeRow(this)" title="Remove Row">-</button>
             <textarea placeholder="Search Text" class="${
               containerId === "pom-list" ? "pom-search" : "proj-search"
-            }"></textarea>
+            }" oninput="autoResize(this)"></textarea>
             <textarea placeholder="Replacement" class="${
               containerId === "pom-list" ? "pom-replace" : "proj-replace"
-            }"></textarea>
+            }" oninput="autoResize(this)"></textarea>
         `;
         container.appendChild(div);
+      }
+
+      function removeRow(btn) {
+        const row = btn.parentElement;
+        // Optional: Prevent removing the last row if desired, but user asked to remove rows.
+        // If we want to keep at least one, we can check row.parentElement.children.length
+        row.remove();
+      }
+
+      function autoResize(el) {
+        el.style.height = 'auto';
+        el.style.height = el.scrollHeight + 'px';
       }
 
       function printSection(section) {
@@ -1307,8 +1344,9 @@
         const pomList = document.getElementById("pom-list");
         pomList.innerHTML = `
           <div class="replacement-row">
-            <textarea placeholder="Search Text" class="pom-search"></textarea>
-            <textarea placeholder="Replacement" class="pom-replace"></textarea>
+            <button class="btn-remove" onclick="removeRow(this)" title="Remove Row">-</button>
+            <textarea placeholder="Search Text" class="pom-search" oninput="autoResize(this)"></textarea>
+            <textarea placeholder="Replacement" class="pom-replace" oninput="autoResize(this)"></textarea>
           </div>
         `;
 
@@ -1316,8 +1354,9 @@
         const projectList = document.getElementById("project-list");
         projectList.innerHTML = `
           <div class="replacement-row">
-            <textarea placeholder="Search Text" class="proj-search"></textarea>
-            <textarea placeholder="Replacement" class="proj-replace"></textarea>
+            <button class="btn-remove" onclick="removeRow(this)" title="Remove Row">-</button>
+            <textarea placeholder="Search Text" class="proj-search" oninput="autoResize(this)"></textarea>
+            <textarea placeholder="Replacement" class="proj-replace" oninput="autoResize(this)"></textarea>
           </div>
         `;
 
