@@ -5,16 +5,63 @@ All notable changes to GitHousekeeper will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.0.1] - 2025-12-03
+## [2.0.0] - 2025-12-03
 
 ### Added
 
-- **Dashboard & Analytics**: New dashboard view with repository health metrics, dependency graphs, and Spring Boot version distribution.
-  - Implemented streaming data loading for faster feedback.
-  - Optimized chart layout with CSS Grid for better responsiveness and readability.
-  - Filtered out standard Spring Boot dependencies from "Top Dependencies" to show more relevant insights.
-- **UI Improvements**: Added "Remove Row" button for replacements and auto-resizing textareas.
-- **Documentation**: Added screenshots to README.md.
+- **📊 Dashboard & Analytics** (NEW TAB)
+
+  - Repository Health Score (0-100) with penalty system for outdated frameworks, TODOs, and JUnit 4 usage
+  - Total Repositories count with active project monitoring
+  - Technical Debt tracking (TODO/FIXME count across all files)
+  - **Top Dependencies Chart** - Bar chart showing most used dependencies (excluding standard Spring Boot deps)
+  - **Spring Boot Versions Chart** - Visual distribution of Spring Boot versions across projects
+  - **Repository Details Table** - Health Score, Spring Boot version, Java version, last commit date, TODO count per repo
+  - Streaming data loading for responsive feedback during analysis
+  - CSS Grid-based responsive chart layout
+  - Empty state with onboarding flow for new users
+
+- **📚 Framework Info** (NEW TAB)
+
+  - Centralized reference for framework information
+  - **Jakarta EE Overview** - Namespace change documentation (javax._ → jakarta._)
+  - **Quarkus Information** - Version comparison and migration paths
+  - **Java SE Support Matrix** - LTS versions, release dates, and support timelines (Java 8 → Java 25)
+
+- **🚀 Migration Assistant** (Redesigned)
+
+  - **Migration Type Selection** - Radio button UI for choosing migration type
+  - **Spring Boot Upgrade** - Upgrade between Spring Boot versions (2.x → 3.x → 3.5)
+  - **Java Version Upgrade** - Java 8 → 17 → 21 migration recipes
+  - **Jakarta EE Migration** - Dedicated javax._ to jakarta._ migration
+  - **Quarkus Migration** - Migration path to Quarkus 2.x
+
+- **🎨 UI/UX Improvements**
+
+  - **Redesigned Navigation** - Icons added to all sidebar menu items
+  - **Separate CSS File** - Extracted styles to `styles.css` for better maintainability
+  - **Remove Row Button** - Delete individual replacement rows in POM/Project Replacements
+  - **Auto-resizing Textareas** - Textareas grow automatically with content
+  - **Reset Button** - Clear all saved settings and return to defaults in Project Setup
+  - **Card-based Layout** - Consistent card styling across all tabs
+  - **Status Badges** - Color-coded badges for health status (Good/Warning/Critical)
+
+- **🔧 Technical Improvements**
+  - Root Path input moved to Dashboard for centralized management
+  - Improved folder picker integration
+  - Better error handling and loading states
+
+### Changed
+
+- **Navigation Structure** - Dashboard is now the default landing page
+- **Frameworks Tab** - Split into "Framework Info" (reference) and "Migration Assistant" (actions)
+- **Project Setup** - Simplified, path management moved to Dashboard
+
+### Fixed
+
+- False positive deprecation count from Maven compiler [INFO] lines
+- Git repository discovery in subfolders (removed .git from exclusion list)
+- Branch Strategy label display ("Housekeeping" instead of "housekeeping")
 
 ## [1.0.0] - 2025-12-02
 

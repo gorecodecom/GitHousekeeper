@@ -190,7 +190,7 @@ GitHub: [@gorecodecom](https://github.com/gorecodecom)
 
 ## Version
 
-Current version: **1.0.1**
+Current version: **2.0.0**
 
 See [CHANGELOG.md](CHANGELOG.md) for release history.
 

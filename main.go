@@ -163,10 +163,8 @@ func handleSpringVersions(w http.ResponseWriter, r *http.Request) {
 }
 
 // Current OpenRewrite versions used in this app
-const (
-	openRewritePluginVersion = "6.24.0"
-	openRewriteRecipeVersion = "6.19.0"
-)
+// Moved to type definition area
+
 
 func handleOpenRewriteVersions(w http.ResponseWriter, r *http.Request) {
 	versions, err := logic.GetOpenRewriteVersions(openRewritePluginVersion, openRewriteRecipeVersion)
@@ -357,6 +355,7 @@ type AnalyzeSpringRequest struct {
 	RootPath      string   `json:"RootPath"`
 	Excluded      []string `json:"Excluded"`
 	TargetVersion string   `json:"TargetVersion"`
+	MigrationType string   `json:"MigrationType"` // "spring-boot", "java-version", "jakarta-ee", "quarkus"
 }
 
 // AnalysisResult holds the result of analyzing a single repo
@@ -367,6 +366,14 @@ type AnalysisResult struct {
 	Success  bool
 	Duration time.Duration
 }
+
+// Current OpenRewrite versions used in this app
+const (
+	openRewritePluginVersion      = "6.24.0"
+	openRewriteRecipeVersion      = "6.19.0"
+	openRewriteMigrateJavaVersion = "3.22.0"
+	openRewriteQuarkusVersion     = "2.28.1"
+)
 
 func handleAnalyzeSpring(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
@@ -403,34 +410,75 @@ func handleAnalyzeSpring(w http.ResponseWriter, r *http.Request) {
 	}
 
 	fmt.Fprintf(w, "PROGRESS_INIT:%d\n", len(repos))
-	fmt.Fprintf(w, "Found %d projects. Starting parallel analysis for Spring Boot %s...\n", len(repos), req.TargetVersion)
+	
+	migrationLabel := "Spring Boot"
+	switch req.MigrationType {
+	case "java-version":
+		migrationLabel = "Java"
+	case "jakarta-ee":
+		migrationLabel = "Jakarta EE"
+	case "quarkus":
+		migrationLabel = "Quarkus"
+	}
+
+	fmt.Fprintf(w, "Found %d projects. Starting parallel analysis for %s %s...\n", len(repos), migrationLabel, req.TargetVersion)
 	fmt.Fprintf(w, "(Processing in background, results will appear as each project completes)\n\n")
 	flusher.Flush()
 
 	overallStart := time.Now()
 
-	// 2. Determine Recipe
+	// 2. Determine Recipe and Coordinates
 	var recipe string
-	cleanVersion := strings.ReplaceAll(req.TargetVersion, ".", "_")
+	var coordinates string
 
-	if strings.HasPrefix(req.TargetVersion, "3.") {
-		recipe = fmt.Sprintf("org.openrewrite.java.spring.boot3.UpgradeSpringBoot_%s", cleanVersion)
-	} else if strings.HasPrefix(req.TargetVersion, "2.") {
-		recipe = fmt.Sprintf("org.openrewrite.java.spring.boot2.UpgradeSpringBoot_%s", cleanVersion)
-	} else {
-		recipe = fmt.Sprintf("org.openrewrite.java.spring.boot%c.UpgradeSpringBoot_%s", req.TargetVersion[0], cleanVersion)
+	switch req.MigrationType {
+	case "java-version":
+		// TargetVersion e.g. "17", "21", "25"
+		// Correct recipe name is UpgradeToJava<Version>
+		recipe = fmt.Sprintf("org.openrewrite.java.migrate.UpgradeToJava%s", req.TargetVersion)
+		coordinates = fmt.Sprintf("org.openrewrite.recipe:rewrite-migrate-java:%s", openRewriteMigrateJavaVersion)
+	case "jakarta-ee":
+		recipe = "org.openrewrite.java.migrate.jakarta.JavaxMigrationToJakarta"
+		coordinates = fmt.Sprintf("org.openrewrite.recipe:rewrite-migrate-java:%s", openRewriteMigrateJavaVersion)
+	case "quarkus":
+		// Quarkus migration is complex and project-specific
+		// Return an informative message instead of running a recipe
+		fmt.Fprintf(w, "⚠️ Quarkus Migration Information\n\n")
+		fmt.Fprintf(w, "Quarkus migration requires a project-specific approach:\n\n")
+		fmt.Fprintf(w, "For Spring Boot → Quarkus:\n")
+		fmt.Fprintf(w, "- Use Quarkus CLI: 'quarkus create app' to generate new structure\n")
+		fmt.Fprintf(w, "- Migrate dependencies manually using Quarkus guides\n")
+		fmt.Fprintf(w, "- Replace Spring annotations with Quarkus equivalents\n\n")
+		fmt.Fprintf(w, "For Quarkus Version Upgrades:\n")
+		fmt.Fprintf(w, "- Use 'quarkus update' command directly in your project\n")
+		fmt.Fprintf(w, "- Or update versions in pom.xml and run tests\n\n")
+		fmt.Fprintf(w, "Resources:\n")
+		fmt.Fprintf(w, "- Migration Guide: https://quarkus.io/guides/migration-guide\n")
+		fmt.Fprintf(w, "- Spring to Quarkus: https://quarkus.io/blog/spring-boot-to-quarkus/\n\n")
+		flusher.Flush()
+		return
+	default: // "spring-boot" or empty
+		cleanVersion := strings.ReplaceAll(req.TargetVersion, ".", "_")
+		if strings.HasPrefix(req.TargetVersion, "3.") {
+			recipe = fmt.Sprintf("org.openrewrite.java.spring.boot3.UpgradeSpringBoot_%s", cleanVersion)
+		} else if strings.HasPrefix(req.TargetVersion, "2.") {
+			recipe = fmt.Sprintf("org.openrewrite.java.spring.boot2.UpgradeSpringBoot_%s", cleanVersion)
+		} else {
+			// Fallback
+			recipe = fmt.Sprintf("org.openrewrite.java.spring.boot%c.UpgradeSpringBoot_%s", req.TargetVersion[0], cleanVersion)
+		}
+		coordinates = fmt.Sprintf("org.openrewrite.recipe:rewrite-spring:%s", openRewriteRecipeVersion)
 	}
 
 	// Use globally defined plugin versions
 	pluginVersion := openRewritePluginVersion
-	recipeVersion := openRewriteRecipeVersion
 
 	// 3. Run Analysis in Parallel
 	resultChan := make(chan AnalysisResult, len(repos))
 
 	for i, repo := range repos {
 		go func(index int, repoPath string) {
-			result := analyzeRepo(index, repoPath, recipe, pluginVersion, recipeVersion)
+			result := analyzeRepo(index, repoPath, recipe, pluginVersion, coordinates)
 			resultChan <- result
 		}(i, repo)
 	}
@@ -471,7 +519,7 @@ func handleAnalyzeSpring(w http.ResponseWriter, r *http.Request) {
 }
 
 // analyzeRepo performs the OpenRewrite analysis on a single repository
-func analyzeRepo(index int, repoPath, recipe, pluginVersion, recipeVersion string) AnalysisResult {
+func analyzeRepo(index int, repoPath, recipe, pluginVersion, recipeArtifactCoordinates string) AnalysisResult {
 	startTime := time.Now()
 	repoName := filepath.Base(repoPath)
 	var output strings.Builder
@@ -487,7 +535,7 @@ func analyzeRepo(index int, repoPath, recipe, pluginVersion, recipeVersion strin
 		"-U",
 		"-B",
 		fmt.Sprintf("org.openrewrite.maven:rewrite-maven-plugin:%s:dryRun", pluginVersion),
-		fmt.Sprintf("-Drewrite.recipeArtifactCoordinates=org.openrewrite.recipe:rewrite-spring:%s", recipeVersion),
+		fmt.Sprintf("-Drewrite.recipeArtifactCoordinates=%s", recipeArtifactCoordinates),
 		fmt.Sprintf("-Drewrite.activeRecipes=%s", recipe),
 	)
 	cmd.Dir = repoPath
