@@ -9,11 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **UI Improvements**:
-  - Added "Remove Row" button to POM and Project replacement lists.
-  - Added auto-resizing textareas for better visibility of large content in replacement rows.
-- **Documentation**:
-  - Added screenshots to README.md.
+- **Dashboard & Analytics**: New dashboard view with repository health metrics, dependency graphs, and Spring Boot version distribution.
+- **UI Improvements**: Added "Remove Row" button for replacements and auto-resizing textareas.
+- **Documentation**: Added screenshots to README.md.
 
 ## [1.0.0] - 2025-12-02
 

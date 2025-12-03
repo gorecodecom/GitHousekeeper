@@ -168,14 +168,20 @@ If you want to modify the frontend (HTML/CSS/JS) without rebuilding the Go appli
 
 ![Report](screenshots/04_report.png)
 
-### Frameworks & Spring Boot Analysis
+### Frameworks Selection
 
-![Frameworks](screenshots/05_frameworks.png)
 ![Frameworks Selection](screenshots/06_frameworks_selection.png)
+_Framework Selection & Analysis_
+
+### Dashboard & Analytics
+
+![Dashboard](screenshots/08_dashboard.png)
+_Dashboard & Analytics_
 
 ### About
 
 ![About](screenshots/07_about.png)
+_About Page_
 
 ## Author
 
