@@ -721,14 +721,26 @@ func handleDashboardStats(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	var req ScanRequest // Reusing ScanRequest as it has RootPath and Excluded
+	var req ScanRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	stats := logic.CollectDashboardStats(req.RootPath, req.Excluded)
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(stats)
+	// Set headers for streaming NDJSON
+	w.Header().Set("Content-Type", "application/x-ndjson")
+	w.Header().Set("Transfer-Encoding", "chunked")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "Streaming not supported", http.StatusInternalServerError)
+		return
+	}
+
+	logic.StreamDashboardStats(req.RootPath, req.Excluded, func(result interface{}) {
+		json.NewEncoder(w).Encode(result)
+		flusher.Flush()
+	})
 }
 

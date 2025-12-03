@@ -38,68 +38,48 @@ type RepoHealth struct {
 	HasBuildErrors  bool   `json:"hasBuildErrors"`
 }
 
-// CollectDashboardStats scans the given root path for repositories and gathers statistics.
-func CollectDashboardStats(rootPath string, excluded []string) DashboardStats {
+// StreamDashboardStats scans and streams results in real-time
+func StreamDashboardStats(rootPath string, excluded []string, onResult func(interface{})) {
 	repos := FindGitRepos(rootPath, excluded)
 	
-	stats := DashboardStats{
-		TotalRepos:      len(repos),
-		SpringVersions:  make(map[string]int),
-		TopDependencies: []NameCount{},
-		RepoDetails:     []RepoHealth{},
-	}
+	// 1. Send Init Event
+	onResult(map[string]interface{}{
+		"type": "init",
+		"totalRepos": len(repos),
+	})
 
 	if len(repos) == 0 {
-		return stats
+		return
 	}
 
 	var wg sync.WaitGroup
-	resultChan := make(chan RepoHealth, len(repos))
-	depChan := make(chan []string, len(repos))
+	// Limit concurrency to avoid overwhelming the system/Maven
+	sem := make(chan struct{}, 5) 
 
 	for _, repo := range repos {
 		wg.Add(1)
 		go func(path string) {
 			defer wg.Done()
+			sem <- struct{}{} // Acquire token
+			defer func() { <-sem }() // Release token
+
 			health, deps := analyzeRepoHealth(path)
-			resultChan <- health
-			depChan <- deps
+			
+			// Send Repo Result
+			onResult(map[string]interface{}{
+				"type": "repo",
+				"data": health,
+				"deps": deps,
+			})
 		}(repo)
 	}
 
-	go func() {
-		wg.Wait()
-		close(resultChan)
-		close(depChan)
-	}()
-
-	totalScore := 0
-	depCounts := make(map[string]int)
-
-	for health := range resultChan {
-		stats.RepoDetails = append(stats.RepoDetails, health)
-		stats.TotalTodos += health.TodoCount
-		totalScore += health.HealthScore
-		if health.SpringBootVer != "" {
-			stats.SpringVersions[health.SpringBootVer]++
-		}
-	}
-
-	for deps := range depChan {
-		for _, d := range deps {
-			depCounts[d]++
-		}
-	}
-
-	if stats.TotalRepos > 0 {
-		stats.AvgHealthScore = totalScore / stats.TotalRepos
-	}
-
-	for name, count := range depCounts {
-		stats.TopDependencies = append(stats.TopDependencies, NameCount{Name: name, Count: count})
-	}
-
-	return stats
+	wg.Wait()
+	
+	// Send Done Event
+	onResult(map[string]interface{}{
+		"type": "done",
+	})
 }
 
 func analyzeRepoHealth(path string) (RepoHealth, []string) {
@@ -181,8 +161,11 @@ func analyzeRepoHealth(path string) (RepoHealth, []string) {
 
 			// Collect Dependencies and check for Spring Boot if not found in parent
 			for _, dep := range project.Dependencies {
-				fullDep := dep.GroupId + ":" + dep.ArtifactId
-				dependencies = append(dependencies, fullDep)
+				// Filter out standard Spring Boot starters to make the stats more interesting
+				if dep.GroupId != "org.springframework.boot" {
+					displayDep := dep.ArtifactId
+					dependencies = append(dependencies, displayDep)
+				}
 				
 				if health.SpringBootVer == "" && dep.GroupId == "org.springframework.boot" {
 					// Try to guess version from dependency if explicit

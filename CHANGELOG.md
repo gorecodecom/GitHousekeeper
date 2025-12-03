@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **Dashboard & Analytics**: New dashboard view with repository health metrics, dependency graphs, and Spring Boot version distribution.
+  - Implemented streaming data loading for faster feedback.
+  - Optimized chart layout with CSS Grid for better responsiveness and readability.
+  - Filtered out standard Spring Boot dependencies from "Top Dependencies" to show more relevant insights.
 - **UI Improvements**: Added "Remove Row" button for replacements and auto-resizing textareas.
 - **Documentation**: Added screenshots to README.md.
 
