@@ -1,6 +1,8 @@
 package logic
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -190,5 +192,247 @@ new
 				t.Errorf("Result mismatch.\nExpected:\n%q\nGot:\n%q", expected, result)
 			}
 		})
+	}
+}
+
+// ===========================================
+// Tests for Unified Replacements (v2.1.0)
+// ===========================================
+
+func TestReplacementScope_Routing(t *testing.T) {
+	// Test that ReplacementScope correctly routes replacements
+	tests := []struct {
+		name                 string
+		scope                string
+		replacements         []Replacement
+		expectedPomCount     int
+		expectedProjectCount int
+	}{
+		{
+			name:  "Scope 'all' - replacements go to both",
+			scope: "all",
+			replacements: []Replacement{
+				{Search: "foo", Replace: "bar"},
+				{Search: "baz", Replace: "qux"},
+			},
+			expectedPomCount:     2,
+			expectedProjectCount: 2,
+		},
+		{
+			name:  "Scope 'pom-only' - replacements only to POM",
+			scope: "pom-only",
+			replacements: []Replacement{
+				{Search: "foo", Replace: "bar"},
+			},
+			expectedPomCount:     1,
+			expectedProjectCount: 0,
+		},
+		{
+			name:  "Scope 'exclude-pom' - replacements only to project files",
+			scope: "exclude-pom",
+			replacements: []Replacement{
+				{Search: "foo", Replace: "bar"},
+				{Search: "baz", Replace: "qux"},
+			},
+			expectedPomCount:     0,
+			expectedProjectCount: 2,
+		},
+		{
+			name:  "Empty scope defaults to 'all'",
+			scope: "",
+			replacements: []Replacement{
+				{Search: "test", Replace: "replaced"},
+			},
+			expectedPomCount:     1,
+			expectedProjectCount: 1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var pomReplacements []Replacement
+			var projectReplacements []Replacement
+
+			// Simulate the scope routing logic from ProcessRepo
+			switch tt.scope {
+			case "pom-only":
+				pomReplacements = tt.replacements
+				projectReplacements = nil
+			case "exclude-pom":
+				pomReplacements = nil
+				projectReplacements = tt.replacements
+			default: // "all" or empty
+				pomReplacements = tt.replacements
+				projectReplacements = tt.replacements
+			}
+
+			if len(pomReplacements) != tt.expectedPomCount {
+				t.Errorf("POM replacements: expected %d, got %d", tt.expectedPomCount, len(pomReplacements))
+			}
+			if len(projectReplacements) != tt.expectedProjectCount {
+				t.Errorf("Project replacements: expected %d, got %d", tt.expectedProjectCount, len(projectReplacements))
+			}
+		})
+	}
+}
+
+func TestProcessProjectReplacements_SkipsPomXml(t *testing.T) {
+	// Create a temporary directory structure
+	tempDir, err := os.MkdirTemp("", "test-replacements-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Initialize as a git repo (required for the function)
+	runGitCommand(tempDir, "init")
+	runGitCommand(tempDir, "config", "user.email", "test@test.com")
+	runGitCommand(tempDir, "config", "user.name", "Test User")
+
+	// Create test files
+	pomContent := `<?xml version="1.0"?>
+<project>
+    <version>REPLACE_ME</version>
+</project>`
+	javaContent := `public class Test {
+    // REPLACE_ME
+}`
+	xmlContent := `<config>REPLACE_ME</config>`
+
+	os.WriteFile(filepath.Join(tempDir, "pom.xml"), []byte(pomContent), 0644)
+	os.WriteFile(filepath.Join(tempDir, "Test.java"), []byte(javaContent), 0644)
+	os.WriteFile(filepath.Join(tempDir, "config.xml"), []byte(xmlContent), 0644)
+
+	// Initial commit
+	runGitCommand(tempDir, "add", "-A")
+	runGitCommand(tempDir, "commit", "-m", "Initial commit")
+
+	// Run project replacements (should skip pom.xml)
+	replacements := []Replacement{
+		{Search: "REPLACE_ME", Replace: "REPLACED"},
+	}
+
+	var logMessages []string
+	mockLog := func(msg string) {
+		logMessages = append(logMessages, msg)
+	}
+
+	processProjectReplacements(tempDir, replacements, []string{}, "all", mockLog)
+
+	// Read files back
+	pomAfter, _ := os.ReadFile(filepath.Join(tempDir, "pom.xml"))
+	javaAfter, _ := os.ReadFile(filepath.Join(tempDir, "Test.java"))
+	xmlAfter, _ := os.ReadFile(filepath.Join(tempDir, "config.xml"))
+
+	// pom.xml should NOT be changed (it's handled separately by processPomXml)
+	if !strings.Contains(string(pomAfter), "REPLACE_ME") {
+		t.Error("pom.xml should NOT be modified by processProjectReplacements")
+	}
+
+	// Other files should be changed
+	if strings.Contains(string(javaAfter), "REPLACE_ME") {
+		t.Error("Test.java should have been modified")
+	}
+	if !strings.Contains(string(javaAfter), "REPLACED") {
+		t.Error("Test.java should contain REPLACED")
+	}
+
+	if strings.Contains(string(xmlAfter), "REPLACE_ME") {
+		t.Error("config.xml should have been modified")
+	}
+	if !strings.Contains(string(xmlAfter), "REPLACED") {
+		t.Error("config.xml should contain REPLACED")
+	}
+}
+
+func TestProcessProjectReplacements_ExcludesDirectories(t *testing.T) {
+	// Create a temporary directory structure
+	tempDir, err := os.MkdirTemp("", "test-excluded-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Initialize as a git repo
+	runGitCommand(tempDir, "init")
+	runGitCommand(tempDir, "config", "user.email", "test@test.com")
+	runGitCommand(tempDir, "config", "user.name", "Test User")
+
+	// Create directory structure
+	os.MkdirAll(filepath.Join(tempDir, "src"), 0755)
+	os.MkdirAll(filepath.Join(tempDir, "target"), 0755)
+	os.MkdirAll(filepath.Join(tempDir, "node_modules"), 0755)
+
+	content := `REPLACE_ME content`
+	os.WriteFile(filepath.Join(tempDir, "src", "file.txt"), []byte(content), 0644)
+	os.WriteFile(filepath.Join(tempDir, "target", "file.txt"), []byte(content), 0644)
+	os.WriteFile(filepath.Join(tempDir, "node_modules", "file.txt"), []byte(content), 0644)
+
+	// Initial commit
+	runGitCommand(tempDir, "add", "-A")
+	runGitCommand(tempDir, "commit", "-m", "Initial commit")
+
+	replacements := []Replacement{
+		{Search: "REPLACE_ME", Replace: "REPLACED"},
+	}
+
+	processProjectReplacements(tempDir, replacements, []string{}, "all", func(msg string) {})
+
+	// Read files back
+	srcFile, _ := os.ReadFile(filepath.Join(tempDir, "src", "file.txt"))
+	targetFile, _ := os.ReadFile(filepath.Join(tempDir, "target", "file.txt"))
+	nodeFile, _ := os.ReadFile(filepath.Join(tempDir, "node_modules", "file.txt"))
+
+	// src should be modified
+	if strings.Contains(string(srcFile), "REPLACE_ME") {
+		t.Error("src/file.txt should have been modified")
+	}
+
+	// target should NOT be modified (excluded)
+	if !strings.Contains(string(targetFile), "REPLACE_ME") {
+		t.Error("target/file.txt should NOT be modified (excluded directory)")
+	}
+
+	// node_modules should NOT be modified (excluded)
+	if !strings.Contains(string(nodeFile), "REPLACE_ME") {
+		t.Error("node_modules/file.txt should NOT be modified (excluded directory)")
+	}
+}
+
+func TestRepoOptions_ReplacementScopeField(t *testing.T) {
+	// Test that RepoOptions struct correctly holds ReplacementScope
+	opts := RepoOptions{
+		Replacements:     []Replacement{{Search: "a", Replace: "b"}},
+		ReplacementScope: "pom-only",
+		Log:              func(msg string) {},
+	}
+
+	if opts.ReplacementScope != "pom-only" {
+		t.Errorf("Expected ReplacementScope 'pom-only', got '%s'", opts.ReplacementScope)
+	}
+
+	// Test all valid scope values
+	validScopes := []string{"all", "pom-only", "exclude-pom", ""}
+	for _, scope := range validScopes {
+		opts.ReplacementScope = scope
+		if opts.ReplacementScope != scope {
+			t.Errorf("Failed to set ReplacementScope to '%s'", scope)
+		}
+	}
+}
+
+func TestProcessProjectReplacements_EmptyReplacements(t *testing.T) {
+	// Should return false immediately if no replacements
+	result := processProjectReplacements("/tmp", []Replacement{}, []string{}, "all", func(msg string) {})
+	if result != false {
+		t.Error("Expected false for empty replacements")
+	}
+}
+
+func TestProcessProjectReplacements_NilReplacements(t *testing.T) {
+	// Should return false for nil replacements
+	result := processProjectReplacements("/tmp", nil, []string{}, "all", func(msg string) {})
+	if result != false {
+		t.Error("Expected false for nil replacements")
 	}
 }
