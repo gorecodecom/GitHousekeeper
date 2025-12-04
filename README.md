@@ -310,6 +310,21 @@ Contributions are welcome! Please read our [Contributing Guide](CONTRIBUTING.md)
 - Code style guidelines
 - Submitting pull requests
 
+## ❤️ Sponsor this Project
+
+If **GitHousekeeper** saves your team hours of manual migration and maintenance work, consider [sponsoring the project](https://github.com/sponsors/gorecodecom) to ensure its continued development.
+
+### 🏆 Corporate Sponsors
+
+Does your company use GitHousekeeper? [Become a sponsor](https://github.com/sponsors/gorecodecom) to get your logo displayed here and support open source!
+
+<!--
+Sponsor logos will appear here:
+<a href="https://example.com"><img src="logo.png" height="60" alt="Company Name"></a>
+-->
+
+*Your company could be here! [Sponsor now →](https://github.com/sponsors/gorecodecom)*
+
 ## Security
 
 Found a vulnerability? Please read our [Security Policy](SECURITY.md) for responsible disclosure guidelines.
