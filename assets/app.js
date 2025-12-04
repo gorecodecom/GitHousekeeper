@@ -211,7 +211,7 @@
             }
         }
 
-        if (tabId === "services") {
+        if (tabId === "maintenance") {
             loadBranchInfo();
         }
       }
@@ -1376,7 +1376,17 @@
         }
       }
 
-      // ==================== SERVICES TAB ====================
+      // ==================== MAINTENANCE TAB ====================
+
+      function getExcludedProjects() {
+        const excluded = ["node_modules", "target", "dist", ".idea", ".vscode"];
+        document.querySelectorAll('#folder-list-container input[type="checkbox"]').forEach((cb) => {
+          if (!cb.checked) {
+            excluded.push(cb.value);
+          }
+        });
+        return excluded;
+      }
 
       async function loadBranchInfo() {
         const rootPath = document.getElementById("rootPath")?.value;
@@ -1385,8 +1395,8 @@
           return;
         }
 
-        const pathDisplay = document.getElementById("services-root-path");
-        const container = document.getElementById("services-repos-container");
+        const pathDisplay = document.getElementById("maintenance-root-path");
+        const container = document.getElementById("maintenance-repos-container");
 
         pathDisplay.textContent = rootPath;
         container.innerHTML = '<div style="color: #9ca0b0; grid-column: 1 / -1; text-align: center; padding: 40px;">Loading...</div>';
@@ -1495,6 +1505,7 @@
                 progressText.textContent = `Syncing... 0/${total}`;
                 progressPercent.textContent = "0%";
                 progressBar.style.width = "0%";
+                progressBar.setAttribute("aria-valuenow", "0");
                 continue;
               }
 
@@ -1506,6 +1517,7 @@
                 progressText.textContent = `Syncing... ${current}/${total}`;
                 progressPercent.textContent = `${percent}%`;
                 progressBar.style.width = `${percent}%`;
+                progressBar.setAttribute("aria-valuenow", percent.toString());
                 continue;
               }
 
@@ -1523,6 +1535,7 @@
               if (line.startsWith("SYNC_COMPLETE")) {
                 syncLog.innerHTML += '<div style="color: #4caf50; margin-top: 15px; border-top: 1px solid #444; padding-top: 10px;">✓ Sync Complete</div>';
                 statusSpan.textContent = "Last sync: just now";
+                progressBar.setAttribute("aria-valuenow", "100");
                 continue;
               }
 

@@ -25,6 +25,9 @@
         <div class="nav-item active" role="menuitem" tabindex="0" onclick="showTab('dashboard')" onkeydown="handleNavKeydown(event, 'dashboard')" aria-current="page">
           📊 Dashboard
         </div>
+        <div class="nav-item" role="menuitem" tabindex="0" onclick="showTab('maintenance')" onkeydown="handleNavKeydown(event, 'maintenance')">
+          🔧 Maintenance
+        </div>
         <div class="nav-item" role="menuitem" tabindex="0" onclick="showTab('settings')" onkeydown="handleNavKeydown(event, 'settings')">
           ⚙️ Project Setup
         </div>
@@ -40,9 +43,7 @@
         <div class="nav-item" role="menuitem" tabindex="0" onclick="showTab('frameworks')" onkeydown="handleNavKeydown(event, 'frameworks')">
           🚀 Migration Assistant
         </div>
-        <div class="nav-item" role="menuitem" tabindex="0" onclick="showTab('services')" onkeydown="handleNavKeydown(event, 'services')">
-          🔧 Services
-        </div>
+
         <div
           class="nav-item"
           role="menuitem"
@@ -69,7 +70,7 @@
         "
         aria-label="Version information"
       >
-        <div>v2.2.1</div>
+        <div>v2.3.0</div>
         <div style="margin-top: 5px">© 2025 GoreCode</div>
       </div>
     </div>
@@ -832,9 +833,9 @@
         </div>
       </div>
 
-      <!-- Tab: Services -->
-      <div id="tab-services" class="tab-content">
-        <h2>🔧 Services</h2>
+      <!-- Tab: Maintenance -->
+      <div id="tab-maintenance" class="tab-content">
+        <h2>🔧 Maintenance</h2>
 
         <div style="max-width: 1200px">
           <!-- Path Display -->
@@ -850,38 +851,38 @@
             "
           >
             <div>
-              <span style="color: #9ca0b0; margin-right: 10px;">Root Path:</span>
-              <span id="services-root-path" style="font-family: 'Consolas', monospace; color: var(--accent-color);">Not configured</span>
+              <span id="maintenance-path-label" style="color: #9ca0b0; margin-right: 10px;">Root Path:</span>
+              <span id="maintenance-root-path" style="font-family: 'Consolas', monospace; color: var(--accent-color);" aria-labelledby="maintenance-path-label">Not configured</span>
             </div>
-            <button class="btn btn-primary" onclick="loadBranchInfo()">
+            <button class="btn btn-primary" onclick="loadBranchInfo()" aria-label="Refresh branch information">
               🔄 Refresh
             </button>
           </div>
 
           <!-- Action Buttons -->
           <div style="margin-bottom: 20px; display: flex; gap: 10px;">
-            <button class="btn btn-primary" onclick="syncAllBranches()" id="sync-branches-btn">
+            <button class="btn btn-primary" onclick="syncAllBranches()" id="sync-branches-btn" aria-label="Synchronize all tracked branches with remote">
               ⬇️ Sync All Tracked Branches
             </button>
-            <span id="sync-status" style="color: #9ca0b0; align-self: center;"></span>
+            <span id="sync-status" style="color: #9ca0b0; align-self: center;" role="status" aria-live="polite"></span>
           </div>
 
           <!-- Progress Bar (hidden by default) -->
-          <div id="sync-progress" class="hidden" style="margin-bottom: 20px;">
+          <div id="sync-progress" class="hidden" style="margin-bottom: 20px;" role="region" aria-label="Sync progress">
             <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
-              <span id="sync-progress-text">Syncing... 0/0</span>
-              <span id="sync-progress-percent">0%</span>
+              <span id="sync-progress-text" aria-live="polite">Syncing... 0/0</span>
+              <span id="sync-progress-percent" aria-hidden="true">0%</span>
             </div>
             <div style="background-color: var(--input-bg); border-radius: 10px; height: 20px; overflow: hidden;">
-              <div id="sync-progress-bar" style="background: linear-gradient(90deg, var(--accent-color), var(--accent-hover)); height: 100%; width: 0%; transition: width 0.3s ease; border-radius: 10px;"></div>
+              <div id="sync-progress-bar" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" aria-label="Sync progress" style="background: linear-gradient(90deg, var(--accent-color), var(--accent-hover)); height: 100%; width: 0%; transition: width 0.3s ease; border-radius: 10px;"></div>
             </div>
           </div>
 
           <!-- Sync Log -->
-          <div id="sync-log" class="hidden" style="background-color: #11111b; padding: 15px; border-radius: 8px; margin-bottom: 20px; max-height: 200px; overflow-y: auto; font-family: 'Consolas', monospace; font-size: 0.85em;"></div>
+          <div id="sync-log" class="hidden" role="log" aria-live="polite" aria-label="Synchronization log" style="background-color: #11111b; padding: 15px; border-radius: 8px; margin-bottom: 20px; max-height: 200px; overflow-y: auto; font-family: 'Consolas', monospace; font-size: 0.85em;"></div>
 
           <!-- Repos Grid -->
-          <div id="services-repos-container" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 15px;">
+          <div id="maintenance-repos-container" role="region" aria-label="Repository branches" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 15px;">
             <div style="color: #9ca0b0; grid-column: 1 / -1; text-align: center; padding: 40px;">
               Click "Refresh" to load repository branches
             </div>
@@ -922,7 +923,7 @@
                 >
                   GitHousekeeper
                 </h3>
-                <div style="color: #a6adc8; margin-top: 5px">Version 2.2.1</div>
+                <div style="color: #a6adc8; margin-top: 5px">Version 2.3.0</div>
               </div>
             </div>
             <p style="line-height: 1.6; color: #a6adc8">

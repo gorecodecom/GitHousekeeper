@@ -5,6 +5,26 @@ All notable changes to GitHousekeeper will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.0] - 2025-12-04
+
+### Added
+
+- **🔧 New Maintenance Tab**
+  - Branch overview showing all local branches per repository
+  - Tracking status with ahead/behind counts for each branch
+  - One-click "Sync All Tracked Branches" to fetch and pull all repos
+  - Live progress bar and detailed sync log
+  - Accessible with ARIA labels, roles, and keyboard navigation
+
+- **🔀 Auto-detect Default Branch**
+  - Automatically detects `main` or `master` as default branch per repository
+  - Falls back gracefully: symbolic-ref → local main → remote main → master
+  - No more hardcoded "master" - works with modern Git workflows
+
+### Changed
+
+- Sidebar reorganized: Maintenance tab now appears after Dashboard for quick access
+
 ## [2.2.1] - 2025-12-04
 
 ### Added
