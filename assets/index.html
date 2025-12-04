@@ -7,40 +7,54 @@
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
+    <!-- Skip to Main Content (Accessibility) -->
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+
     <!-- Toast Notification Container -->
-    <div id="toast-container"></div>
+    <div id="toast-container" role="alert" aria-live="polite"></div>
 
     <!-- Connection Status Banner -->
-    <div id="connection-banner">
+    <div id="connection-banner" role="status" aria-live="polite">
       <span id="connection-icon">🔴</span>
       <span id="connection-text">Offline</span>
     </div>
 
-    <div class="sidebar">
-      <div class="logo">🏠 GitHousekeeper</div>
-      <div class="nav-item active" onclick="showTab('dashboard')">
-        📊 Dashboard
-      </div>
-      <div class="nav-item" onclick="showTab('settings')">⚙️ Project Setup</div>
-      <div class="nav-item" onclick="showTab('replacements')">🔄 Replacements</div>
-      <div class="nav-item" onclick="showTab('report')">📄 Report</div>
-      <div class="nav-item" onclick="showTab('framework-info')">
-        📚 Framework Info
-      </div>
-      <div class="nav-item" onclick="showTab('frameworks')">
-        🚀 Migration Assistant
-      </div>
-      <div
-        class="nav-item"
-        onclick="showTab('about')"
-        style="
-          margin-top: 20px;
-          border-top: 1px solid var(--border-color);
-          padding-top: 15px;
-        "
-      >
-        ℹ️ About
-      </div>
+    <div class="sidebar" role="navigation" aria-label="Main Navigation">
+      <div class="logo" role="banner">🏠 GitHousekeeper</div>
+      <nav role="menubar" aria-label="Main menu">
+        <div class="nav-item active" role="menuitem" tabindex="0" onclick="showTab('dashboard')" onkeydown="handleNavKeydown(event, 'dashboard')" aria-current="page">
+          📊 Dashboard
+        </div>
+        <div class="nav-item" role="menuitem" tabindex="0" onclick="showTab('settings')" onkeydown="handleNavKeydown(event, 'settings')">
+          ⚙️ Project Setup
+        </div>
+        <div class="nav-item" role="menuitem" tabindex="0" onclick="showTab('replacements')" onkeydown="handleNavKeydown(event, 'replacements')">
+          🔄 Replacements
+        </div>
+        <div class="nav-item" role="menuitem" tabindex="0" onclick="showTab('report')" onkeydown="handleNavKeydown(event, 'report')">
+          📄 Report
+        </div>
+        <div class="nav-item" role="menuitem" tabindex="0" onclick="showTab('framework-info')" onkeydown="handleNavKeydown(event, 'framework-info')">
+          📚 Framework Info
+        </div>
+        <div class="nav-item" role="menuitem" tabindex="0" onclick="showTab('frameworks')" onkeydown="handleNavKeydown(event, 'frameworks')">
+          🚀 Migration Assistant
+        </div>
+        <div
+          class="nav-item"
+          role="menuitem"
+          tabindex="0"
+          onclick="showTab('about')"
+          onkeydown="handleNavKeydown(event, 'about')"
+          style="
+            margin-top: 20px;
+            border-top: 1px solid var(--border-color);
+            padding-top: 15px;
+          "
+        >
+          ℹ️ About
+        </div>
+      </nav>
 
       <!-- Version Footer -->
       <div
@@ -48,15 +62,16 @@
           margin-top: auto;
           padding-top: 20px;
           font-size: 0.8em;
-          color: #6c7086;
+          color: #9ca0b0;
         "
+        aria-label="Version information"
       >
         <div>v2.1.0</div>
         <div style="margin-top: 5px">© 2025 GoreCode</div>
       </div>
     </div>
 
-    <div class="main-content">
+    <main id="main-content" class="main-content" role="main">
       <!-- Tab: Dashboard -->
       <div id="tab-dashboard" class="tab-content active">
         <h2>Repository Health & Analytics</h2>
@@ -77,7 +92,7 @@
             To analyze the health of your projects, we need to know where they
             are located. Please select your project root folder to get started.
           </p>
-          <button class="btn btn-primary" onclick="pickFolder('rootPath')">
+          <button class="btn btn-primary" onclick="pickFolder('rootPath')" aria-label="Setup project path">
             📂 Setup Project Path
           </button>
         </div>
@@ -126,6 +141,7 @@
                 class="btn btn-secondary"
                 onclick="pickFolder('rootPath')"
                 title="Select Folder"
+                aria-label="Select project folder"
               >
                 📂
               </button>
@@ -191,13 +207,13 @@
             <table class="data-table">
               <thead>
                 <tr>
-                  <th>Repository</th>
-                  <th>Health Score</th>
-                  <th>Spring Boot</th>
-                  <th>Java</th>
-                  <th>Last Change</th>
-                  <th>TODOs</th>
-                  <th>Status</th>
+                  <th scope="col">Repository</th>
+                  <th scope="col">Health Score</th>
+                  <th scope="col">Spring Boot</th>
+                  <th scope="col">Java</th>
+                  <th scope="col">Last Change</th>
+                  <th scope="col">TODOs</th>
+                  <th scope="col">Status</th>
                 </tr>
               </thead>
               <tbody id="repo-table-body">
@@ -347,10 +363,11 @@
             class="btn btn-secondary"
             onclick="resetSettings()"
             title="Clear all saved settings"
+            aria-label="Reset all settings"
           >
             🗑️ Reset
           </button>
-          <button class="btn btn-primary" onclick="showTab('replacements')">
+          <button class="btn btn-primary" onclick="showTab('replacements')" aria-label="Go to replacements tab">
             Next &rarr;
           </button>
         </div>
@@ -396,6 +413,7 @@
               class="btn-remove"
               onclick="removeRow(this)"
               title="Remove Row"
+              aria-label="Remove this replacement row"
             >
               -
             </button>
@@ -411,15 +429,15 @@
             ></textarea>
           </div>
         </div>
-        <button class="btn btn-add" onclick="addRow('replacements-list')">
+        <button class="btn btn-add" onclick="addRow('replacements-list')" aria-label="Add new replacement row">
           + Add Row
         </button>
 
         <div style="text-align: right; margin-top: 40px">
-          <button class="btn btn-secondary" onclick="showTab('settings')">
+          <button class="btn btn-secondary" onclick="showTab('settings')" aria-label="Go back to settings">
             &larr; Back
           </button>
-          <button class="btn btn-primary" onclick="runHousekeeper()">
+          <button class="btn btn-primary" onclick="runHousekeeper()" aria-label="Start housekeeping process">
             🚀 Start
           </button>
         </div>
@@ -444,6 +462,7 @@
                 class="btn btn-secondary"
                 style="padding: 5px 10px; font-size: 0.9em"
                 onclick="printSection('report')"
+                aria-label="Export report as PDF"
               >
                 📄 PDF
               </button>
@@ -466,6 +485,7 @@
                 class="btn btn-secondary"
                 style="padding: 5px 10px; font-size: 0.9em"
                 onclick="printSection('deprecation')"
+                aria-label="Export deprecation warnings as PDF"
               >
                 📄 PDF
               </button>
@@ -503,6 +523,7 @@
               class="btn btn-secondary"
               style="font-size: 0.8em; padding: 5px 10px"
               onclick="checkOpenRewriteVersions()"
+              aria-label="Refresh OpenRewrite versions"
             >
               🔄 Refresh
             </button>
@@ -703,6 +724,7 @@
                   class="btn btn-primary"
                   onclick="runOpenRewriteAnalysis()"
                   style="min-width: 120px"
+                  aria-label="Analyze migration with OpenRewrite"
                 >
                   📊 Analyze
                 </button>
@@ -779,6 +801,7 @@
               <button
                 class="btn btn-secondary"
                 onclick="printSection('migration')"
+                aria-label="Export migration analysis as PDF"
               >
                 🖨️ PDF / Print
               </button>
@@ -1103,7 +1126,7 @@
             style="
               margin-top: 30px;
               text-align: center;
-              color: #6c7086;
+              color: #9ca0b0;
               font-size: 0.9em;
             "
           >
@@ -1112,7 +1135,7 @@
           </div>
         </div>
       </div>
-    </div>
+    </main>
 
     <script src="app.js"></script>
   </body>

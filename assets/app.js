@@ -6,6 +6,31 @@
       let serverHealthy = true;
       let healthCheckInterval = null;
 
+      // ===========================================
+      // Accessibility (a11y) Helpers
+      // ===========================================
+
+      // Keyboard Navigation for Sidebar
+      function handleNavKeydown(event, tabName) {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          showTab(tabName);
+        }
+        // Arrow key navigation
+        if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+          event.preventDefault();
+          const navItems = document.querySelectorAll('.nav-item[role="menuitem"]');
+          const currentIndex = Array.from(navItems).indexOf(event.target);
+          let nextIndex;
+          if (event.key === 'ArrowDown') {
+            nextIndex = (currentIndex + 1) % navItems.length;
+          } else {
+            nextIndex = (currentIndex - 1 + navItems.length) % navItems.length;
+          }
+          navItems[nextIndex].focus();
+        }
+      }
+
       // Toast Notification System
       function showToast(title, message, type = 'info', duration = 5000) {
         const container = document.getElementById('toast-container');
@@ -146,10 +171,13 @@
         // Update Sidebar
         document
           .querySelectorAll(".nav-item")
-          .forEach((el) => el.classList.remove("active"));
-        document
-          .querySelector(`.nav-item[onclick="showTab('${tabId}')"]`)
-          .classList.add("active");
+          .forEach((el) => {
+            el.classList.remove("active");
+            el.removeAttribute("aria-current");
+          });
+        const activeNavItem = document.querySelector(`.nav-item[onclick="showTab('${tabId}')"]`);
+        activeNavItem.classList.add("active");
+        activeNavItem.setAttribute("aria-current", "page");
 
         // Update Content
         document
