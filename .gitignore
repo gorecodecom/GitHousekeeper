@@ -3,3 +3,7 @@ test_env/
 *.log
 .DS_Store
 bin/
+
+# Build artifacts
+GitHousekeeper-*
+githousekeeper
