@@ -40,6 +40,9 @@
         <div class="nav-item" role="menuitem" tabindex="0" onclick="showTab('frameworks')" onkeydown="handleNavKeydown(event, 'frameworks')">
           🚀 Migration Assistant
         </div>
+        <div class="nav-item" role="menuitem" tabindex="0" onclick="showTab('services')" onkeydown="handleNavKeydown(event, 'services')">
+          🔧 Services
+        </div>
         <div
           class="nav-item"
           role="menuitem"
@@ -825,6 +828,63 @@
                 border: 1px solid var(--border-color);
               "
             ></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab: Services -->
+      <div id="tab-services" class="tab-content">
+        <h2>🔧 Services</h2>
+
+        <div style="max-width: 1200px">
+          <!-- Path Display -->
+          <div
+            style="
+              background-color: var(--input-bg);
+              border-radius: 8px;
+              padding: 15px 20px;
+              margin-bottom: 20px;
+              display: flex;
+              align-items: center;
+              justify-content: space-between;
+            "
+          >
+            <div>
+              <span style="color: #9ca0b0; margin-right: 10px;">Root Path:</span>
+              <span id="services-root-path" style="font-family: 'Consolas', monospace; color: var(--accent-color);">Not configured</span>
+            </div>
+            <button class="btn btn-primary" onclick="loadBranchInfo()">
+              🔄 Refresh
+            </button>
+          </div>
+
+          <!-- Action Buttons -->
+          <div style="margin-bottom: 20px; display: flex; gap: 10px;">
+            <button class="btn btn-primary" onclick="syncAllBranches()" id="sync-branches-btn">
+              ⬇️ Sync All Tracked Branches
+            </button>
+            <span id="sync-status" style="color: #9ca0b0; align-self: center;"></span>
+          </div>
+
+          <!-- Progress Bar (hidden by default) -->
+          <div id="sync-progress" class="hidden" style="margin-bottom: 20px;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+              <span id="sync-progress-text">Syncing... 0/0</span>
+              <span id="sync-progress-percent">0%</span>
+            </div>
+            <div style="background-color: var(--input-bg); border-radius: 10px; height: 20px; overflow: hidden;">
+              <div id="sync-progress-bar" style="background: linear-gradient(90deg, var(--accent-color), var(--accent-hover)); height: 100%; width: 0%; transition: width 0.3s ease; border-radius: 10px;"></div>
+            </div>
+          </div>
+
+          <!-- Sync Log -->
+          <div id="sync-log" class="hidden" style="background-color: #11111b; padding: 15px; border-radius: 8px; margin-bottom: 20px; max-height: 200px; overflow-y: auto; font-family: 'Consolas', monospace; font-size: 0.85em;"></div>
+
+          <!-- Repos Grid -->
+          <div id="services-repos-container" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 15px;">
+            <div style="color: #9ca0b0; grid-column: 1 / -1; text-align: center; padding: 40px;">
+              Click "Refresh" to load repository branches
+            </div>
           </div>
         </div>
       </div>

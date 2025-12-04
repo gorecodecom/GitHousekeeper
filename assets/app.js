@@ -210,6 +210,10 @@
                 }
             }
         }
+
+        if (tabId === "services") {
+            loadBranchInfo();
+        }
       }
 
       function toggleBranchInput() {
@@ -1369,5 +1373,178 @@
           progressContainer.classList.add("hidden");
           isProcessRunning = false; // Mark process as complete
           showToast('Fehler', `Analyse fehlgeschlagen: ${e.message}`, 'error');
+        }
+      }
+
+      // ==================== SERVICES TAB ====================
+
+      async function loadBranchInfo() {
+        const rootPath = document.getElementById("rootPath")?.value;
+        if (!rootPath) {
+          showToast('Fehler', 'Bitte zuerst einen Root Path im Project Setup konfigurieren.', 'error');
+          return;
+        }
+
+        const pathDisplay = document.getElementById("services-root-path");
+        const container = document.getElementById("services-repos-container");
+
+        pathDisplay.textContent = rootPath;
+        container.innerHTML = '<div style="color: #9ca0b0; grid-column: 1 / -1; text-align: center; padding: 40px;">Loading...</div>';
+
+        try {
+          const excluded = getExcludedProjects();
+          const response = await fetch("/api/list-branches", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ rootPath, excluded }),
+          });
+
+          if (!response.ok) throw new Error("Failed to load branches");
+
+          const repos = await response.json();
+
+          if (!repos || repos.length === 0) {
+            container.innerHTML = '<div style="color: #9ca0b0; grid-column: 1 / -1; text-align: center; padding: 40px;">No repositories found</div>';
+            return;
+          }
+
+          container.innerHTML = repos.map(repo => `
+            <div style="background-color: var(--input-bg); border-radius: 8px; padding: 15px; border: 1px solid var(--border-color);">
+              <div style="display: flex; align-items: center; margin-bottom: 10px;">
+                <span style="font-size: 1.2em; margin-right: 8px;">📁</span>
+                <span style="font-weight: bold; color: var(--accent-color);">${repo.name}</span>
+                <span style="margin-left: auto; font-size: 0.8em; color: #9ca0b0; background: rgba(166, 227, 161, 0.1); padding: 2px 8px; border-radius: 4px;">${repo.defaultBranch}</span>
+              </div>
+              <div style="font-size: 0.85em;">
+                ${repo.branches.map(branch => {
+                  const isDefault = branch.name === repo.defaultBranch;
+                  const trackingIcon = branch.isTracking ? '🔗' : '📍';
+                  const statusColor = branch.isTracking ? '#4caf50' : '#9ca0b0';
+                  const statusText = branch.isTracking
+                    ? (branch.ahead > 0 || branch.behind > 0
+                        ? `↑${branch.ahead} ↓${branch.behind}`
+                        : 'synced')
+                    : 'local only';
+                  return `
+                    <div style="display: flex; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--border-color);">
+                      <span style="margin-right: 8px;">${trackingIcon}</span>
+                      <span style="flex: 1; ${isDefault ? 'font-weight: bold;' : ''}">${branch.name}</span>
+                      <span style="color: ${statusColor}; font-size: 0.85em;">${statusText}</span>
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+            </div>
+          `).join('');
+
+          showToast('Geladen', `${repos.length} Repositories gefunden`, 'success', 2000);
+
+        } catch (e) {
+          container.innerHTML = `<div style="color: #ef5350; grid-column: 1 / -1; text-align: center; padding: 40px;">Error: ${e.message}</div>`;
+          showToast('Fehler', e.message, 'error');
+        }
+      }
+
+      async function syncAllBranches() {
+        const rootPath = document.getElementById("rootPath")?.value;
+        if (!rootPath) {
+          showToast('Fehler', 'Bitte zuerst einen Root Path im Project Setup konfigurieren.', 'error');
+          return;
+        }
+
+        const btn = document.getElementById("sync-branches-btn");
+        const progressContainer = document.getElementById("sync-progress");
+        const progressBar = document.getElementById("sync-progress-bar");
+        const progressText = document.getElementById("sync-progress-text");
+        const progressPercent = document.getElementById("sync-progress-percent");
+        const syncLog = document.getElementById("sync-log");
+        const statusSpan = document.getElementById("sync-status");
+
+        btn.disabled = true;
+        btn.textContent = "⏳ Syncing...";
+        progressContainer.classList.remove("hidden");
+        syncLog.classList.remove("hidden");
+        syncLog.innerHTML = "";
+        isProcessRunning = true;
+
+        try {
+          const excluded = getExcludedProjects();
+          const response = await fetch("/api/sync-branches", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ rootPath, excluded }),
+          });
+
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder();
+          let buffer = "";
+
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split("\n");
+            buffer = lines.pop() || "";
+
+            for (const line of lines) {
+              if (!line.trim()) continue;
+
+              if (line.startsWith("SYNC_INIT:")) {
+                const total = parseInt(line.split(":")[1]);
+                progressText.textContent = `Syncing... 0/${total}`;
+                progressPercent.textContent = "0%";
+                progressBar.style.width = "0%";
+                continue;
+              }
+
+              if (line.startsWith("SYNC_PROGRESS:")) {
+                const parts = line.split(":");
+                const current = parseInt(parts[1]);
+                const total = parseInt(parts[2]);
+                const percent = Math.round((current / total) * 100);
+                progressText.textContent = `Syncing... ${current}/${total}`;
+                progressPercent.textContent = `${percent}%`;
+                progressBar.style.width = `${percent}%`;
+                continue;
+              }
+
+              if (line.startsWith("REPO_START:")) {
+                const repoName = line.split(":")[1];
+                syncLog.innerHTML += `<div style="color: #7c8aff; margin-top: 10px; font-weight: bold;">▶ ${repoName}</div>`;
+                syncLog.scrollTop = syncLog.scrollHeight;
+                continue;
+              }
+
+              if (line.startsWith("REPO_DONE:")) {
+                continue;
+              }
+
+              if (line.startsWith("SYNC_COMPLETE")) {
+                syncLog.innerHTML += '<div style="color: #4caf50; margin-top: 15px; border-top: 1px solid #444; padding-top: 10px;">✓ Sync Complete</div>';
+                statusSpan.textContent = "Last sync: just now";
+                continue;
+              }
+
+              // Regular log line
+              let cssClass = "color: #e0e0e0;";
+              if (line.includes("✓")) cssClass = "color: #4caf50;";
+              if (line.includes("[WARNING]")) cssClass = "color: #fab387;";
+
+              syncLog.innerHTML += `<div style="${cssClass}">${line}</div>`;
+              syncLog.scrollTop = syncLog.scrollHeight;
+            }
+          }
+
+          showToast('Sync abgeschlossen', 'Alle Branches wurden aktualisiert.', 'success', 3000);
+          loadBranchInfo(); // Refresh the branch list
+
+        } catch (e) {
+          syncLog.innerHTML += `<div style="color: #ef5350;">Error: ${e.message}</div>`;
+          showToast('Fehler', e.message, 'error');
+        } finally {
+          btn.disabled = false;
+          btn.textContent = "⬇️ Sync All Tracked Branches";
+          isProcessRunning = false;
         }
       }

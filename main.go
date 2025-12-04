@@ -56,6 +56,8 @@ func main() {
 	http.HandleFunc("/api/list-folders", handleListFolders)
 	http.HandleFunc("/api/openrewrite-versions", handleOpenRewriteVersions)
 	http.HandleFunc("/api/dashboard-stats", handleDashboardStats)
+	http.HandleFunc("/api/list-branches", handleListBranches)
+	http.HandleFunc("/api/sync-branches", handleSyncBranches)
 
 	port := "8080"
 	url := "http://localhost:" + port
@@ -818,4 +820,241 @@ func handleDashboardStats(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(result)
 		flusher.Flush()
 	})
+}
+
+// BranchInfo represents a branch with its tracking status
+type BranchInfo struct {
+	Name       string `json:"name"`
+	IsTracking bool   `json:"isTracking"`
+	Remote     string `json:"remote"`
+	Ahead      int    `json:"ahead"`
+	Behind     int    `json:"behind"`
+}
+
+// RepoWithBranches represents a repository and its branches
+type RepoWithBranches struct {
+	Name          string       `json:"name"`
+	Path          string       `json:"path"`
+	DefaultBranch string       `json:"defaultBranch"`
+	Branches      []BranchInfo `json:"branches"`
+}
+
+type ListBranchesRequest struct {
+	RootPath string   `json:"rootPath"`
+	Excluded []string `json:"excluded"`
+}
+
+func handleListBranches(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req ListBranchesRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	repos := logic.FindGitRepos(req.RootPath, req.Excluded)
+	var result []RepoWithBranches
+
+	for _, repoPath := range repos {
+		repoName := filepath.Base(repoPath)
+
+		// Get default branch
+		defaultBranch := getRepoDefaultBranch(repoPath)
+
+		// Get all local branches with tracking info
+		branches := getRepoBranches(repoPath)
+
+		result = append(result, RepoWithBranches{
+			Name:          repoName,
+			Path:          repoPath,
+			DefaultBranch: defaultBranch,
+			Branches:      branches,
+		})
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(result)
+}
+
+func getRepoDefaultBranch(repoPath string) string {
+	cmd := exec.Command("git", "symbolic-ref", "refs/remotes/origin/HEAD")
+	cmd.Dir = repoPath
+	output, err := cmd.Output()
+	if err == nil {
+		branch := strings.TrimPrefix(strings.TrimSpace(string(output)), "refs/remotes/origin/")
+		if branch != "" {
+			return branch
+		}
+	}
+
+	// Fallback: check if main exists
+	cmd = exec.Command("git", "show-ref", "--verify", "--quiet", "refs/heads/main")
+	cmd.Dir = repoPath
+	if cmd.Run() == nil {
+		return "main"
+	}
+
+	return "master"
+}
+
+func getRepoBranches(repoPath string) []BranchInfo {
+	var branches []BranchInfo
+
+	// Get local branches with their upstream tracking info
+	cmd := exec.Command("git", "for-each-ref", "--format=%(refname:short)|%(upstream:short)|%(upstream:track)", "refs/heads/")
+	cmd.Dir = repoPath
+	output, err := cmd.Output()
+	if err != nil {
+		return branches
+	}
+
+	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
+	for _, line := range lines {
+		if line == "" {
+			continue
+		}
+		parts := strings.Split(line, "|")
+		branchName := parts[0]
+		remote := ""
+		ahead := 0
+		behind := 0
+		isTracking := false
+
+		if len(parts) > 1 && parts[1] != "" {
+			remote = parts[1]
+			isTracking = true
+		}
+
+		if len(parts) > 2 && parts[2] != "" {
+			// Parse [ahead X, behind Y] or [ahead X] or [behind Y]
+			track := parts[2]
+			if strings.Contains(track, "ahead") {
+				fmt.Sscanf(track, "[ahead %d", &ahead)
+			}
+			if strings.Contains(track, "behind") {
+				if strings.Contains(track, "ahead") {
+					fmt.Sscanf(track, "[ahead %d, behind %d]", &ahead, &behind)
+				} else {
+					fmt.Sscanf(track, "[behind %d]", &behind)
+				}
+			}
+		}
+
+		branches = append(branches, BranchInfo{
+			Name:       branchName,
+			IsTracking: isTracking,
+			Remote:     remote,
+			Ahead:      ahead,
+			Behind:     behind,
+		})
+	}
+
+	return branches
+}
+
+type SyncBranchesRequest struct {
+	RootPath string   `json:"rootPath"`
+	Excluded []string `json:"excluded"`
+}
+
+func handleSyncBranches(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req SyncBranchesRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Set headers for streaming
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.Header().Set("Transfer-Encoding", "chunked")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "Streaming not supported", http.StatusInternalServerError)
+		return
+	}
+
+	repos := logic.FindGitRepos(req.RootPath, req.Excluded)
+	total := len(repos)
+
+	fmt.Fprintf(w, "SYNC_INIT:%d\n", total)
+	flusher.Flush()
+
+	for i, repoPath := range repos {
+		repoName := filepath.Base(repoPath)
+		fmt.Fprintf(w, "REPO_START:%s\n", repoName)
+		flusher.Flush()
+
+		// Remember current branch
+		currentBranch := getCurrentBranch(repoPath)
+
+		// Fetch with prune
+		cmd := exec.Command("git", "fetch", "-p", "--all")
+		cmd.Dir = repoPath
+		if err := cmd.Run(); err != nil {
+			fmt.Fprintf(w, "  [WARNING] Fetch failed: %v\n", err)
+		} else {
+			fmt.Fprintf(w, "  Fetched all remotes\n")
+		}
+		flusher.Flush()
+
+		// Get all tracking branches and pull them
+		branches := getRepoBranches(repoPath)
+		for _, branch := range branches {
+			if !branch.IsTracking {
+				continue
+			}
+
+			// Checkout branch
+			cmd = exec.Command("git", "checkout", branch.Name)
+			cmd.Dir = repoPath
+			if err := cmd.Run(); err != nil {
+				fmt.Fprintf(w, "  [WARNING] Could not checkout %s: %v\n", branch.Name, err)
+				continue
+			}
+
+			// Pull
+			cmd = exec.Command("git", "pull", "--ff-only")
+			cmd.Dir = repoPath
+			if err := cmd.Run(); err != nil {
+				fmt.Fprintf(w, "  [WARNING] Pull %s failed (maybe conflicts): %v\n", branch.Name, err)
+			} else {
+				fmt.Fprintf(w, "  ✓ %s updated\n", branch.Name)
+			}
+		}
+
+		// Switch back to original branch
+		if currentBranch != "" {
+			cmd = exec.Command("git", "checkout", currentBranch)
+			cmd.Dir = repoPath
+			cmd.Run()
+		}
+
+		fmt.Fprintf(w, "REPO_DONE:%s\n", repoName)
+		fmt.Fprintf(w, "SYNC_PROGRESS:%d:%d\n", i+1, total)
+		flusher.Flush()
+	}
+
+	fmt.Fprintf(w, "SYNC_COMPLETE\n")
+	flusher.Flush()
+}
+
+func getCurrentBranch(repoPath string) string {
+	cmd := exec.Command("git", "rev-parse", "--abbrev-ref", "HEAD")
+	cmd.Dir = repoPath
+	output, err := cmd.Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(output))
 }
