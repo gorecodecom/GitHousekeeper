@@ -144,7 +144,7 @@ baz
 `,
 		},
 		{
-			name: "No indentation match",
+			name:    "No indentation match",
 			content: `<root><item>val</item></root>`,
 			search:  `<item>val</item>`,
 			replace: `<item>

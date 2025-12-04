@@ -165,7 +165,6 @@ func handleSpringVersions(w http.ResponseWriter, r *http.Request) {
 // Current OpenRewrite versions used in this app
 // Moved to type definition area
 
-
 func handleOpenRewriteVersions(w http.ResponseWriter, r *http.Request) {
 	versions, err := logic.GetOpenRewriteVersions(openRewritePluginVersion, openRewriteRecipeVersion)
 	if err != nil {
@@ -799,4 +798,3 @@ func handleDashboardStats(w http.ResponseWriter, r *http.Request) {
 		flusher.Flush()
 	})
 }
-

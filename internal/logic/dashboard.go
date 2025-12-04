@@ -14,12 +14,12 @@ import (
 
 // DashboardStats holds the aggregated data for the dashboard
 type DashboardStats struct {
-	TotalRepos       int             `json:"totalRepos"`
-	AvgHealthScore   int             `json:"avgHealthScore"`
-	TotalTodos       int             `json:"totalTodos"`
-	TopDependencies  []NameCount     `json:"topDependencies"`
-	RepoDetails      []RepoHealth    `json:"repoDetails"`
-	SpringVersions   map[string]int  `json:"springVersions"` // e.g. "3.2.0" -> 5
+	TotalRepos      int            `json:"totalRepos"`
+	AvgHealthScore  int            `json:"avgHealthScore"`
+	TotalTodos      int            `json:"totalTodos"`
+	TopDependencies []NameCount    `json:"topDependencies"`
+	RepoDetails     []RepoHealth   `json:"repoDetails"`
+	SpringVersions  map[string]int `json:"springVersions"` // e.g. "3.2.0" -> 5
 }
 
 type NameCount struct {
@@ -28,23 +28,23 @@ type NameCount struct {
 }
 
 type RepoHealth struct {
-	Name            string `json:"name"`
-	Path            string `json:"path"`
-	HealthScore     int    `json:"healthScore"`
-	TodoCount       int    `json:"todoCount"`
-	SpringBootVer   string `json:"springBootVer"`
-	JavaVersion     string `json:"javaVersion"`
-	LastCommit      string `json:"lastCommit"`
-	HasBuildErrors  bool   `json:"hasBuildErrors"`
+	Name           string `json:"name"`
+	Path           string `json:"path"`
+	HealthScore    int    `json:"healthScore"`
+	TodoCount      int    `json:"todoCount"`
+	SpringBootVer  string `json:"springBootVer"`
+	JavaVersion    string `json:"javaVersion"`
+	LastCommit     string `json:"lastCommit"`
+	HasBuildErrors bool   `json:"hasBuildErrors"`
 }
 
 // StreamDashboardStats scans and streams results in real-time
 func StreamDashboardStats(rootPath string, excluded []string, onResult func(interface{})) {
 	repos := FindGitRepos(rootPath, excluded)
-	
+
 	// 1. Send Init Event
 	onResult(map[string]interface{}{
-		"type": "init",
+		"type":       "init",
 		"totalRepos": len(repos),
 	})
 
@@ -54,17 +54,17 @@ func StreamDashboardStats(rootPath string, excluded []string, onResult func(inte
 
 	var wg sync.WaitGroup
 	// Limit concurrency to avoid overwhelming the system/Maven
-	sem := make(chan struct{}, 5) 
+	sem := make(chan struct{}, 5)
 
 	for _, repo := range repos {
 		wg.Add(1)
 		go func(path string) {
 			defer wg.Done()
-			sem <- struct{}{} // Acquire token
+			sem <- struct{}{}        // Acquire token
 			defer func() { <-sem }() // Release token
 
 			health, deps := analyzeRepoHealth(path)
-			
+
 			// Send Repo Result
 			onResult(map[string]interface{}{
 				"type": "repo",
@@ -75,7 +75,7 @@ func StreamDashboardStats(rootPath string, excluded []string, onResult func(inte
 	}
 
 	wg.Wait()
-	
+
 	// Send Done Event
 	onResult(map[string]interface{}{
 		"type": "done",
@@ -89,7 +89,7 @@ func analyzeRepoHealth(path string) (RepoHealth, []string) {
 		Path:        path,
 		HealthScore: 100,
 	}
-	
+
 	var dependencies []string
 
 	// 1. Get Last Commit Date
@@ -149,7 +149,7 @@ func analyzeRepoHealth(path string) (RepoHealth, []string) {
 			if health.SpringBootVer == "" && strings.Contains(project.Parent.GroupId, "spring-boot") {
 				health.SpringBootVer = project.Parent.Version
 			}
-			
+
 			// Fallback: Check Properties for Java Version
 			if health.JavaVersion == "" {
 				if project.JavaVersion != "" {
@@ -166,7 +166,7 @@ func analyzeRepoHealth(path string) (RepoHealth, []string) {
 					displayDep := dep.ArtifactId
 					dependencies = append(dependencies, displayDep)
 				}
-				
+
 				if health.SpringBootVer == "" && dep.GroupId == "org.springframework.boot" {
 					// Try to guess version from dependency if explicit
 					if dep.Version != "" && !strings.Contains(dep.Version, "$") {
@@ -174,11 +174,11 @@ func analyzeRepoHealth(path string) (RepoHealth, []string) {
 					}
 				}
 
-				if dep.ArtifactId == "junit" { 
+				if dep.ArtifactId == "junit" {
 					health.HealthScore -= 5
 				}
 			}
-			
+
 			// Penalize old Spring Boot
 			if health.SpringBootVer != "" {
 				if strings.HasPrefix(health.SpringBootVer, "2.") {
@@ -231,11 +231,11 @@ func (p *MinimalProjectSimple) UnmarshalXML(d *xml.Decoder, start xml.StartEleme
 	aux := &Alias{
 		Properties: make(map[string]string),
 	}
-	
+
 	// We need to decode the whole element into the alias struct
 	// But standard xml unmarshal doesn't support map[string]string for arbitrary tags automatically.
 	// So we need a custom approach for properties.
-	// Let's simplify: Just read properties as a raw struct with common fields for now, 
+	// Let's simplify: Just read properties as a raw struct with common fields for now,
 	// or use a separate struct for properties.
 	// To avoid complexity, I will revert to explicit fields for Java Version.
 	return d.DecodeElement(aux, &start)
@@ -276,7 +276,7 @@ func ParsePOM(path string) (*MinimalProjectSimpleFixed, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Map fields to a common structure if needed, but here we just return the struct.
 	// The caller expects Properties map? No, I updated caller to check fields.
 	// Wait, I updated caller to check `project.Properties["java.version"]`.
