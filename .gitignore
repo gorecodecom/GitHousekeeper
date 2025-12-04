@@ -7,3 +7,5 @@ bin/
 # Build artifacts
 GitHousekeeper-*
 githousekeeper
+updates
+updates.exe
