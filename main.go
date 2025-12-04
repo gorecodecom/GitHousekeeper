@@ -47,6 +47,7 @@ func main() {
 	}
 
 	// API
+	http.HandleFunc("/api/health", handleHealth)
 	http.HandleFunc("/api/run", handleRun)
 	http.HandleFunc("/api/spring-versions", handleSpringVersions)
 	http.HandleFunc("/api/scan-spring", handleScanSpring)
@@ -67,6 +68,13 @@ func main() {
 	if err := http.ListenAndServe(":"+port, nil); err != nil {
 		fmt.Printf("Error starting server: %v\n", err)
 	}
+}
+
+// Health check endpoint for connection monitoring
+func handleHealth(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(`{"status":"ok"}`))
 }
 
 func handleRun(w http.ResponseWriter, r *http.Request) {

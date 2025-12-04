@@ -44,7 +44,7 @@ body {
   cursor: pointer;
   border-radius: 6px;
   transition: background-color 0.2s;
-  color: #a6adc8;
+  color: #9ca0b0; /* WCAG AA contrast improved */
 }
 
 .nav-item:hover {
@@ -56,6 +56,54 @@ body {
   background-color: var(--accent-color);
   color: var(--sidebar-color);
   font-weight: bold;
+}
+
+/* Accessibility Focus Styles */
+.nav-item:focus-visible {
+  outline: 2px solid var(--accent-color);
+  outline-offset: 2px;
+  background-color: #313244;
+}
+
+.nav-item.active:focus-visible {
+  outline-color: var(--text-color);
+}
+
+/* Skip to main content link for screen readers */
+.skip-link {
+  position: fixed;
+  top: -100px;
+  left: 10px;
+  background: var(--accent-color);
+  color: var(--sidebar-color);
+  padding: 8px 16px;
+  z-index: 10000;
+  font-weight: bold;
+  text-decoration: none;
+  border-radius: 4px;
+  transition: top 0.3s ease;
+}
+
+.skip-link:focus {
+  top: 10px;
+}
+
+/* Focus styles for buttons */
+.btn:focus-visible {
+  outline: 2px solid var(--accent-color);
+  outline-offset: 2px;
+}
+
+.btn-primary:focus-visible {
+  outline-color: var(--text-color);
+}
+
+/* Focus styles for inputs */
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--accent-color);
+  outline-offset: 1px;
 }
 
 /* Main Content */
@@ -131,7 +179,7 @@ textarea {
 
 .hint {
   font-size: 12px;
-  color: #a6adc8;
+  color: #9ca0b0; /* WCAG AA contrast improved */
   margin-top: 5px;
 }
 
@@ -715,4 +763,135 @@ textarea {
   border: 1px solid var(--border-color);
   border-radius: 12px;
   padding: 20px;
+}
+
+/* Toast Notifications */
+#toast-container {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  pointer-events: none;
+}
+
+.toast {
+  background: var(--input-bg);
+  border-left: 4px solid var(--accent-color);
+  padding: 16px 20px;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  animation: slideInRight 0.3s ease;
+  max-width: 380px;
+  min-width: 300px;
+  pointer-events: auto;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.toast.error {
+  border-left-color: #f38ba8;
+}
+
+.toast.warning {
+  border-left-color: #fab387;
+}
+
+.toast.success {
+  border-left-color: #a6e3a1;
+}
+
+.toast-content {
+  flex: 1;
+}
+
+.toast-title {
+  font-weight: bold;
+  margin-bottom: 4px;
+  color: var(--text-color);
+}
+
+.toast-message {
+  color: #a6adc8;
+  font-size: 0.9em;
+  line-height: 1.4;
+}
+
+.toast-close {
+  background: none;
+  border: none;
+  color: #6c7086;
+  cursor: pointer;
+  font-size: 18px;
+  padding: 0;
+  line-height: 1;
+}
+
+.toast-close:hover {
+  color: var(--text-color);
+}
+
+.toast.fade-out {
+  animation: slideOutRight 0.3s ease forwards;
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideOutRight {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+}
+
+/* Connection Status Banner */
+#connection-banner {
+  position: fixed;
+  top: 0;
+  left: 250px;
+  right: 0;
+  padding: 10px 20px;
+  text-align: center;
+  font-weight: 500;
+  z-index: 9998;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+#connection-banner.visible {
+  display: flex;
+}
+
+#connection-banner.offline {
+  background: linear-gradient(90deg, #f38ba8 0%, #eba0ac 100%);
+  color: #1e1e2e;
+}
+
+#connection-banner.reconnected {
+  background: linear-gradient(90deg, #a6e3a1 0%, #94e2d5 100%);
+  color: #1e1e2e;
+}
+
+#connection-banner.server-error {
+  background: linear-gradient(90deg, #fab387 0%, #f9e2af 100%);
+  color: #1e1e2e;
 }
