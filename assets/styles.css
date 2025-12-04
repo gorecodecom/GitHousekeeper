@@ -342,6 +342,14 @@ textarea {
     display: block !important; /* Show only report */
     max-width: 100%;
   }
+  /* Show frameworks tab when printing migration */
+  body.print-migration #tab-frameworks {
+    display: block !important;
+    max-width: 100%;
+  }
+  body.print-migration .tab-content:not(#tab-frameworks) {
+    display: none !important;
+  }
 
   /* Hide both columns by default in print */
   .report-container > div {

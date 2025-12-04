@@ -27,6 +27,23 @@ See [CHANGELOG.md](CHANGELOG.md) for release history and all versions on the [Re
 - **Selective Processing**: Include/exclude specific projects via checkbox selection.
 - **Batch Operations**: Apply changes across dozens of repositories simultaneously.
 
+### 🛡️ Security Vulnerability Scanner (NEW in v2.3.0)
+
+- **CVE Detection**: Scan all Maven projects for known security vulnerabilities.
+- **Dual Scanner Support**: Choose between OWASP Dependency-Check or Trivy.
+- **Parallel Scanning**: Analyzes up to 4 repositories simultaneously.
+- **Severity Grouping**: CVEs organized by Critical, High, Medium, Low.
+- **NVD Links**: Direct links to National Vulnerability Database for details.
+- **Per-Repo PDF Export**: Export security reports for individual repositories.
+- **Full Report Export**: Export comprehensive PDF for all scanned projects.
+
+### 🔧 Maintenance Tab (NEW in v2.3.0)
+
+- **Branch Overview**: View all local branches per repository with tracking status.
+- **Ahead/Behind Counts**: See how many commits each branch is ahead or behind.
+- **One-Click Sync**: Fetch and pull all tracked branches across all repositories.
+- **Live Progress**: Real-time progress bar and detailed sync log.
+
 ### 🌐 Modern Web Interface
 
 - **Live-Logging**: Real-time feedback during build and update processes.
@@ -95,10 +112,11 @@ See [CHANGELOG.md](CHANGELOG.md) for release history and all versions on the [Re
 
 ### 🔀 Git Automation
 
+- **Auto-Detect Default Branch**: Automatically detects `main` or `master` per repository.
 - **Flexible Branching Strategy**:
   - **Housekeeping**: Default mode. Manages a `housekeeping` branch (resets if stale > 1 month).
   - **Custom Branch**: Work on a specific feature branch (e.g., `feature/upgrade-v2`).
-  - **Direct Master**: Option to apply changes directly to the `master` branch.
+  - **Direct to Default**: Option to apply changes directly to the default branch (`main` or `master`).
 - Automatically commits changes with descriptive messages.
 
 ## Prerequisites
@@ -106,8 +124,9 @@ See [CHANGELOG.md](CHANGELOG.md) for release history and all versions on the [Re
 To run the pre-built executable:
 
 - **Git**: Must be installed and available in the system PATH.
-- **Maven**: Required for project builds and OpenRewrite analysis (`mvn` command).
+- **Maven**: Required for project builds, OpenRewrite analysis, and OWASP security scans.
 - **Java**: JDK 17+ recommended for Spring Boot 3.x projects.
+- **Trivy** *(optional)*: For faster security scanning. Install via `brew install trivy` (macOS) or see [trivy.dev/installation](https://aquasecurity.github.io/trivy/latest/getting-started/installation/).
 
 To build from source:
 

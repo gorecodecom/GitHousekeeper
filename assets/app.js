@@ -7,6 +7,22 @@
       let healthCheckInterval = null;
 
       // ===========================================
+      // Helper Functions
+      // ===========================================
+
+      // Format duration in seconds to human-readable string
+      function formatDuration(seconds) {
+        if (!seconds || seconds < 0) return 'calculating...';
+        if (seconds < 60) return `${Math.round(seconds)}s`;
+        const mins = Math.floor(seconds / 60);
+        const secs = Math.round(seconds % 60);
+        if (mins < 60) return `${mins}m ${secs}s`;
+        const hours = Math.floor(mins / 60);
+        const remainMins = mins % 60;
+        return `${hours}h ${remainMins}m`;
+      }
+
+      // ===========================================
       // Accessibility (a11y) Helpers
       // ===========================================
 
@@ -214,6 +230,13 @@
         if (tabId === "maintenance") {
             loadBranchInfo();
         }
+
+        if (tabId === "security") {
+            // Auto-load repos when switching to security tab
+            if (!securityReposLoaded) {
+                loadSecurityRepos();
+            }
+        }
       }
 
       function toggleBranchInput() {
@@ -248,9 +271,33 @@
       }
 
       function printSection(section) {
-        document.body.classList.add("print-" + section);
-        window.print();
-        document.body.classList.remove("print-" + section);
+        try {
+          // For migration, we need to be on the frameworks tab
+          if (section === 'migration') {
+            // Temporarily show the frameworks tab for printing
+            const frameworksTab = document.getElementById('tab-frameworks');
+            const wasHidden = !frameworksTab.classList.contains('active');
+            if (wasHidden) {
+              frameworksTab.style.display = 'block';
+            }
+          }
+
+          document.body.classList.add("print-" + section);
+          window.print();
+          document.body.classList.remove("print-" + section);
+
+          // Restore tab state if needed
+          if (section === 'migration') {
+            const frameworksTab = document.getElementById('tab-frameworks');
+            if (!frameworksTab.classList.contains('active')) {
+              frameworksTab.style.display = '';
+            }
+          }
+        } catch (e) {
+          console.error('Print failed:', e);
+          showToast('Fehler', 'PDF-Export fehlgeschlagen. Bitte versuchen Sie es erneut.', 'error');
+          document.body.classList.remove("print-" + section);
+        }
       }
 
       function resetSettings() {
@@ -732,8 +779,19 @@
         }
       }
 
+      // Track if Spring versions have been loaded to avoid redundant fetches
+      let springVersionsLoaded = false;
+
       async function loadSpringVersions() {
         const container = document.getElementById("spring-versions-list");
+
+        // Skip if already loaded (use cache)
+        if (springVersionsLoaded && window.springVersionsCache) {
+          return;
+        }
+
+        // Show loading indicator
+        container.innerHTML = '<div class="hint">Loading Spring Boot versions from Maven Central...</div>';
 
         try {
           const res = await fetch("/api/spring-versions");
@@ -742,6 +800,7 @@
 
           // Cache for Migration Assistant
           window.springVersionsCache = versions;
+          springVersionsLoaded = true;
 
           container.innerHTML = "";
 
@@ -917,7 +976,15 @@
         }
       }
 
+      // Track if OpenRewrite versions have been loaded
+      let openRewriteVersionsLoaded = false;
+
       async function checkOpenRewriteVersions() {
+        // Skip if already loaded
+        if (openRewriteVersionsLoaded) {
+          return;
+        }
+
         const container = document.getElementById("openrewrite-versions");
 
         try {
@@ -925,6 +992,7 @@
           if (!res.ok) throw new Error(res.statusText);
           const data = await res.json();
 
+          openRewriteVersionsLoaded = true;
           container.innerHTML = "";
 
           data.forEach((item) => {
@@ -1054,6 +1122,8 @@
             if (targetId === "rootPath") {
               loadFolders();
               loadDashboardStats(data.path);
+              // Reset security repos when path changes
+              securityReposLoaded = false;
             }
           }
         } catch (e) {
@@ -1559,5 +1629,704 @@
           btn.disabled = false;
           btn.textContent = "⬇️ Sync All Tracked Branches";
           isProcessRunning = false;
+        }
+      }
+
+      // ===========================================
+      // Security Scanner Functions
+      // ===========================================
+
+      let securityScanResults = [];
+      let trivyAvailable = false;
+      let trivyCheckDone = false;
+      let securityReposLoaded = false;
+
+      // Load repositories for security scanning
+      async function loadSecurityRepos() {
+        const rootPath = document.getElementById("rootPath")?.value?.trim();
+        const container = document.getElementById("security-repos-container");
+        const pathDisplay = document.getElementById("security-root-path");
+
+        if (!rootPath) {
+          container.innerHTML = `
+            <div style="color: #fab387; text-align: center; padding: 20px;">
+              ⚠️ No root path configured. Please set a root path in the Dashboard first.
+            </div>`;
+          pathDisplay.textContent = "";
+          return;
+        }
+
+        pathDisplay.textContent = rootPath;
+        container.innerHTML = `
+          <div style="display: flex; align-items: center; justify-content: center; gap: 10px; padding: 20px;">
+            <span class="spinner" style="width: 16px; height: 16px; border-width: 2px;"></span>
+            <span style="color: #9ca0b0;">Discovering repositories...</span>
+          </div>`;
+
+        try {
+          // Use same endpoint as folder list in Project Setup
+          // Note: API expects "Path" with capital P (Go struct)
+          const res = await fetch('/api/list-folders', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ Path: rootPath })
+          });
+
+          const data = await res.json();
+
+          if (data.Error) {
+            container.innerHTML = `
+              <div style="color: #f38ba8; text-align: center; padding: 20px;">
+                ${data.Error}
+              </div>`;
+            return;
+          }
+
+          // If the root path itself is a git repo
+          if (data.IsRepo) {
+            container.innerHTML = `
+              <div style="color: #a6e3a1; text-align: center; padding: 20px;">
+                ✓ Root path is a single Git repository
+              </div>`;
+            securityReposLoaded = true;
+            return;
+          }
+
+          // API returns "Folders" with capital F (Go struct)
+          const allFolders = data.Folders || [];
+
+          // Filter out standard ignored folders (same as Project Setup)
+          const ignoreDisplay = [".git", "node_modules", "target", "dist", ".idea", ".vscode"];
+          const repos = allFolders.filter(f => !ignoreDisplay.includes(f));
+
+          const excluded = getExcludedProjects();
+
+          if (repos.length === 0) {
+            container.innerHTML = `
+              <div style="color: #9ca0b0; text-align: center; padding: 20px;">
+                No repositories found in the specified path.
+              </div>`;
+            return;
+          }
+
+          // Filter out excluded repos (unchecked in Project Setup)
+          const includedRepos = repos.filter(r => !excluded.includes(r));
+
+          let html = `<div style="margin-bottom: 10px; color: #a6e3a1; font-size: 0.9em;">
+            ✓ Found ${includedRepos.length} repositories (${repos.length - includedRepos.length} excluded)
+          </div>`;
+          html += `<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px;">`;
+
+          for (const repo of includedRepos) {
+            html += `<div style="padding: 6px 10px; background: var(--card-bg); border-radius: 4px; font-size: 0.9em; display: flex; align-items: center; gap: 6px;">
+              <span style="color: #89b4fa;">📁</span>
+              <span style="color: #cdd6f4;">${repo}</span>
+            </div>`;
+          }
+          html += `</div>`;
+
+          container.innerHTML = html;
+          securityReposLoaded = true;
+
+        } catch (e) {
+          container.innerHTML = `
+            <div style="color: #f38ba8; text-align: center; padding: 20px;">
+              Error loading repositories: ${e.message}
+            </div>`;
+        }
+      }
+
+      // Check if Trivy is installed
+      async function checkTrivyAvailability() {
+        const statusEl = document.getElementById('trivy-status');
+        const statusIcon = document.getElementById('trivy-status-icon');
+        const installHint = document.getElementById('trivy-install-hint');
+        const recheckBtn = document.getElementById('trivy-recheck-btn');
+
+        // Show checking state
+        statusIcon.textContent = '⏳';
+        statusEl.textContent = 'Checking if Trivy is installed on your system...';
+        statusEl.style.color = '#f9e2af';
+        if (recheckBtn) recheckBtn.classList.add('hidden');
+
+        try {
+          const res = await fetch('/api/check-trivy');
+          const data = await res.json();
+          trivyAvailable = data.available;
+          trivyCheckDone = true;
+
+          if (trivyAvailable) {
+            statusIcon.textContent = '✓';
+            statusEl.innerHTML = `<span style="color: #a6e3a1;">Trivy is installed and ready (${data.version})</span>`;
+            installHint.classList.add('hidden');
+            if (recheckBtn) recheckBtn.classList.add('hidden');
+          } else {
+            statusIcon.textContent = '✗';
+            statusEl.innerHTML = `<span style="color: #f38ba8;">Trivy is not installed on your system</span>`;
+            installHint.classList.remove('hidden');
+            if (recheckBtn) recheckBtn.classList.remove('hidden');
+          }
+        } catch (e) {
+          console.error('Failed to check Trivy:', e);
+          statusIcon.textContent = '⚠️';
+          statusEl.innerHTML = `<span style="color: #fab387;">Could not check Trivy availability</span>`;
+          trivyCheckDone = true;
+          if (recheckBtn) recheckBtn.classList.remove('hidden');
+        }
+      }
+
+      // Re-check Trivy availability (called after user installs Trivy)
+      function recheckTrivy() {
+        trivyCheckDone = false;
+        checkTrivyAvailability();
+      }
+
+      // Handle scanner selection change
+      function onScannerChange() {
+        const scanner = document.getElementById('security-scanner-select').value;
+        const owaspInfo = document.getElementById('owasp-info');
+        const trivyInfo = document.getElementById('trivy-info');
+
+        if (scanner === 'owasp') {
+          owaspInfo.classList.remove('hidden');
+          trivyInfo.classList.add('hidden');
+        } else {
+          owaspInfo.classList.add('hidden');
+          trivyInfo.classList.remove('hidden');
+          // Only check if not already done
+          if (!trivyCheckDone) {
+            checkTrivyAvailability();
+          }
+        }
+      }
+
+      // Get severity color
+      function getSeverityColor(severity) {
+        switch ((severity || '').toUpperCase()) {
+          case 'CRITICAL': return '#f38ba8';
+          case 'HIGH': return '#fab387';
+          case 'MEDIUM': return '#f9e2af';
+          case 'LOW': return '#a6adc8';
+          default: return '#9ca0b0';
+        }
+      }
+
+      // Get severity badge HTML
+      function getSeverityBadge(severity) {
+        const color = getSeverityColor(severity);
+        return `<span style="background: ${color}22; color: ${color}; padding: 2px 8px; border-radius: 4px; font-size: 0.75em; font-weight: bold;">${severity}</span>`;
+      }
+
+      // Run security scan
+      async function runSecurityScan() {
+        if (isProcessRunning) {
+          showToast('Prozess läuft', 'Bitte warten Sie, bis der aktuelle Prozess abgeschlossen ist.', 'warning');
+          return;
+        }
+
+        const rootPath = document.getElementById("rootPath").value.trim();
+        if (!rootPath) {
+          showToast('Pfad fehlt', 'Bitte wählen Sie zuerst einen Root-Pfad.', 'warning');
+          return;
+        }
+
+        const scanner = document.getElementById('security-scanner-select').value;
+
+        if (scanner === 'trivy' && !trivyAvailable) {
+          showToast('Trivy nicht verfügbar', 'Bitte installieren Sie Trivy oder wählen Sie OWASP.', 'warning');
+          return;
+        }
+
+        isProcessRunning = true;
+        securityScanResults = [];
+
+        const btn = document.getElementById('security-scan-btn');
+        const exportBtn = document.getElementById('security-export-btn');
+        const progressDiv = document.getElementById('security-progress');
+        const progressBar = document.getElementById('security-progress-bar');
+        const progressText = document.getElementById('security-progress-text');
+        const progressPercent = document.getElementById('security-progress-percent');
+        const progressEta = document.getElementById('security-progress-eta');
+        const repoList = document.getElementById('security-repo-list');
+        const resultsDiv = document.getElementById('security-results');
+        const summaryDiv = document.getElementById('security-summary');
+
+        btn.disabled = true;
+        btn.innerHTML = '⏳ Scanning...';
+        exportBtn.disabled = true;
+        progressDiv.classList.remove('hidden');
+        summaryDiv.classList.add('hidden');
+        repoList.innerHTML = '';
+        resultsDiv.innerHTML = '<div style="color: #9ca0b0; grid-column: 1 / -1; text-align: center; padding: 40px;">Scanning in progress...</div>';
+
+        let scanStartTime = Date.now();
+        let totalRepos = 0;
+        let scannedRepos = 0;
+        let summaryStats = { critical: 0, high: 0, medium: 0, low: 0, total: 0 };
+
+        try {
+          const res = await fetch('/api/security-scan', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              rootPath: rootPath,
+              excluded: getExcludedProjects(),
+              scanner: scanner
+            })
+          });
+
+          const reader = res.body.getReader();
+          const decoder = new TextDecoder();
+          let buffer = '';
+
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || '';
+
+            for (const line of lines) {
+              if (!line.trim()) continue;
+
+              // SCAN_INIT:count:scanner
+              if (line.startsWith("SCAN_INIT:")) {
+                const parts = line.split(":");
+                totalRepos = parseInt(parts[1]);
+                const scannerType = parts[2] || 'owasp';
+                progressText.textContent = `Scanning... 0/${totalRepos} (${scannerType.toUpperCase()}, parallel)`;
+                progressPercent.textContent = "0%";
+                progressBar.style.width = "0%";
+                progressEta.textContent = "Estimated: calculating...";
+                continue;
+              }
+
+              // SCAN_PROGRESS:current:total:eta
+              if (line.startsWith("SCAN_PROGRESS:")) {
+                const parts = line.split(":");
+                scannedRepos = parseInt(parts[1]);
+                totalRepos = parseInt(parts[2]);
+                const serverEta = parts[3] ? parseFloat(parts[3]) : null;
+                const percent = Math.round((scannedRepos / totalRepos) * 100);
+
+                progressText.textContent = `Scanning... ${scannedRepos}/${totalRepos}`;
+                progressPercent.textContent = `${percent}%`;
+                progressBar.style.width = `${percent}%`;
+                progressBar.setAttribute("aria-valuenow", percent.toString());
+
+                // Use server-provided ETA if available, otherwise calculate
+                if (serverEta !== null && serverEta > 0) {
+                  progressEta.textContent = `Est. remaining: ${formatDuration(serverEta)}`;
+                } else if (scannedRepos > 0) {
+                  const elapsed = (Date.now() - scanStartTime) / 1000;
+                  const avgTimePerRepo = elapsed / scannedRepos;
+                  const remaining = (totalRepos - scannedRepos) * avgTimePerRepo;
+                  progressEta.textContent = `Est. remaining: ${formatDuration(remaining)}`;
+                }
+                continue;
+              }
+
+              // REPO_START:name
+              if (line.startsWith("REPO_START:")) {
+                const repoName = line.split(":")[1];
+                repoList.innerHTML += `<div id="security-repo-${repoName.replace(/[^a-zA-Z0-9]/g, '_')}" style="padding: 4px 0; display: flex; align-items: center; gap: 8px;">
+                  <span class="spinner" style="width: 12px; height: 12px; border-width: 2px;"></span>
+                  <span style="color: #89b4fa;">${repoName}</span>
+                </div>`;
+                repoList.scrollTop = repoList.scrollHeight;
+                continue;
+              }
+
+              // REPO_RESULT:{json}
+              if (line.startsWith("REPO_RESULT:")) {
+                try {
+                  const result = JSON.parse(line.substring(12));
+                  securityScanResults.push(result);
+
+                  // Update repo status in list
+                  const repoEl = document.getElementById(`security-repo-${result.repoName.replace(/[^a-zA-Z0-9]/g, '_')}`);
+                  if (repoEl) {
+                    const cveCount = result.findings ? result.findings.length : 0;
+                    const statusColor = result.error ? '#f38ba8' : (cveCount > 0 ? '#fab387' : '#a6e3a1');
+                    const statusText = result.error ? '✗ Skipped' : (cveCount > 0 ? `⚠ ${cveCount} CVEs` : '✓ Clean');
+                    repoEl.innerHTML = `<span style="color: ${statusColor};">${statusText}</span> <span style="color: #9ca0b0;">${result.repoName}</span>`;
+                  }
+                } catch (e) {
+                  console.error('Failed to parse repo result:', e);
+                }
+                continue;
+              }
+
+              // REPO_DONE:name
+              if (line.startsWith("REPO_DONE:")) {
+                continue;
+              }
+
+              // SCAN_SUMMARY:critical:high:medium:low
+              if (line.startsWith("SCAN_SUMMARY:")) {
+                const parts = line.split(":");
+                summaryStats = {
+                  critical: parseInt(parts[1]) || 0,
+                  high: parseInt(parts[2]) || 0,
+                  medium: parseInt(parts[3]) || 0,
+                  low: parseInt(parts[4]) || 0
+                };
+                continue;
+              }
+
+              // SCAN_COMPLETE
+              if (line.startsWith("SCAN_COMPLETE")) {
+                progressPercent.textContent = "100%";
+                progressBar.style.width = "100%";
+                progressBar.setAttribute("aria-valuenow", "100");
+                progressEta.textContent = "Complete!";
+                continue;
+              }
+            }
+          }
+
+          // Display results
+          displaySecurityResults();
+          displaySecuritySummary(summaryStats);
+
+          showToast('Scan abgeschlossen', `${securityScanResults.length} Repositories gescannt.`, 'success', 3000);
+
+        } catch (e) {
+          showToast('Fehler', e.message, 'error');
+          resultsDiv.innerHTML = `<div style="color: #f38ba8; grid-column: 1 / -1; text-align: center; padding: 40px;">Error: ${e.message}</div>`;
+        } finally {
+          btn.disabled = false;
+          btn.innerHTML = '🔍 Scan for Vulnerabilities';
+          exportBtn.disabled = securityScanResults.length === 0;
+          isProcessRunning = false;
+          setTimeout(() => progressDiv.classList.add('hidden'), 2000);
+        }
+      }
+
+      // Display security scan results
+      function displaySecurityResults() {
+        const resultsDiv = document.getElementById('security-results');
+
+        if (securityScanResults.length === 0) {
+          resultsDiv.innerHTML = '<div style="color: #9ca0b0; grid-column: 1 / -1; text-align: center; padding: 40px;">No repositories found to scan.</div>';
+          return;
+        }
+
+        // Sort by CVE count (most vulnerabilities first)
+        const sortedResults = [...securityScanResults].sort((a, b) => {
+          const aCount = a.findings ? a.findings.length : 0;
+          const bCount = b.findings ? b.findings.length : 0;
+          return bCount - aCount;
+        });
+
+        let html = '';
+        for (const result of sortedResults) {
+          const cveCount = result.findings ? result.findings.length : 0;
+          const hasError = !!result.error;
+
+          let cardColor = '#a6e3a1'; // green for clean
+          if (hasError) cardColor = '#f38ba8';
+          else if (cveCount > 10) cardColor = '#f38ba8';
+          else if (cveCount > 0) cardColor = '#fab387';
+
+          html += `<div class="card" style="border-left: 4px solid ${cardColor};">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+              <h4 style="margin: 0; color: ${cardColor};">📁 ${result.repoName}</h4>
+              <div style="display: flex; align-items: center; gap: 10px;">
+                <span style="color: #9ca0b0; font-size: 0.85em;">${result.duration ? result.duration.toFixed(1) + 's' : ''}</span>
+                <button onclick="exportSingleRepoSecurityPdf('${result.repoName.replace(/'/g, "\\'")}')" class="btn btn-secondary" style="padding: 4px 8px; font-size: 0.75em;" title="Export PDF for this repo">📄</button>
+              </div>
+            </div>`;
+
+          if (hasError) {
+            html += `<div style="color: #f38ba8; padding: 10px; background: #f38ba822; border-radius: 4px;">
+              <strong>Error:</strong> ${result.error}
+            </div>`;
+          } else if (cveCount === 0) {
+            html += `<div style="color: #a6e3a1; padding: 10px; background: #a6e3a122; border-radius: 4px;">
+              ✓ No vulnerabilities found
+            </div>`;
+          } else {
+            // Group findings by severity
+            const bySeverity = { CRITICAL: [], HIGH: [], MEDIUM: [], LOW: [], UNKNOWN: [] };
+            for (const f of result.findings) {
+              const sev = (f.severity || 'UNKNOWN').toUpperCase();
+              if (!bySeverity[sev]) bySeverity[sev] = [];
+              bySeverity[sev].push(f);
+            }
+
+            html += `<div style="margin-bottom: 10px;">
+              <span style="background: #f38ba822; color: #f38ba8; padding: 2px 8px; border-radius: 4px; font-size: 0.8em; margin-right: 5px;">Critical: ${bySeverity.CRITICAL.length}</span>
+              <span style="background: #fab38722; color: #fab387; padding: 2px 8px; border-radius: 4px; font-size: 0.8em; margin-right: 5px;">High: ${bySeverity.HIGH.length}</span>
+              <span style="background: #f9e2af22; color: #f9e2af; padding: 2px 8px; border-radius: 4px; font-size: 0.8em; margin-right: 5px;">Medium: ${bySeverity.MEDIUM.length}</span>
+              <span style="background: #a6adc822; color: #a6adc8; padding: 2px 8px; border-radius: 4px; font-size: 0.8em;">Low: ${bySeverity.LOW.length}</span>
+            </div>`;
+
+            html += `<div style="max-height: 300px; overflow-y: auto;">`;
+
+            // Show findings sorted by severity
+            const severityOrder = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'UNKNOWN'];
+            for (const sev of severityOrder) {
+              for (const f of bySeverity[sev]) {
+                html += `<div style="padding: 8px; margin-bottom: 8px; background: var(--input-bg); border-radius: 4px; border-left: 3px solid ${getSeverityColor(f.severity)};">
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                    <a href="https://nvd.nist.gov/vuln/detail/${f.cve}" target="_blank" style="color: #89b4fa; text-decoration: none; font-weight: bold;">${f.cve}</a>
+                    ${getSeverityBadge(f.severity)}
+                  </div>
+                  <div style="font-size: 0.85em; color: #cdd6f4;">${f.package}${f.version ? ' @ ' + f.version : ''}</div>
+                  ${f.fixedIn ? `<div style="font-size: 0.8em; color: #a6e3a1;">Fixed in: ${f.fixedIn}</div>` : ''}
+                  ${f.description ? `<div style="font-size: 0.8em; color: #9ca0b0; margin-top: 4px;">${f.description.substring(0, 150)}${f.description.length > 150 ? '...' : ''}</div>` : ''}
+                </div>`;
+              }
+            }
+            html += `</div>`;
+          }
+
+          html += `</div>`;
+        }
+
+        resultsDiv.innerHTML = html;
+      }
+
+      // Display security summary
+      function displaySecuritySummary(stats) {
+        const summaryDiv = document.getElementById('security-summary');
+        summaryDiv.classList.remove('hidden');
+
+        const totalCves = (stats.critical || 0) + (stats.high || 0) + (stats.medium || 0) + (stats.low || 0);
+
+        document.getElementById('security-total-repos').textContent = securityScanResults.length;
+        document.getElementById('security-total-cves').textContent = totalCves;
+        document.getElementById('security-critical').textContent = stats.critical || 0;
+        document.getElementById('security-high').textContent = stats.high || 0;
+        document.getElementById('security-medium').textContent = stats.medium || 0;
+        document.getElementById('security-low').textContent = stats.low || 0;
+      }
+
+      // Export security report as PDF
+      async function exportSecurityPdf() {
+        if (securityScanResults.length === 0) {
+          showToast('Keine Daten', 'Führen Sie zuerst einen Scan durch.', 'warning');
+          return;
+        }
+
+        showToast('Export', 'PDF-Export wird vorbereitet...', 'info', 2000);
+
+        // Create printable HTML
+        let html = `<!DOCTYPE html>
+<html>
+<head>
+  <title>Security Scan Report</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; }
+    h1 { color: #1e1e2e; border-bottom: 2px solid #89b4fa; padding-bottom: 10px; }
+    h2 { color: #313244; margin-top: 30px; }
+    .summary { display: flex; gap: 20px; margin: 20px 0; flex-wrap: wrap; }
+    .summary-box { padding: 15px 25px; border-radius: 8px; text-align: center; }
+    .critical { background: #f38ba822; border: 1px solid #f38ba8; }
+    .high { background: #fab38722; border: 1px solid #fab387; }
+    .medium { background: #f9e2af22; border: 1px solid #f9e2af; }
+    .low { background: #a6adc822; border: 1px solid #a6adc8; }
+    .repo { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 8px; }
+    .repo h3 { margin: 0 0 10px 0; }
+    .cve { padding: 8px; margin: 5px 0; background: #f5f5f5; border-radius: 4px; }
+    .cve-id { font-weight: bold; color: #1e66f5; }
+    table { width: 100%; border-collapse: collapse; margin: 10px 0; }
+    th, td { padding: 8px; text-align: left; border-bottom: 1px solid #ddd; }
+    th { background: #f5f5f5; }
+    @media print { .no-print { display: none; } }
+  </style>
+</head>
+<body>
+  <h1>🛡️ Security Scan Report</h1>
+  <p>Generated: ${new Date().toLocaleString()}</p>
+  <p>Scanner: ${document.getElementById('security-scanner-select').value.toUpperCase()}</p>
+
+  <div class="summary">
+    <div class="summary-box"><strong>${securityScanResults.length}</strong><br>Repos Scanned</div>
+    <div class="summary-box critical"><strong>${document.getElementById('security-critical').textContent}</strong><br>Critical</div>
+    <div class="summary-box high"><strong>${document.getElementById('security-high').textContent}</strong><br>High</div>
+    <div class="summary-box medium"><strong>${document.getElementById('security-medium').textContent}</strong><br>Medium</div>
+    <div class="summary-box low"><strong>${document.getElementById('security-low').textContent}</strong><br>Low</div>
+  </div>
+
+  <h2>Repository Details</h2>`;
+
+        for (const result of securityScanResults) {
+          const cveCount = result.findings ? result.findings.length : 0;
+          html += `<div class="repo">
+            <h3>📁 ${result.repoName}</h3>`;
+
+          if (result.error) {
+            html += `<p style="color: #e64553;">Error: ${result.error}</p>`;
+          } else if (cveCount === 0) {
+            html += `<p style="color: #40a02b;">✓ No vulnerabilities found</p>`;
+          } else {
+            html += `<table>
+              <tr><th>CVE</th><th>Severity</th><th>Package</th><th>Version</th><th>Fixed In</th></tr>`;
+            for (const f of result.findings) {
+              html += `<tr>
+                <td class="cve-id">${f.cve}</td>
+                <td>${f.severity}</td>
+                <td>${f.package}</td>
+                <td>${f.version || '-'}</td>
+                <td>${f.fixedIn || '-'}</td>
+              </tr>`;
+            }
+            html += `</table>`;
+          }
+          html += `</div>`;
+        }
+
+        html += `</body></html>`;
+
+        // Use hidden iframe for printing (no popup window)
+        try {
+          let iframe = document.getElementById('print-iframe');
+          if (!iframe) {
+            iframe = document.createElement('iframe');
+            iframe.id = 'print-iframe';
+            iframe.style.position = 'absolute';
+            iframe.style.left = '-9999px';
+            iframe.style.width = '0';
+            iframe.style.height = '0';
+            document.body.appendChild(iframe);
+          }
+
+          iframe.contentDocument.open();
+          iframe.contentDocument.write(html);
+          iframe.contentDocument.close();
+
+          setTimeout(() => {
+            iframe.contentWindow.focus();
+            iframe.contentWindow.print();
+          }, 300);
+        } catch (e) {
+          console.error('PDF export failed:', e);
+          showToast('Fehler', 'PDF-Export fehlgeschlagen: ' + e.message, 'error');
+        }
+      }
+
+      // Export single repository security report as PDF
+      function exportSingleRepoSecurityPdf(repoName) {
+        const result = securityScanResults.find(r => r.repoName === repoName);
+        if (!result) {
+          showToast('Fehler', 'Repository nicht gefunden.', 'error');
+          return;
+        }
+
+        showToast('Export', `PDF-Export für ${repoName} wird vorbereitet...`, 'info', 2000);
+
+        const cveCount = result.findings ? result.findings.length : 0;
+        let criticalCount = 0, highCount = 0, mediumCount = 0, lowCount = 0;
+
+        if (result.findings) {
+          for (const f of result.findings) {
+            const sev = (f.severity || 'UNKNOWN').toUpperCase();
+            if (sev === 'CRITICAL') criticalCount++;
+            else if (sev === 'HIGH') highCount++;
+            else if (sev === 'MEDIUM') mediumCount++;
+            else if (sev === 'LOW') lowCount++;
+          }
+        }
+
+        // Create printable HTML for single repo
+        let html = `<!DOCTYPE html>
+<html>
+<head>
+  <title>Security Report - ${repoName}</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; }
+    h1 { color: #1e1e2e; border-bottom: 2px solid #89b4fa; padding-bottom: 10px; }
+    h2 { color: #313244; margin-top: 30px; }
+    .summary { display: flex; gap: 20px; margin: 20px 0; flex-wrap: wrap; }
+    .summary-box { padding: 15px 25px; border-radius: 8px; text-align: center; }
+    .critical { background: #f38ba822; border: 1px solid #f38ba8; }
+    .high { background: #fab38722; border: 1px solid #fab387; }
+    .medium { background: #f9e2af22; border: 1px solid #f9e2af; }
+    .low { background: #a6adc822; border: 1px solid #a6adc8; }
+    .clean { background: #a6e3a122; border: 1px solid #a6e3a1; }
+    .cve { padding: 8px; margin: 5px 0; background: #f5f5f5; border-radius: 4px; }
+    .cve-id { font-weight: bold; color: #1e66f5; }
+    table { width: 100%; border-collapse: collapse; margin: 10px 0; }
+    th, td { padding: 8px; text-align: left; border-bottom: 1px solid #ddd; }
+    th { background: #f5f5f5; }
+    @media print { .no-print { display: none; } }
+  </style>
+</head>
+<body>
+  <h1>🛡️ Security Report: ${repoName}</h1>
+  <p>Generated: ${new Date().toLocaleString()}</p>
+  <p>Scanner: ${document.getElementById('security-scanner-select').value.toUpperCase()}</p>
+  ${result.duration ? `<p>Scan Duration: ${result.duration.toFixed(1)}s</p>` : ''}
+
+  <div class="summary">
+    <div class="summary-box"><strong>${cveCount}</strong><br>Total CVEs</div>
+    <div class="summary-box critical"><strong>${criticalCount}</strong><br>Critical</div>
+    <div class="summary-box high"><strong>${highCount}</strong><br>High</div>
+    <div class="summary-box medium"><strong>${mediumCount}</strong><br>Medium</div>
+    <div class="summary-box low"><strong>${lowCount}</strong><br>Low</div>
+  </div>`;
+
+        if (result.error) {
+          html += `<h2>Error</h2>
+          <p style="color: #e64553; background: #f5f5f5; padding: 15px; border-radius: 8px;">${result.error}</p>`;
+        } else if (cveCount === 0) {
+          html += `<div class="summary-box clean" style="margin-top: 20px; text-align: center;">
+            <strong style="color: #40a02b; font-size: 1.2em;">✓ No vulnerabilities found</strong>
+          </div>`;
+        } else {
+          html += `<h2>Vulnerabilities</h2>
+          <table>
+            <tr><th>CVE</th><th>Severity</th><th>Package</th><th>Version</th><th>Fixed In</th><th>Description</th></tr>`;
+
+          // Sort by severity
+          const severityOrder = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3, UNKNOWN: 4 };
+          const sortedFindings = [...result.findings].sort((a, b) => {
+            const sevA = (a.severity || 'UNKNOWN').toUpperCase();
+            const sevB = (b.severity || 'UNKNOWN').toUpperCase();
+            return (severityOrder[sevA] || 4) - (severityOrder[sevB] || 4);
+          });
+
+          for (const f of sortedFindings) {
+            html += `<tr>
+              <td class="cve-id">${f.cve}</td>
+              <td>${f.severity}</td>
+              <td>${f.package}</td>
+              <td>${f.version || '-'}</td>
+              <td>${f.fixedIn || '-'}</td>
+              <td style="font-size: 0.85em;">${f.description ? f.description.substring(0, 100) + (f.description.length > 100 ? '...' : '') : '-'}</td>
+            </tr>`;
+          }
+          html += `</table>`;
+        }
+
+        html += `</body></html>`;
+
+        // Use hidden iframe for printing (no popup window)
+        try {
+          let iframe = document.getElementById('print-iframe');
+          if (!iframe) {
+            iframe = document.createElement('iframe');
+            iframe.id = 'print-iframe';
+            iframe.style.position = 'absolute';
+            iframe.style.left = '-9999px';
+            iframe.style.width = '0';
+            iframe.style.height = '0';
+            document.body.appendChild(iframe);
+          }
+
+          iframe.contentDocument.open();
+          iframe.contentDocument.write(html);
+          iframe.contentDocument.close();
+
+          setTimeout(() => {
+            iframe.contentWindow.focus();
+            iframe.contentWindow.print();
+          }, 300);
+        } catch (e) {
+          console.error('Single repo PDF export failed:', e);
+          showToast('Fehler', 'PDF-Export fehlgeschlagen: ' + e.message, 'error');
         }
       }
