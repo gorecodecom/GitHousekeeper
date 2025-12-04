@@ -436,3 +436,21 @@ func TestProcessProjectReplacements_NilReplacements(t *testing.T) {
 		t.Error("Expected false for nil replacements")
 	}
 }
+
+// Tests for getDefaultBranch (v2.3.0)
+func TestGetDefaultBranch_Fallback(t *testing.T) {
+	// Test that getDefaultBranch returns "master" for non-existent path
+	// (since no git repo exists, it will fall through to default)
+	branch := getDefaultBranch("/nonexistent/path")
+	if branch != "master" {
+		t.Errorf("Expected 'master' as fallback for non-existent repo, got '%s'", branch)
+	}
+}
+
+func TestBranchExists_NonExistentRepo(t *testing.T) {
+	// Test that branchExists returns false for non-existent path
+	exists := branchExists("/nonexistent/path", "main")
+	if exists {
+		t.Error("Expected false for non-existent repo")
+	}
+}

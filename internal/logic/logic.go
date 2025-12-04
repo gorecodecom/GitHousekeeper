@@ -96,11 +96,12 @@ func ProcessRepo(path string, opts RepoOptions) ReportEntry {
 
 	captureLog(fmt.Sprintf("Processing: %s", path))
 
-	// 1. Always update master first
-	captureLog("  Switching to master and updating...")
-	err := runGitCommand(path, "checkout", "master")
+	// 1. Detect and switch to default branch (main or master)
+	defaultBranch := getDefaultBranch(path)
+	captureLog(fmt.Sprintf("  Switching to %s and updating...", defaultBranch))
+	err := runGitCommand(path, "checkout", defaultBranch)
 	if err != nil {
-		captureLog(fmt.Sprintf("  [ERROR] Checkout master failed: %v", err))
+		captureLog(fmt.Sprintf("  [ERROR] Checkout %s failed: %v", defaultBranch, err))
 		entry.Success = false
 		return entry
 	}
@@ -112,17 +113,17 @@ func ProcessRepo(path string, opts RepoOptions) ReportEntry {
 
 	err = runGitCommand(path, "pull")
 	if err != nil {
-		captureLog(fmt.Sprintf("  [ERROR] Pull master failed: %v", err))
+		captureLog(fmt.Sprintf("  [ERROR] Pull %s failed: %v", defaultBranch, err))
 		entry.Success = false
 		return entry
 	}
-	captureLog("  Master successfully updated.")
+	captureLog(fmt.Sprintf("  %s successfully updated.", strings.Title(defaultBranch)))
 
 	// 2. Branch Logic
 	targetBranch := strings.TrimSpace(opts.TargetBranch)
 
 	if targetBranch == "" {
-		captureLog("  No target branch specified. Continuing on master.")
+		captureLog(fmt.Sprintf("  No target branch specified. Continuing on %s.", defaultBranch))
 	} else {
 		// Special logic for "housekeeping"
 		if targetBranch == "housekeeping" {
@@ -228,6 +229,36 @@ func ProcessRepo(path string, opts RepoOptions) ReportEntry {
 func branchExists(path, branchName string) bool {
 	err := runGitCommand(path, "show-ref", "--verify", "--quiet", "refs/heads/"+branchName)
 	return err == nil
+}
+
+// getDefaultBranch determines the default branch (main or master) for a repository
+func getDefaultBranch(path string) string {
+	// Try to get the default branch from remote HEAD
+	cmd := exec.Command("git", "symbolic-ref", "refs/remotes/origin/HEAD")
+	cmd.Dir = path
+	output, err := cmd.Output()
+	if err == nil {
+		// Output: "refs/remotes/origin/main" → extract "main"
+		branch := strings.TrimPrefix(strings.TrimSpace(string(output)), "refs/remotes/origin/")
+		if branch != "" {
+			return branch
+		}
+	}
+
+	// Fallback: Check if "main" exists locally or remotely, otherwise use "master"
+	if branchExists(path, "main") {
+		return "main"
+	}
+
+	// Check if remote has "main"
+	cmd = exec.Command("git", "ls-remote", "--heads", "origin", "main")
+	cmd.Dir = path
+	output, err = cmd.Output()
+	if err == nil && len(output) > 0 {
+		return "main"
+	}
+
+	return "master"
 }
 
 func checkAndDeleteOldHousekeeping(path string, log func(string)) {
