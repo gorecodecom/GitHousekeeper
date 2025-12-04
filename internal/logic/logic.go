@@ -166,7 +166,7 @@ func ProcessRepo(path string, opts RepoOptions) ReportEntry {
 	// Handle replacements based on scope
 	var pomReplacements []Replacement
 	var projectReplacements []Replacement
-	
+
 	switch opts.ReplacementScope {
 	case "pom-only":
 		pomReplacements = opts.Replacements
