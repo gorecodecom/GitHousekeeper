@@ -1,3 +1,137 @@
+      // ===========================================
+      // Error Handling & User Feedback System
+      // ===========================================
+
+      let isProcessRunning = false;
+      let serverHealthy = true;
+      let healthCheckInterval = null;
+
+      // Toast Notification System
+      function showToast(title, message, type = 'info', duration = 5000) {
+        const container = document.getElementById('toast-container');
+        const toast = document.createElement('div');
+        toast.className = `toast ${type}`;
+        toast.innerHTML = `
+          <div class="toast-content">
+            <div class="toast-title">${title}</div>
+            <div class="toast-message">${message}</div>
+          </div>
+          <button class="toast-close" onclick="this.parentElement.remove()">×</button>
+        `;
+        container.appendChild(toast);
+
+        // Auto-remove after duration
+        if (duration > 0) {
+          setTimeout(() => {
+            toast.classList.add('fade-out');
+            setTimeout(() => toast.remove(), 300);
+          }, duration);
+        }
+
+        return toast;
+      }
+
+      // Connection Status Banner
+      function showConnectionBanner(type, icon, text) {
+        const banner = document.getElementById('connection-banner');
+        const iconEl = document.getElementById('connection-icon');
+        const textEl = document.getElementById('connection-text');
+
+        banner.className = `visible ${type}`;
+        iconEl.textContent = icon;
+        textEl.textContent = text;
+      }
+
+      function hideConnectionBanner() {
+        const banner = document.getElementById('connection-banner');
+        banner.classList.remove('visible');
+      }
+
+      // Online/Offline Detection
+      window.addEventListener('offline', () => {
+        showConnectionBanner('offline', '🔴', 'Keine Internetverbindung - Einige Funktionen sind möglicherweise eingeschränkt');
+        showToast('Offline', 'Sie haben keine Internetverbindung.', 'warning');
+      });
+
+      window.addEventListener('online', () => {
+        showConnectionBanner('reconnected', '🟢', 'Verbindung wiederhergestellt');
+        showToast('Online', 'Internetverbindung wiederhergestellt.', 'success', 3000);
+        setTimeout(hideConnectionBanner, 3000);
+      });
+
+      // Server Health Check
+      async function checkServerHealth() {
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+          const res = await fetch('/api/health', {
+            method: 'HEAD',
+            signal: controller.signal
+          });
+          clearTimeout(timeoutId);
+
+          if (!serverHealthy) {
+            // Server was down, now back up
+            serverHealthy = true;
+            showConnectionBanner('reconnected', '🟢', 'Server-Verbindung wiederhergestellt');
+            showToast('Server verbunden', 'Die Verbindung zum GitHousekeeper Server wurde wiederhergestellt.', 'success', 3000);
+            setTimeout(hideConnectionBanner, 3000);
+          }
+        } catch (e) {
+          if (serverHealthy) {
+            serverHealthy = false;
+            showConnectionBanner('server-error', '⚠️', 'Server nicht erreichbar - Bitte starten Sie GitHousekeeper neu');
+            showToast('Server nicht erreichbar', 'Der GitHousekeeper Server antwortet nicht. Bitte überprüfen Sie, ob die Anwendung noch läuft.', 'error', 0);
+          }
+        }
+      }
+
+      // Start health check interval (every 30 seconds)
+      function startHealthCheck() {
+        if (healthCheckInterval) clearInterval(healthCheckInterval);
+        healthCheckInterval = setInterval(checkServerHealth, 30000);
+        // Initial check after 2 seconds
+        setTimeout(checkServerHealth, 2000);
+      }
+
+      // Warning when closing with running process
+      window.addEventListener('beforeunload', (event) => {
+        if (isProcessRunning) {
+          event.preventDefault();
+          event.returnValue = 'Ein Prozess läuft noch. Möchten Sie die Seite wirklich verlassen?';
+          return event.returnValue;
+        }
+      });
+
+      // Enhanced fetch wrapper with error handling
+      async function fetchWithErrorHandling(url, options = {}) {
+        try {
+          const response = await fetch(url, options);
+          if (!response.ok) {
+            throw new Error(`Server error: ${response.status}`);
+          }
+          serverHealthy = true;
+          return response;
+        } catch (error) {
+          if (error.name === 'TypeError' || error.message.includes('fetch')) {
+            serverHealthy = false;
+            showConnectionBanner('server-error', '⚠️', 'Server nicht erreichbar');
+            showToast('Verbindungsfehler', 'Der Server ist nicht erreichbar. Bitte überprüfen Sie, ob GitHousekeeper noch läuft.', 'error', 0);
+          }
+          throw error;
+        }
+      }
+
+      // Initialize on page load
+      document.addEventListener('DOMContentLoaded', () => {
+        startHealthCheck();
+      });
+
+      // ===========================================
+      // Main Application State
+      // ===========================================
+
       let currentStats = {
         totalRepos: 0,
         repoDetails: [],
@@ -146,6 +280,7 @@
         log.innerHTML = "";
         deprecationLog.innerHTML = "";
         loading.classList.remove("hidden");
+        isProcessRunning = true; // Mark process as running;
 
         // Determine Target Branch
         let targetBranch = "";
@@ -294,10 +429,13 @@
           }
         } catch (e) {
           log.innerHTML += `<div class="log-error">Error: ${e.message}</div>`;
+          showToast('Fehler', `Ein Fehler ist aufgetreten: ${e.message}`, 'error');
         } finally {
           loading.classList.add("hidden");
+          isProcessRunning = false; // Mark process as complete
           log.innerHTML +=
             '<div class="log-info" style="margin-top:20px; border-top:1px solid #333; padding-top:10px;">--- Done ---</div>';
+          showToast('Fertig', 'Der Housekeeping-Prozess wurde abgeschlossen.', 'success', 4000);
         }
       }
 
@@ -1026,6 +1164,7 @@
         progressContainer.classList.add("hidden");
         log.innerHTML =
           '<div class="log-info">Starting OpenRewrite analysis... This may take a while.</div>';
+        isProcessRunning = true; // Mark process as running
 
         let totalProjects = 0;
 
@@ -1139,8 +1278,12 @@
 
           log.innerHTML +=
             '<div class="log-success" style="margin-top: 20px; border-top: 1px solid #444; padding-top: 10px;">--- Analysis Complete ---</div>';
+          isProcessRunning = false; // Mark process as complete
+          showToast('Analyse abgeschlossen', 'Die Migration-Analyse wurde erfolgreich beendet.', 'success', 4000);
         } catch (e) {
           log.innerHTML += `<div class="log-error">Error: ${e.message}</div>`;
           progressContainer.classList.add("hidden");
+          isProcessRunning = false; // Mark process as complete
+          showToast('Fehler', `Analyse fehlgeschlagen: ${e.message}`, 'error');
         }
       }
