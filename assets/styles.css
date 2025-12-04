@@ -895,3 +895,119 @@ textarea {
   background: linear-gradient(90deg, #fab387 0%, #f9e2af 100%);
   color: #1e1e2e;
 }
+
+/* Repo Analysis Progress Animation */
+@keyframes repoProgress {
+  0% {
+    width: 5%;
+  }
+  50% {
+    width: 70%;
+  }
+  100% {
+    width: 90%;
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
+.repo-card {
+  display: flex;
+  flex-direction: column;
+  padding: 10px 14px;
+  border-radius: 8px;
+  min-width: 220px;
+  flex: 1;
+  max-width: calc(33.333% - 10px);
+  position: relative;
+  overflow: hidden;
+}
+
+.repo-card.running {
+  background: rgba(124, 138, 255, 0.1);
+  border: 1px solid rgba(124, 138, 255, 0.3);
+}
+
+.repo-card.success {
+  background: rgba(76, 175, 80, 0.1);
+  border: 1px solid rgba(76, 175, 80, 0.3);
+}
+
+.repo-card.failed {
+  background: rgba(239, 83, 80, 0.1);
+  border: 1px solid rgba(239, 83, 80, 0.3);
+}
+
+.repo-card-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.repo-card-header .icon {
+  margin-right: 8px;
+}
+
+.repo-card-header .name {
+  flex: 1;
+  color: #e0e0e0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 0.85em;
+}
+
+.repo-card-header .status {
+  font-size: 0.8em;
+  margin-left: 8px;
+}
+
+.repo-card-header .status.running {
+  color: #7c8aff;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.repo-card-header .status.success {
+  color: #4caf50;
+}
+
+.repo-card-header .status.failed {
+  color: #ef5350;
+}
+
+.repo-progress-bar {
+  height: 3px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.repo-progress-bar .fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+.repo-progress-bar .fill.running {
+  background: linear-gradient(90deg, #7c8aff, #a6e3a1);
+  animation: repoProgress 20s ease-out forwards;
+}
+
+.repo-progress-bar .fill.success {
+  background: #4caf50;
+  width: 100% !important;
+  animation: none;
+}
+
+.repo-progress-bar .fill.failed {
+  background: #ef5350;
+  width: 100% !important;
+  animation: none;
+}

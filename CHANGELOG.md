@@ -5,6 +5,22 @@ All notable changes to GitHousekeeper will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.1] - 2025-12-04
+
+### Added
+
+- **📊 Improved Progress Display for Migration Assistant**
+  - Live repository status cards showing each project during parallel analysis
+  - Animated progress bar per repository with "analyzing..." indicator
+  - Real-time updates as each repository completes (success/failure with duration)
+  - Responsive grid layout (up to 3 repos per row)
+  - Visual feedback with pulsing animation while analysis is running
+
+### Fixed
+
+- Progress bar now shows meaningful intermediate states instead of jumping from 0% to 100%
+- Added proper spacing between "Target Spring Boot Version" section and progress display
+
 ## [2.2.0] - 2025-12-04
 
 ### Added

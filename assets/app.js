@@ -1229,6 +1229,62 @@
                 progressText.textContent = `Analyzing... 0/${totalProjects}`;
                 progressEta.textContent = "Estimated: calculating...";
                 progressPercent.textContent = "0%";
+                // Clear repo status list
+                const repoStatusItems = document.getElementById("repo-status-items");
+                if (repoStatusItems) {
+                  repoStatusItems.innerHTML = "";
+                }
+                continue;
+              }
+
+              // Handle individual repo queued (show as "running" with animated progress)
+              if (line.startsWith("REPO_QUEUED:")) {
+                const repoName = line.split(":")[1];
+                const repoStatusItems = document.getElementById("repo-status-items");
+                if (repoStatusItems) {
+                  const repoItem = document.createElement("div");
+                  repoItem.id = `repo-status-${repoName}`;
+                  repoItem.className = "repo-card running";
+                  repoItem.innerHTML = `
+                    <div class="repo-card-header">
+                      <span class="icon">🔄</span>
+                      <span class="name">${repoName}</span>
+                      <span class="status running">analyzing...</span>
+                    </div>
+                    <div class="repo-progress-bar">
+                      <div class="fill running"></div>
+                    </div>
+                  `;
+                  repoStatusItems.appendChild(repoItem);
+                }
+                continue;
+              }
+
+              // Handle individual repo done
+              if (line.startsWith("REPO_DONE:")) {
+                const parts = line.split(":");
+                const repoName = parts[1];
+                const status = parts[2]; // SUCCESS or FAILED
+                const duration = parseFloat(parts[3]);
+
+                const repoItem = document.getElementById(`repo-status-${repoName}`);
+                if (repoItem) {
+                  const isSuccess = status === "SUCCESS";
+                  const icon = isSuccess ? "✅" : "❌";
+                  const statusClass = isSuccess ? "success" : "failed";
+
+                  repoItem.className = `repo-card ${statusClass}`;
+                  repoItem.innerHTML = `
+                    <div class="repo-card-header">
+                      <span class="icon">${icon}</span>
+                      <span class="name">${repoName}</span>
+                      <span class="status ${statusClass}">${duration.toFixed(1)}s</span>
+                    </div>
+                    <div class="repo-progress-bar">
+                      <div class="fill ${statusClass}"></div>
+                    </div>
+                  `;
+                }
                 continue;
               }
 

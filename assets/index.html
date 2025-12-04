@@ -66,7 +66,7 @@
         "
         aria-label="Version information"
       >
-        <div>v2.2.0</div>
+        <div>v2.2.1</div>
         <div style="margin-top: 5px">© 2025 GoreCode</div>
       </div>
     </div>
@@ -741,7 +741,7 @@
             <div
               id="migration-progress"
               class="hidden"
-              style="margin-bottom: 20px"
+              style="margin-top: 25px; margin-bottom: 20px;"
             >
               <div
                 style="
@@ -786,6 +786,12 @@
                   "
                   >0%</span
                 >
+              </div>
+
+              <!-- Live Repo Status List -->
+              <div id="repo-status-list" style="margin-top: 15px; padding: 12px; background: var(--input-bg); border-radius: 8px; border: 1px solid var(--border-color);">
+                <div style="font-size: 0.85em; color: #9ca0b0; margin-bottom: 10px;">Processing repositories in parallel:</div>
+                <div id="repo-status-items" style="display: flex; flex-wrap: wrap; gap: 12px; font-family: 'Consolas', monospace; font-size: 0.8em;"></div>
               </div>
             </div>
 
@@ -856,7 +862,7 @@
                 >
                   GitHousekeeper
                 </h3>
-                <div style="color: #a6adc8; margin-top: 5px">Version 2.2.0</div>
+                <div style="color: #a6adc8; margin-top: 5px">Version 2.2.1</div>
               </div>
             </div>
             <p style="line-height: 1.6; color: #a6adc8">

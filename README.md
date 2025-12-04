@@ -4,7 +4,7 @@ GitHousekeeper is a powerful tool designed to automate maintenance tasks and mas
 
 ## 📥 Download
 
-**Current Version: 2.2.0**
+**Current Version: 2.2.1**
 
 Download the pre-built executable for your platform:
 
