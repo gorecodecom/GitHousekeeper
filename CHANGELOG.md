@@ -5,6 +5,52 @@ All notable changes to GitHousekeeper will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.0] - 2025-12-04
+
+### Added
+
+- **🛡️ New Security Tab with CVE Vulnerability Scanner**
+  - Scan all Maven projects for known CVE vulnerabilities
+  - Support for OWASP Dependency-Check Maven Plugin (12.1.0)
+  - Optional Trivy scanner integration (auto-detect available scanners)
+  - Parallel scanning with worker pool (4 concurrent scans)
+  - Live progress bar with ETA and percentage display
+  - Per-repository status cards showing scan progress
+  - Severity-based CVE grouping (Critical, High, Medium, Low)
+  - Direct links to NVD for CVE details
+  - **Per-Repository PDF Export**: Export security report for individual repos
+  - Full report PDF export for all scanned repositories
+  - **Re-check Button**: Verify Trivy availability after installation without page reload
+
+- **🔧 New Maintenance Tab**
+  - Branch overview showing all local branches per repository
+  - Tracking status with ahead/behind counts for each branch
+  - One-click "Sync All Tracked Branches" to fetch and pull all repos
+  - Live progress bar and detailed sync log
+  - Accessible with ARIA labels, roles, and keyboard navigation
+
+- **🔀 Auto-detect Default Branch**
+  - Automatically detects `main` or `master` as default branch per repository
+  - Falls back gracefully: symbolic-ref → local main → remote main → master
+  - No more hardcoded "master" - works with modern Git workflows
+
+- **⚡ Performance Optimizations**
+  - Server-side caching for Spring Boot versions (5 minute TTL)
+  - Server-side caching for OpenRewrite versions (10 minute TTL)
+  - Frontend caching to prevent redundant API calls
+  - Faster page load times for Migration Assistant tab
+
+### Fixed
+
+- **🔄 Automatic Retry for Migration Assistant**
+  - Added retry logic for Maven analysis (1 retry on failure)
+  - Helps with intermittent Maven dependency caching issues
+  - Reduces failed scans that would succeed on manual retry
+
+### Changed
+
+- Sidebar reorganized: Security and Maintenance tabs now appear for quick access
+
 ## [2.2.1] - 2025-12-04
 
 ### Added

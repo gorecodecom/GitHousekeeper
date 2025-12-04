@@ -4,7 +4,7 @@ GitHousekeeper is a powerful tool designed to automate maintenance tasks and mas
 
 ## 📥 Download
 
-**Current Version: 2.2.1**
+**Current Version: 2.3.0**
 
 Download the pre-built executable for your platform:
 
@@ -26,6 +26,23 @@ See [CHANGELOG.md](CHANGELOG.md) for release history and all versions on the [Re
 - **Auto-Discovery**: Automatically finds all Git repositories within a specified root directory.
 - **Selective Processing**: Include/exclude specific projects via checkbox selection.
 - **Batch Operations**: Apply changes across dozens of repositories simultaneously.
+
+### 🛡️ Security Vulnerability Scanner (NEW in v2.3.0)
+
+- **CVE Detection**: Scan all Maven projects for known security vulnerabilities.
+- **Dual Scanner Support**: Choose between OWASP Dependency-Check or Trivy.
+- **Parallel Scanning**: Analyzes up to 4 repositories simultaneously.
+- **Severity Grouping**: CVEs organized by Critical, High, Medium, Low.
+- **NVD Links**: Direct links to National Vulnerability Database for details.
+- **Per-Repo PDF Export**: Export security reports for individual repositories.
+- **Full Report Export**: Export comprehensive PDF for all scanned projects.
+
+### 🔧 Maintenance Tab (NEW in v2.3.0)
+
+- **Branch Overview**: View all local branches per repository with tracking status.
+- **Ahead/Behind Counts**: See how many commits each branch is ahead or behind.
+- **One-Click Sync**: Fetch and pull all tracked branches across all repositories.
+- **Live Progress**: Real-time progress bar and detailed sync log.
 
 ### 🌐 Modern Web Interface
 
@@ -95,10 +112,11 @@ See [CHANGELOG.md](CHANGELOG.md) for release history and all versions on the [Re
 
 ### 🔀 Git Automation
 
+- **Auto-Detect Default Branch**: Automatically detects `main` or `master` per repository.
 - **Flexible Branching Strategy**:
   - **Housekeeping**: Default mode. Manages a `housekeeping` branch (resets if stale > 1 month).
   - **Custom Branch**: Work on a specific feature branch (e.g., `feature/upgrade-v2`).
-  - **Direct Master**: Option to apply changes directly to the `master` branch.
+  - **Direct to Default**: Option to apply changes directly to the default branch (`main` or `master`).
 - Automatically commits changes with descriptive messages.
 
 ## Prerequisites
@@ -106,8 +124,9 @@ See [CHANGELOG.md](CHANGELOG.md) for release history and all versions on the [Re
 To run the pre-built executable:
 
 - **Git**: Must be installed and available in the system PATH.
-- **Maven**: Required for project builds and OpenRewrite analysis (`mvn` command).
+- **Maven**: Required for project builds, OpenRewrite analysis, and OWASP security scans.
 - **Java**: JDK 17+ recommended for Spring Boot 3.x projects.
+- **Trivy** *(optional)*: For faster security scanning. Install via `brew install trivy` (macOS) or see [trivy.dev/installation](https://aquasecurity.github.io/trivy/latest/getting-started/installation/).
 
 To build from source:
 
@@ -290,6 +309,21 @@ Contributions are welcome! Please read our [Contributing Guide](CONTRIBUTING.md)
 - Setting up the development environment
 - Code style guidelines
 - Submitting pull requests
+
+## ❤️ Sponsor this Project
+
+If **GitHousekeeper** saves your team hours of manual migration and maintenance work, consider [sponsoring the project](https://github.com/sponsors/gorecodecom) to ensure its continued development.
+
+### 🏆 Corporate Sponsors
+
+Does your company use GitHousekeeper? [Become a sponsor](https://github.com/sponsors/gorecodecom) to get your logo displayed here and support open source!
+
+<!--
+Sponsor logos will appear here:
+<a href="https://example.com"><img src="logo.png" height="60" alt="Company Name"></a>
+-->
+
+*Your company could be here! [Sponsor now →](https://github.com/sponsors/gorecodecom)*
 
 ## Security
 

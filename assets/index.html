@@ -25,6 +25,9 @@
         <div class="nav-item active" role="menuitem" tabindex="0" onclick="showTab('dashboard')" onkeydown="handleNavKeydown(event, 'dashboard')" aria-current="page">
           📊 Dashboard
         </div>
+        <div class="nav-item" role="menuitem" tabindex="0" onclick="showTab('maintenance')" onkeydown="handleNavKeydown(event, 'maintenance')">
+          🔧 Maintenance
+        </div>
         <div class="nav-item" role="menuitem" tabindex="0" onclick="showTab('settings')" onkeydown="handleNavKeydown(event, 'settings')">
           ⚙️ Project Setup
         </div>
@@ -40,6 +43,10 @@
         <div class="nav-item" role="menuitem" tabindex="0" onclick="showTab('frameworks')" onkeydown="handleNavKeydown(event, 'frameworks')">
           🚀 Migration Assistant
         </div>
+        <div class="nav-item" role="menuitem" tabindex="0" onclick="showTab('security')" onkeydown="handleNavKeydown(event, 'security')">
+          🛡️ Security Scanner
+        </div>
+
         <div
           class="nav-item"
           role="menuitem"
@@ -66,7 +73,7 @@
         "
         aria-label="Version information"
       >
-        <div>v2.2.1</div>
+        <div>v2.3.0</div>
         <div style="margin-top: 5px">© 2025 GoreCode</div>
       </div>
     </div>
@@ -829,6 +836,236 @@
         </div>
       </div>
 
+      <!-- Tab: Maintenance -->
+      <div id="tab-maintenance" class="tab-content">
+        <h2>🔧 Maintenance</h2>
+
+        <div style="max-width: 1200px">
+          <!-- Path Display -->
+          <div
+            style="
+              background-color: var(--input-bg);
+              border-radius: 8px;
+              padding: 15px 20px;
+              margin-bottom: 20px;
+              display: flex;
+              align-items: center;
+              justify-content: space-between;
+            "
+          >
+            <div>
+              <span id="maintenance-path-label" style="color: #9ca0b0; margin-right: 10px;">Root Path:</span>
+              <span id="maintenance-root-path" style="font-family: 'Consolas', monospace; color: var(--accent-color);" aria-labelledby="maintenance-path-label">Not configured</span>
+            </div>
+            <button class="btn btn-primary" onclick="loadBranchInfo()" aria-label="Refresh branch information">
+              🔄 Refresh
+            </button>
+          </div>
+
+          <!-- Action Buttons -->
+          <div style="margin-bottom: 20px; display: flex; gap: 10px;">
+            <button class="btn btn-primary" onclick="syncAllBranches()" id="sync-branches-btn" aria-label="Synchronize all tracked branches with remote">
+              ⬇️ Sync All Tracked Branches
+            </button>
+            <span id="sync-status" style="color: #9ca0b0; align-self: center;" role="status" aria-live="polite"></span>
+          </div>
+
+          <!-- Progress Bar (hidden by default) -->
+          <div id="sync-progress" class="hidden" style="margin-bottom: 20px;" role="region" aria-label="Sync progress">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+              <span id="sync-progress-text" aria-live="polite">Syncing... 0/0</span>
+              <span id="sync-progress-percent" aria-hidden="true">0%</span>
+            </div>
+            <div style="background-color: var(--input-bg); border-radius: 10px; height: 20px; overflow: hidden;">
+              <div id="sync-progress-bar" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" aria-label="Sync progress" style="background: linear-gradient(90deg, var(--accent-color), var(--accent-hover)); height: 100%; width: 0%; transition: width 0.3s ease; border-radius: 10px;"></div>
+            </div>
+          </div>
+
+          <!-- Sync Log -->
+          <div id="sync-log" class="hidden" role="log" aria-live="polite" aria-label="Synchronization log" style="background-color: #11111b; padding: 15px; border-radius: 8px; margin-bottom: 20px; max-height: 200px; overflow-y: auto; font-family: 'Consolas', monospace; font-size: 0.85em;"></div>
+
+          <!-- Repos Grid -->
+          <div id="maintenance-repos-container" role="region" aria-label="Repository branches" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 15px;">
+            <div style="color: #9ca0b0; grid-column: 1 / -1; text-align: center; padding: 40px;">
+              Click "Refresh" to load repository branches
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab: Security Scanner -->
+      <div id="tab-security" class="tab-content">
+        <h2>Security Scanner</h2>
+
+        <!-- Detected Repositories -->
+        <div class="card" style="margin-bottom: 20px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+            <h3 style="margin: 0;">📂 Repositories to Scan</h3>
+            <div style="display: flex; gap: 10px; align-items: center;">
+              <span id="security-root-path" style="color: #9ca0b0; font-size: 0.85em;"></span>
+              <button class="btn" onclick="loadSecurityRepos()" aria-label="Refresh repository list">
+                🔄 Refresh
+              </button>
+            </div>
+          </div>
+          <div id="security-repos-container"
+               role="region"
+               aria-label="Repositories available for security scanning"
+               style="max-height: 200px; overflow-y: auto; background: var(--input-bg); border: 1px solid var(--border-color); padding: 10px; border-radius: 6px;">
+            <div style="color: #9ca0b0; text-align: center; padding: 20px;">
+              Click "Refresh" to load repositories from your configured root path.
+            </div>
+          </div>
+          <div class="hint" style="margin-top: 8px;">
+            Repositories from the Dashboard root path. Excludes folders unchecked in Project Setup.
+          </div>
+        </div>
+
+        <div class="card" style="margin-bottom: 20px;">
+          <h3>CVE Vulnerability Scanner</h3>
+          <p style="color: #9ca0b0; margin-bottom: 15px;">
+            Scan your Maven projects for known security vulnerabilities (CVEs) in dependencies.
+          </p>
+
+          <div style="display: flex; gap: 15px; flex-wrap: wrap; align-items: center; margin-bottom: 15px;">
+            <div style="flex: 1; min-width: 200px;">
+              <label for="security-scanner-select" style="font-size: 0.85em; color: #9ca0b0; display: block; margin-bottom: 5px;">Scanner Engine</label>
+              <select id="security-scanner-select" style="width: 100%;" onchange="onScannerChange()" aria-describedby="scanner-description">
+                <option value="owasp">OWASP Dependency-Check (recommended)</option>
+                <option value="trivy">Trivy (faster, requires install)</option>
+              </select>
+            </div>
+            <div style="display: flex; gap: 10px; align-items: flex-end;">
+              <button class="btn btn-primary" onclick="runSecurityScan()" id="security-scan-btn" aria-label="Start security scan">
+                🔍 Scan for Vulnerabilities
+              </button>
+              <button class="btn" onclick="exportSecurityPdf()" id="security-export-btn" disabled aria-label="Export security report as PDF">
+                📄 Export PDF
+              </button>
+            </div>
+          </div>
+
+          <div id="scanner-info" role="region" aria-live="polite" style="padding: 10px; background: var(--input-bg); border-radius: 8px; font-size: 0.85em;">
+            <div id="owasp-info">
+              <strong>OWASP Dependency-Check:</strong> Uses Maven plugin, no additional install required.
+              Comprehensive CVE database coverage. First scan may take longer to download vulnerability database.
+            </div>
+            <div id="trivy-info" class="hidden">
+              <strong>Trivy:</strong> Fast, lightweight vulnerability scanner by Aqua Security.
+              <div id="trivy-status-container" style="margin-top: 8px; padding: 8px; background: #1e1e2e; border-radius: 4px;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <span id="trivy-status-icon" aria-hidden="true">⏳</span>
+                  <span id="trivy-status">Checking if Trivy is installed on your system...</span>
+                  <button id="trivy-recheck-btn" onclick="recheckTrivy()" class="hidden" style="margin-left: auto; padding: 4px 10px; font-size: 0.85em; background: #45475a; border: none; border-radius: 4px; color: #cdd6f4; cursor: pointer;" title="Re-check after installing Trivy">
+                    🔄 Re-check
+                  </button>
+                </div>
+              </div>
+              <div id="trivy-install-hint" class="hidden" style="margin-top: 10px; padding: 12px; background: #1e1e2e; border-radius: 4px; border-left: 3px solid #89b4fa;">
+                <div style="font-weight: bold; margin-bottom: 8px; color: #cdd6f4;">📦 How to install Trivy:</div>
+                <div style="margin-bottom: 6px;">
+                  <strong style="color: #a6e3a1;">macOS (Homebrew):</strong>
+                  <code style="color: #89b4fa; background: #11111b; padding: 2px 6px; border-radius: 4px; margin-left: 8px;">brew install trivy</code>
+                </div>
+                <div style="margin-bottom: 6px;">
+                  <strong style="color: #a6e3a1;">Windows (Chocolatey):</strong>
+                  <code style="color: #89b4fa; background: #11111b; padding: 2px 6px; border-radius: 4px; margin-left: 8px;">choco install trivy</code>
+                </div>
+                <div style="margin-bottom: 6px;">
+                  <strong style="color: #a6e3a1;">Windows (Scoop):</strong>
+                  <code style="color: #89b4fa; background: #11111b; padding: 2px 6px; border-radius: 4px; margin-left: 8px;">scoop install trivy</code>
+                </div>
+                <div style="margin-bottom: 6px;">
+                  <strong style="color: #a6e3a1;">Linux (apt):</strong>
+                  <code style="color: #89b4fa; background: #11111b; padding: 2px 6px; border-radius: 4px; margin-left: 8px;">sudo apt-get install trivy</code>
+                </div>
+                <div style="margin-bottom: 6px;">
+                  <strong style="color: #a6e3a1;">Linux (yum):</strong>
+                  <code style="color: #89b4fa; background: #11111b; padding: 2px 6px; border-radius: 4px; margin-left: 8px;">sudo yum install trivy</code>
+                </div>
+                <div style="margin-bottom: 6px;">
+                  <strong style="color: #a6e3a1;">Docker (all platforms):</strong>
+                  <code style="color: #89b4fa; background: #11111b; padding: 2px 6px; border-radius: 4px; margin-left: 8px;">docker pull aquasec/trivy</code>
+                </div>
+                <div style="margin-top: 8px; font-size: 0.9em;">
+                  📖 More options at <a href="https://aquasecurity.github.io/trivy/latest/getting-started/installation/" target="_blank" rel="noopener" style="color: #89b4fa;">trivy.dev/installation</a>
+                </div>
+                <div style="margin-top: 10px; padding: 8px; background: #11111b; border-radius: 4px; font-size: 0.9em; color: #a6adc8;">
+                  💡 <strong>After installing:</strong> Click the <strong>🔄 Re-check</strong> button above to verify Trivy is available.
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Security Progress -->
+        <div id="security-progress" class="hidden" style="margin-bottom: 20px;" role="region" aria-label="Security scan progress">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+            <span id="security-progress-text">Scanning... 0/0</span>
+            <span id="security-progress-eta">Estimated: calculating...</span>
+          </div>
+          <div style="background-color: var(--input-bg); border-radius: 10px; height: 20px; overflow: hidden;">
+            <div id="security-progress-bar"
+                 role="progressbar"
+                 aria-valuenow="0"
+                 aria-valuemin="0"
+                 aria-valuemax="100"
+                 aria-label="Security scan progress"
+                 style="background: linear-gradient(90deg, #f38ba8, #fab387); height: 100%; width: 0%; transition: width 0.3s ease; border-radius: 10px;">
+            </div>
+          </div>
+          <div style="text-align: center; margin-top: 5px;">
+            <span id="security-progress-percent" style="font-size: 1.2em; font-weight: bold; color: #f38ba8;">0%</span>
+          </div>
+
+          <!-- Live Scan Status -->
+          <div id="security-repo-status" style="margin-top: 15px; padding: 12px; background: var(--input-bg); border-radius: 8px; border: 1px solid var(--border-color);">
+            <div style="font-size: 0.85em; color: #9ca0b0; margin-bottom: 10px;">Scanning repositories:</div>
+            <div id="security-repo-list" role="log" aria-live="polite" style="max-height: 150px; overflow-y: auto;"></div>
+          </div>
+        </div>
+
+        <!-- Security Summary -->
+        <div id="security-summary" class="hidden" style="margin-bottom: 20px;" role="region" aria-label="Security scan summary">
+          <div class="card" style="background: linear-gradient(135deg, #1e1e2e 0%, #11111b 100%);">
+            <h3 style="margin-top: 0;">🛡️ Security Summary</h3>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 15px; margin-top: 15px;">
+              <div style="text-align: center; padding: 15px; background: var(--card-bg); border-radius: 8px;">
+                <div id="security-total-repos" style="font-size: 2em; font-weight: bold; color: #89b4fa;" aria-label="Repositories scanned">0</div>
+                <div style="color: #9ca0b0; font-size: 0.85em;">Repos Scanned</div>
+              </div>
+              <div style="text-align: center; padding: 15px; background: var(--card-bg); border-radius: 8px;">
+                <div id="security-total-cves" style="font-size: 2em; font-weight: bold; color: #f38ba8;" aria-label="Total CVEs found">0</div>
+                <div style="color: #9ca0b0; font-size: 0.85em;">Total CVEs</div>
+              </div>
+              <div style="text-align: center; padding: 15px; background: var(--card-bg); border-radius: 8px;">
+                <div id="security-critical" style="font-size: 2em; font-weight: bold; color: #f38ba8;" aria-label="Critical severity CVEs">0</div>
+                <div style="color: #9ca0b0; font-size: 0.85em;">Critical</div>
+              </div>
+              <div style="text-align: center; padding: 15px; background: var(--card-bg); border-radius: 8px;">
+                <div id="security-high" style="font-size: 2em; font-weight: bold; color: #fab387;" aria-label="High severity CVEs">0</div>
+                <div style="color: #9ca0b0; font-size: 0.85em;">High</div>
+              </div>
+              <div style="text-align: center; padding: 15px; background: var(--card-bg); border-radius: 8px;">
+                <div id="security-medium" style="font-size: 2em; font-weight: bold; color: #f9e2af;" aria-label="Medium severity CVEs">0</div>
+                <div style="color: #9ca0b0; font-size: 0.85em;">Medium</div>
+              </div>
+              <div style="text-align: center; padding: 15px; background: var(--card-bg); border-radius: 8px;">
+                <div id="security-low" style="font-size: 2em; font-weight: bold; color: #a6adc8;" aria-label="Low severity CVEs">0</div>
+                <div style="color: #9ca0b0; font-size: 0.85em;">Low</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Security Results -->
+        <div id="security-results" role="region" aria-label="Security scan results" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(450px, 1fr)); gap: 15px;">
+          <div style="color: #9ca0b0; grid-column: 1 / -1; text-align: center; padding: 40px;">
+            Click "Scan for Vulnerabilities" to analyze your repositories for security issues.
+          </div>
+        </div>
+      </div>
+
       <!-- Tab: About -->
       <div id="tab-about" class="tab-content">
         <h2>About GitHousekeeper</h2>
@@ -862,7 +1099,7 @@
                 >
                   GitHousekeeper
                 </h3>
-                <div style="color: #a6adc8; margin-top: 5px">Version 2.2.1</div>
+                <div style="color: #a6adc8; margin-top: 5px">Version 2.3.0</div>
               </div>
             </div>
             <p style="line-height: 1.6; color: #a6adc8">
@@ -991,6 +1228,70 @@
               </div>
               <div style="font-size: 0.85em; color: #a6adc8">
                 Git tags & pom.xml updates
+              </div>
+            </div>
+            <div
+              style="
+                background-color: var(--sidebar-color);
+                border-radius: 8px;
+                padding: 15px;
+                border: 1px solid var(--border-color);
+              "
+            >
+              <div style="font-size: 24px; margin-bottom: 8px">🛡️</div>
+              <div style="font-weight: bold; margin-bottom: 5px">
+                Security Scanner
+              </div>
+              <div style="font-size: 0.85em; color: #a6adc8">
+                CVE vulnerability detection with OWASP/Trivy
+              </div>
+            </div>
+            <div
+              style="
+                background-color: var(--sidebar-color);
+                border-radius: 8px;
+                padding: 15px;
+                border: 1px solid var(--border-color);
+              "
+            >
+              <div style="font-size: 24px; margin-bottom: 8px">🔧</div>
+              <div style="font-weight: bold; margin-bottom: 5px">
+                Maintenance
+              </div>
+              <div style="font-size: 0.85em; color: #a6adc8">
+                Branch overview & one-click sync
+              </div>
+            </div>
+            <div
+              style="
+                background-color: var(--sidebar-color);
+                border-radius: 8px;
+                padding: 15px;
+                border: 1px solid var(--border-color);
+              "
+            >
+              <div style="font-size: 24px; margin-bottom: 8px">🔀</div>
+              <div style="font-weight: bold; margin-bottom: 5px">
+                Smart Git
+              </div>
+              <div style="font-size: 0.85em; color: #a6adc8">
+                Auto-detect main/master branch
+              </div>
+            </div>
+            <div
+              style="
+                background-color: var(--sidebar-color);
+                border-radius: 8px;
+                padding: 15px;
+                border: 1px solid var(--border-color);
+              "
+            >
+              <div style="font-size: 24px; margin-bottom: 8px">📄</div>
+              <div style="font-weight: bold; margin-bottom: 5px">
+                PDF Export
+              </div>
+              <div style="font-size: 0.85em; color: #a6adc8">
+                Export reports & security scans
               </div>
             </div>
           </div>

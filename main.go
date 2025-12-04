@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gorecode/updates/internal/logic"
@@ -56,6 +57,10 @@ func main() {
 	http.HandleFunc("/api/list-folders", handleListFolders)
 	http.HandleFunc("/api/openrewrite-versions", handleOpenRewriteVersions)
 	http.HandleFunc("/api/dashboard-stats", handleDashboardStats)
+	http.HandleFunc("/api/list-branches", handleListBranches)
+	http.HandleFunc("/api/sync-branches", handleSyncBranches)
+	http.HandleFunc("/api/security-scan", handleSecurityScan)
+	http.HandleFunc("/api/check-trivy", handleCheckTrivy)
 
 	port := "8080"
 	url := "http://localhost:" + port
@@ -160,26 +165,68 @@ func handleRun(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// Cache for Spring versions to avoid repeated Maven Central calls
+var (
+	springVersionsCache     []logic.SpringVersionInfo
+	springVersionsCacheTime time.Time
+	springVersionsCacheTTL  = 5 * time.Minute
+)
+
 func handleSpringVersions(w http.ResponseWriter, r *http.Request) {
+	// Check cache
+	if springVersionsCache != nil && time.Since(springVersionsCacheTime) < springVersionsCacheTTL {
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("X-Cache", "HIT")
+		json.NewEncoder(w).Encode(springVersionsCache)
+		return
+	}
+
 	versions, err := logic.GetSpringVersions()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
+	// Update cache
+	springVersionsCache = versions
+	springVersionsCacheTime = time.Now()
+
 	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("X-Cache", "MISS")
 	json.NewEncoder(w).Encode(versions)
 }
 
 // Current OpenRewrite versions used in this app
 // Moved to type definition area
 
+// Cache for OpenRewrite versions
+var (
+	openRewriteVersionsCache     []logic.OpenRewriteVersionInfo
+	openRewriteVersionsCacheTime time.Time
+	openRewriteVersionsCacheTTL  = 10 * time.Minute
+)
+
 func handleOpenRewriteVersions(w http.ResponseWriter, r *http.Request) {
+	// Check cache
+	if openRewriteVersionsCache != nil && time.Since(openRewriteVersionsCacheTime) < openRewriteVersionsCacheTTL {
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("X-Cache", "HIT")
+		json.NewEncoder(w).Encode(openRewriteVersionsCache)
+		return
+	}
+
 	versions, err := logic.GetOpenRewriteVersions(openRewritePluginVersion, openRewriteRecipeVersion)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
+	// Update cache
+	openRewriteVersionsCache = versions
+	openRewriteVersionsCacheTime = time.Now()
+
 	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("X-Cache", "MISS")
 	json.NewEncoder(w).Encode(versions)
 }
 
@@ -558,19 +605,39 @@ func analyzeRepo(index int, repoPath, recipe, pluginVersion, recipeArtifactCoord
 		return AnalysisResult{Index: index, RepoName: repoName, Output: output.String(), Success: true, Duration: time.Since(startTime)}
 	}
 
-	// Construct Maven Command
-	cmd := exec.Command("mvn",
-		"-U",
-		"-B",
-		fmt.Sprintf("org.openrewrite.maven:rewrite-maven-plugin:%s:dryRun", pluginVersion),
-		fmt.Sprintf("-Drewrite.recipeArtifactCoordinates=%s", recipeArtifactCoordinates),
-		fmt.Sprintf("-Drewrite.activeRecipes=%s", recipe),
-	)
-	cmd.Dir = repoPath
+	// Try up to 2 times (retry once on failure - helps with Maven cache issues)
+	maxRetries := 2
+	var lastError error
+	var cmdOutput []byte
 
-	cmdOutput, err := cmd.CombinedOutput()
-	if err != nil {
-		output.WriteString(fmt.Sprintf("Error running OpenRewrite: %v\n", err))
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		// Construct Maven Command
+		cmd := exec.Command("mvn",
+			"-U",
+			"-B",
+			fmt.Sprintf("org.openrewrite.maven:rewrite-maven-plugin:%s:dryRun", pluginVersion),
+			fmt.Sprintf("-Drewrite.recipeArtifactCoordinates=%s", recipeArtifactCoordinates),
+			fmt.Sprintf("-Drewrite.activeRecipes=%s", recipe),
+		)
+		cmd.Dir = repoPath
+
+		cmdOutput, lastError = cmd.CombinedOutput()
+		if lastError == nil {
+			// Success - break out of retry loop
+			break
+		}
+
+		// If this was the first attempt and it failed, retry
+		if attempt < maxRetries {
+			// Brief pause before retry
+			time.Sleep(500 * time.Millisecond)
+			continue
+		}
+	}
+
+	// If still failed after retries
+	if lastError != nil {
+		output.WriteString(fmt.Sprintf("Error running OpenRewrite: %v\n", lastError))
 		lines := strings.Split(string(cmdOutput), "\n")
 		start := len(lines) - 10
 		if start < 0 {
@@ -818,4 +885,583 @@ func handleDashboardStats(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(result)
 		flusher.Flush()
 	})
+}
+
+// BranchInfo represents a branch with its tracking status
+type BranchInfo struct {
+	Name       string `json:"name"`
+	IsTracking bool   `json:"isTracking"`
+	Remote     string `json:"remote"`
+	Ahead      int    `json:"ahead"`
+	Behind     int    `json:"behind"`
+}
+
+// RepoWithBranches represents a repository and its branches
+type RepoWithBranches struct {
+	Name          string       `json:"name"`
+	Path          string       `json:"path"`
+	DefaultBranch string       `json:"defaultBranch"`
+	Branches      []BranchInfo `json:"branches"`
+}
+
+type ListBranchesRequest struct {
+	RootPath string   `json:"rootPath"`
+	Excluded []string `json:"excluded"`
+}
+
+func handleListBranches(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req ListBranchesRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	repos := logic.FindGitRepos(req.RootPath, req.Excluded)
+	var result []RepoWithBranches
+
+	for _, repoPath := range repos {
+		repoName := filepath.Base(repoPath)
+
+		// Get default branch
+		defaultBranch := getRepoDefaultBranch(repoPath)
+
+		// Get all local branches with tracking info
+		branches := getRepoBranches(repoPath)
+
+		result = append(result, RepoWithBranches{
+			Name:          repoName,
+			Path:          repoPath,
+			DefaultBranch: defaultBranch,
+			Branches:      branches,
+		})
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(result)
+}
+
+func getRepoDefaultBranch(repoPath string) string {
+	cmd := exec.Command("git", "symbolic-ref", "refs/remotes/origin/HEAD")
+	cmd.Dir = repoPath
+	output, err := cmd.Output()
+	if err == nil {
+		branch := strings.TrimPrefix(strings.TrimSpace(string(output)), "refs/remotes/origin/")
+		if branch != "" {
+			return branch
+		}
+	}
+
+	// Fallback: check if main exists
+	cmd = exec.Command("git", "show-ref", "--verify", "--quiet", "refs/heads/main")
+	cmd.Dir = repoPath
+	if cmd.Run() == nil {
+		return "main"
+	}
+
+	return "master"
+}
+
+func getRepoBranches(repoPath string) []BranchInfo {
+	var branches []BranchInfo
+
+	// Get local branches with their upstream tracking info
+	cmd := exec.Command("git", "for-each-ref", "--format=%(refname:short)|%(upstream:short)|%(upstream:track)", "refs/heads/")
+	cmd.Dir = repoPath
+	output, err := cmd.Output()
+	if err != nil {
+		return branches
+	}
+
+	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
+	for _, line := range lines {
+		if line == "" {
+			continue
+		}
+		parts := strings.Split(line, "|")
+		branchName := parts[0]
+		remote := ""
+		ahead := 0
+		behind := 0
+		isTracking := false
+
+		if len(parts) > 1 && parts[1] != "" {
+			remote = parts[1]
+			isTracking = true
+		}
+
+		if len(parts) > 2 && parts[2] != "" {
+			// Parse [ahead X, behind Y] or [ahead X] or [behind Y]
+			track := parts[2]
+			if strings.Contains(track, "ahead") {
+				fmt.Sscanf(track, "[ahead %d", &ahead)
+			}
+			if strings.Contains(track, "behind") {
+				if strings.Contains(track, "ahead") {
+					fmt.Sscanf(track, "[ahead %d, behind %d]", &ahead, &behind)
+				} else {
+					fmt.Sscanf(track, "[behind %d]", &behind)
+				}
+			}
+		}
+
+		branches = append(branches, BranchInfo{
+			Name:       branchName,
+			IsTracking: isTracking,
+			Remote:     remote,
+			Ahead:      ahead,
+			Behind:     behind,
+		})
+	}
+
+	return branches
+}
+
+type SyncBranchesRequest struct {
+	RootPath string   `json:"rootPath"`
+	Excluded []string `json:"excluded"`
+}
+
+func handleSyncBranches(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req SyncBranchesRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Set headers for streaming
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.Header().Set("Transfer-Encoding", "chunked")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "Streaming not supported", http.StatusInternalServerError)
+		return
+	}
+
+	repos := logic.FindGitRepos(req.RootPath, req.Excluded)
+	total := len(repos)
+
+	fmt.Fprintf(w, "SYNC_INIT:%d\n", total)
+	flusher.Flush()
+
+	for i, repoPath := range repos {
+		repoName := filepath.Base(repoPath)
+		fmt.Fprintf(w, "REPO_START:%s\n", repoName)
+		flusher.Flush()
+
+		// Remember current branch
+		currentBranch := getCurrentBranch(repoPath)
+
+		// Fetch with prune
+		cmd := exec.Command("git", "fetch", "-p", "--all")
+		cmd.Dir = repoPath
+		if err := cmd.Run(); err != nil {
+			fmt.Fprintf(w, "  [WARNING] Fetch failed: %v\n", err)
+		} else {
+			fmt.Fprintf(w, "  Fetched all remotes\n")
+		}
+		flusher.Flush()
+
+		// Get all tracking branches and pull them
+		branches := getRepoBranches(repoPath)
+		for _, branch := range branches {
+			if !branch.IsTracking {
+				continue
+			}
+
+			// Checkout branch
+			cmd = exec.Command("git", "checkout", branch.Name)
+			cmd.Dir = repoPath
+			if err := cmd.Run(); err != nil {
+				fmt.Fprintf(w, "  [WARNING] Could not checkout %s: %v\n", branch.Name, err)
+				continue
+			}
+
+			// Pull
+			cmd = exec.Command("git", "pull", "--ff-only")
+			cmd.Dir = repoPath
+			if err := cmd.Run(); err != nil {
+				fmt.Fprintf(w, "  [WARNING] Pull %s failed (maybe conflicts): %v\n", branch.Name, err)
+			} else {
+				fmt.Fprintf(w, "  ✓ %s updated\n", branch.Name)
+			}
+		}
+
+		// Switch back to original branch
+		if currentBranch != "" {
+			cmd = exec.Command("git", "checkout", currentBranch)
+			cmd.Dir = repoPath
+			cmd.Run()
+		}
+
+		fmt.Fprintf(w, "REPO_DONE:%s\n", repoName)
+		fmt.Fprintf(w, "SYNC_PROGRESS:%d:%d\n", i+1, total)
+		flusher.Flush()
+	}
+
+	fmt.Fprintf(w, "SYNC_COMPLETE\n")
+	flusher.Flush()
+}
+
+func getCurrentBranch(repoPath string) string {
+	cmd := exec.Command("git", "rev-parse", "--abbrev-ref", "HEAD")
+	cmd.Dir = repoPath
+	output, err := cmd.Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(output))
+}
+
+// ==================== SECURITY SCAN ====================
+
+type SecurityScanRequest struct {
+	RootPath string   `json:"rootPath"`
+	Excluded []string `json:"excluded"`
+	Scanner  string   `json:"scanner"` // "owasp" or "trivy"
+}
+
+type CVEFinding struct {
+	CVE         string `json:"cve"`
+	Severity    string `json:"severity"` // CRITICAL, HIGH, MEDIUM, LOW
+	Package     string `json:"package"`
+	Version     string `json:"version"`
+	FixedIn     string `json:"fixedIn,omitempty"`
+	Description string `json:"description,omitempty"`
+}
+
+type RepoSecurityResult struct {
+	RepoName string       `json:"repoName"`
+	Findings []CVEFinding `json:"findings"`
+	Error    string       `json:"error,omitempty"`
+	Duration float64      `json:"duration"`
+}
+
+func handleCheckTrivy(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	// Check if trivy is available
+	cmd := exec.Command("which", "trivy")
+	if runtime.GOOS == "windows" {
+		cmd = exec.Command("where", "trivy")
+	}
+
+	if err := cmd.Run(); err != nil {
+		json.NewEncoder(w).Encode(map[string]bool{"available": false})
+		return
+	}
+
+	// Get trivy version
+	cmd = exec.Command("trivy", "--version")
+	output, err := cmd.Output()
+	version := ""
+	if err == nil {
+		lines := strings.Split(string(output), "\n")
+		if len(lines) > 0 {
+			version = strings.TrimSpace(lines[0])
+		}
+	}
+
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"available": true,
+		"version":   version,
+	})
+}
+
+func handleSecurityScan(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req SecurityScanRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Default to OWASP
+	if req.Scanner == "" {
+		req.Scanner = "owasp"
+	}
+
+	// Set headers for streaming
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.Header().Set("Transfer-Encoding", "chunked")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "Streaming not supported", http.StatusInternalServerError)
+		return
+	}
+
+	// Debug: Log the request parameters
+	fmt.Printf("[SecurityScan] RootPath: %s, Excluded: %v, Scanner: %s\n", req.RootPath, req.Excluded, req.Scanner)
+
+	repos := logic.FindGitRepos(req.RootPath, req.Excluded)
+	total := len(repos)
+
+	// Debug: Log found repos
+	fmt.Printf("[SecurityScan] Found %d repos: %v\n", total, repos)
+
+	fmt.Fprintf(w, "SCAN_INIT:%d:%s\n", total, req.Scanner)
+	flusher.Flush()
+
+	// Determine worker count (parallel scans)
+	workerCount := 4
+	if total < workerCount {
+		workerCount = total
+	}
+	if workerCount < 1 {
+		workerCount = 1
+	}
+
+	// Create channels for work distribution
+	type scanJob struct {
+		repoPath string
+		repoName string
+		index    int
+	}
+
+	type scanResult struct {
+		result RepoSecurityResult
+		index  int
+	}
+
+	jobs := make(chan scanJob, total)
+	results := make(chan scanResult, total)
+
+	// Start workers
+	var wg sync.WaitGroup
+	for w := 0; w < workerCount; w++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for job := range jobs {
+				start := time.Now()
+				var result RepoSecurityResult
+				result.RepoName = job.repoName
+
+				// Check if pom.xml exists
+				pomPath := filepath.Join(job.repoPath, "pom.xml")
+				if _, err := os.Stat(pomPath); os.IsNotExist(err) {
+					result.Error = "No pom.xml found"
+					result.Duration = time.Since(start).Seconds()
+				} else {
+					if req.Scanner == "trivy" {
+						result = runTrivyScan(job.repoPath, job.repoName)
+					} else {
+						result = runOwaspScan(job.repoPath, job.repoName)
+					}
+					result.Duration = time.Since(start).Seconds()
+				}
+
+				results <- scanResult{result: result, index: job.index}
+			}
+		}()
+	}
+
+	// Send all repos that are being scanned
+	for _, repoPath := range repos {
+		repoName := filepath.Base(repoPath)
+		fmt.Fprintf(w, "REPO_START:%s\n", repoName)
+	}
+	flusher.Flush()
+
+	// Submit jobs
+	go func() {
+		for i, repoPath := range repos {
+			jobs <- scanJob{
+				repoPath: repoPath,
+				repoName: filepath.Base(repoPath),
+				index:    i,
+			}
+		}
+		close(jobs)
+	}()
+
+	// Collect results in a goroutine
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
+
+	// Process results as they come in
+	allResults := make([]RepoSecurityResult, total)
+	totalCritical, totalHigh, totalMedium, totalLow := 0, 0, 0, 0
+	completed := 0
+	scanStart := time.Now()
+
+	for res := range results {
+		completed++
+		allResults[res.index] = res.result
+
+		// Count severities
+		for _, f := range res.result.Findings {
+			switch f.Severity {
+			case "CRITICAL":
+				totalCritical++
+			case "HIGH":
+				totalHigh++
+			case "MEDIUM":
+				totalMedium++
+			case "LOW":
+				totalLow++
+			}
+		}
+
+		// Stream result as JSON (even skipped repos)
+		resultJSON, _ := json.Marshal(res.result)
+		fmt.Fprintf(w, "REPO_RESULT:%s\n", string(resultJSON))
+
+		// Calculate ETA
+		elapsed := time.Since(scanStart).Seconds()
+		avgTimePerRepo := elapsed / float64(completed)
+		remainingRepos := total - completed
+		eta := avgTimePerRepo * float64(remainingRepos)
+
+		fmt.Fprintf(w, "REPO_DONE:%s:%.1f\n", res.result.RepoName, res.result.Duration)
+		fmt.Fprintf(w, "SCAN_PROGRESS:%d:%d:%.0f\n", completed, total, eta)
+		flusher.Flush()
+	}
+
+	// Send summary
+	fmt.Fprintf(w, "SCAN_SUMMARY:%d:%d:%d:%d\n", totalCritical, totalHigh, totalMedium, totalLow)
+	fmt.Fprintf(w, "SCAN_COMPLETE\n")
+	flusher.Flush()
+}
+
+func runTrivyScan(repoPath, repoName string) RepoSecurityResult {
+	result := RepoSecurityResult{RepoName: repoName}
+
+	// Run trivy fs with JSON output
+	cmd := exec.Command("trivy", "fs", "--scanners", "vuln", "--format", "json", "--quiet", ".")
+	cmd.Dir = repoPath
+	output, err := cmd.Output()
+
+	if err != nil {
+		// Trivy returns exit code 1 if vulnerabilities found, but still outputs JSON
+		if len(output) == 0 {
+			result.Error = fmt.Sprintf("Trivy scan failed: %v", err)
+			return result
+		}
+	}
+
+	// Parse Trivy JSON output
+	var trivyResult struct {
+		Results []struct {
+			Vulnerabilities []struct {
+				VulnerabilityID  string `json:"VulnerabilityID"`
+				PkgName          string `json:"PkgName"`
+				InstalledVersion string `json:"InstalledVersion"`
+				FixedVersion     string `json:"FixedVersion"`
+				Severity         string `json:"Severity"`
+				Description      string `json:"Description"`
+			} `json:"Vulnerabilities"`
+		} `json:"Results"`
+	}
+
+	if err := json.Unmarshal(output, &trivyResult); err != nil {
+		result.Error = fmt.Sprintf("Failed to parse Trivy output: %v", err)
+		return result
+	}
+
+	for _, r := range trivyResult.Results {
+		for _, v := range r.Vulnerabilities {
+			result.Findings = append(result.Findings, CVEFinding{
+				CVE:         v.VulnerabilityID,
+				Severity:    strings.ToUpper(v.Severity),
+				Package:     v.PkgName,
+				Version:     v.InstalledVersion,
+				FixedIn:     v.FixedVersion,
+				Description: truncateString(v.Description, 200),
+			})
+		}
+	}
+
+	return result
+}
+
+func runOwaspScan(repoPath, repoName string) RepoSecurityResult {
+	result := RepoSecurityResult{RepoName: repoName}
+
+	// Run OWASP dependency-check via Maven with JSON output
+	cmd := exec.Command("mvn",
+		"org.owasp:dependency-check-maven:12.1.0:check",
+		"-DfailBuildOnCVSS=11", // Never fail build
+		"-Dformat=JSON",
+		"-DprettyPrint=true",
+		"-DskipTestScope=true",
+		"-q", // Quiet mode
+	)
+	cmd.Dir = repoPath
+	cmd.Run() // Ignore exit code, we'll parse the output file
+
+	// Find and parse the JSON report
+	reportPath := filepath.Join(repoPath, "target", "dependency-check-report.json")
+	reportData, err := os.ReadFile(reportPath)
+	if err != nil {
+		result.Error = "OWASP scan completed but no report found. First scan may take 10+ minutes to download NVD database."
+		return result
+	}
+
+	// Parse OWASP JSON output
+	var owaspResult struct {
+		Dependencies []struct {
+			FileName        string `json:"fileName"`
+			Vulnerabilities []struct {
+				Name        string `json:"name"`
+				Severity    string `json:"severity"`
+				Description string `json:"description"`
+			} `json:"vulnerabilities"`
+		} `json:"dependencies"`
+	}
+
+	if err := json.Unmarshal(reportData, &owaspResult); err != nil {
+		result.Error = fmt.Sprintf("Failed to parse OWASP report: %v", err)
+		return result
+	}
+
+	for _, dep := range owaspResult.Dependencies {
+		for _, v := range dep.Vulnerabilities {
+			severity := strings.ToUpper(v.Severity)
+			// OWASP uses different severity names
+			switch severity {
+			case "CRITICAL", "HIGH", "MEDIUM", "LOW":
+				// Keep as is
+			case "MODERATE":
+				severity = "MEDIUM"
+			default:
+				severity = "LOW"
+			}
+
+			result.Findings = append(result.Findings, CVEFinding{
+				CVE:         v.Name,
+				Severity:    severity,
+				Package:     dep.FileName,
+				Description: truncateString(v.Description, 200),
+			})
+		}
+	}
+
+	return result
+}
+
+func truncateString(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen-3] + "..."
 }
