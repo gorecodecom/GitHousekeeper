@@ -1237,17 +1237,23 @@
                 continue;
               }
 
-              // Handle individual repo queued (show as "waiting")
+              // Handle individual repo queued (show as "running" with animated progress)
               if (line.startsWith("REPO_QUEUED:")) {
                 const repoName = line.split(":")[1];
                 const repoStatusItems = document.getElementById("repo-status-items");
                 if (repoStatusItems) {
                   const repoItem = document.createElement("div");
                   repoItem.id = `repo-status-${repoName}`;
-                  repoItem.style.cssText = "display: flex; align-items: center; padding: 6px 10px; background: rgba(124, 138, 255, 0.1); border-radius: 6px; border: 1px solid rgba(124, 138, 255, 0.3); min-width: 200px; flex: 1; max-width: calc(33.333% - 6px);";
+                  repoItem.className = "repo-card running";
                   repoItem.innerHTML = `
-                    <span style="margin-right: 8px;">🔄</span>
-                    <span style="flex: 1; color: #e0e0e0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${repoName}</span>
+                    <div class="repo-card-header">
+                      <span class="icon">🔄</span>
+                      <span class="name">${repoName}</span>
+                      <span class="status running">analyzing...</span>
+                    </div>
+                    <div class="repo-progress-bar">
+                      <div class="fill running"></div>
+                    </div>
                   `;
                   repoStatusItems.appendChild(repoItem);
                 }
@@ -1265,15 +1271,18 @@
                 if (repoItem) {
                   const isSuccess = status === "SUCCESS";
                   const icon = isSuccess ? "✅" : "❌";
-                  const bgColor = isSuccess ? "rgba(76, 175, 80, 0.1)" : "rgba(239, 83, 80, 0.1)";
-                  const borderColor = isSuccess ? "rgba(76, 175, 80, 0.3)" : "rgba(239, 83, 80, 0.3)";
-                  const statusColor = isSuccess ? "#4caf50" : "#ef5350";
+                  const statusClass = isSuccess ? "success" : "failed";
 
-                  repoItem.style.cssText = `display: flex; align-items: center; padding: 6px 10px; background: ${bgColor}; border-radius: 6px; border: 1px solid ${borderColor}; min-width: 200px; flex: 1; max-width: calc(33.333% - 6px);`;
+                  repoItem.className = `repo-card ${statusClass}`;
                   repoItem.innerHTML = `
-                    <span style="margin-right: 8px;">${icon}</span>
-                    <span style="flex: 1; color: #e0e0e0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${repoName}</span>
-                    <span style="color: ${statusColor}; font-size: 0.85em; margin-left: 8px;">${duration.toFixed(1)}s</span>
+                    <div class="repo-card-header">
+                      <span class="icon">${icon}</span>
+                      <span class="name">${repoName}</span>
+                      <span class="status ${statusClass}">${duration.toFixed(1)}s</span>
+                    </div>
+                    <div class="repo-progress-bar">
+                      <div class="fill ${statusClass}"></div>
+                    </div>
                   `;
                 }
                 continue;
