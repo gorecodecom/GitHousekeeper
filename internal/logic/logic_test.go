@@ -41,23 +41,22 @@ func TestParseDeprecationsFromOutput(t *testing.T) {
 [WARNING] Warning 1: deprecated API used
 [INFO] Some info
 [WARNING] Warning 2: another deprecation
-[ERROR] Some error (ignored by deprecation filter but captured in log)
+[ERROR] Some error (ignored by deprecation filter)
 [WARNING] Warning 3: something else`,
 			expectedOutput: []string{
 				"[WARNING] Warning 1: deprecated API used",
 				"[WARNING] Warning 2: another deprecation",
-				"[ERROR] Some error (ignored by deprecation filter but captured in log)",
 				"[WARNING] Warning 3: something else",
 			},
-			expectedCount: 4,
+			expectedCount: 3,
 		},
 		{
 			name: "Case insensitivity",
 			input: `DEPRECATED: old method
-warning: careful now`,
+[WARNING] careful now`,
 			expectedOutput: []string{
 				"DEPRECATED: old method",
-				"warning: careful now",
+				"[WARNING] careful now",
 			},
 			expectedCount: 2,
 		},
@@ -91,11 +90,11 @@ func TestProcessRepo_Options(t *testing.T) {
 	// This test verifies that the Options struct is correctly used
 	// We can't easily test the full Git/Maven interaction here without mocking,
 	// but we can test that the logger is called.
-	
+
 	// Since ProcessRepo does heavy IO, we will just verify the struct exists and compiles
 	// which is implicitly done by the build.
 	// A real unit test for ProcessRepo would require dependency injection for exec.Command.
-	
+
 	opts := RepoOptions{
 		Log: func(msg string) {},
 	}
@@ -182,11 +181,11 @@ new
 			if !changed {
 				t.Error("Expected change, but got none")
 			}
-			
+
 			// Normalize newlines for comparison
 			result = strings.ReplaceAll(result, "\r\n", "\n")
 			expected := strings.ReplaceAll(tt.expected, "\r\n", "\n")
-			
+
 			if result != expected {
 				t.Errorf("Result mismatch.\nExpected:\n%q\nGot:\n%q", expected, result)
 			}

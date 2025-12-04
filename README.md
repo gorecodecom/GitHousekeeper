@@ -2,6 +2,23 @@
 
 GitHousekeeper is a powerful tool designed to automate maintenance tasks and mass-refactoring across multiple Git repositories. It provides a user-friendly Web GUI to orchestrate updates, manage versions, and perform project-wide replacements efficiently.
 
+## 📥 Download
+
+**Current Version: 2.0.0**
+
+Download the pre-built executable for your platform:
+
+| Platform                  | Download                                                                                                                                    | Notes                |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | -------------------- |
+| **Windows**               | [GitHousekeeper-windows-amd64.exe](https://github.com/gorecodecom/GitHousekeeper/releases/latest/download/GitHousekeeper-windows-amd64.exe) | 64-bit Windows 10/11 |
+| **macOS (Intel)**         | [GitHousekeeper-darwin-amd64](https://github.com/gorecodecom/GitHousekeeper/releases/latest/download/GitHousekeeper-darwin-amd64)           | Intel-based Macs     |
+| **macOS (Apple Silicon)** | [GitHousekeeper-darwin-arm64](https://github.com/gorecodecom/GitHousekeeper/releases/latest/download/GitHousekeeper-darwin-arm64)           | M1/M2/M3 Macs        |
+| **Linux**                 | [GitHousekeeper-linux-amd64](https://github.com/gorecodecom/GitHousekeeper/releases/latest/download/GitHousekeeper-linux-amd64)             | 64-bit Linux         |
+
+> 💡 **Tip**: On macOS/Linux, you may need to make the file executable: `chmod +x GitHousekeeper-*`
+
+See [CHANGELOG.md](CHANGELOG.md) for release history and all versions on the [Releases page](https://github.com/gorecodecom/GitHousekeeper/releases).
+
 ## Features
 
 ### 🔍 Multi-Repository Management
@@ -84,13 +101,67 @@ To build from source:
 
 ## Installation & Usage
 
-### Option A: Run Pre-built Executable (Windows)
+### Option A: Run Pre-built Executable
 
-1. Download or build `GitHousekeeper.exe`.
-2. Double-click `GitHousekeeper.exe`.
-3. The application will start and open your browser at `http://localhost:8080`.
+#### Windows
+
+1. Download `GitHousekeeper-windows-amd64.exe` from the [Releases page](https://github.com/gorecodecom/GitHousekeeper/releases).
+2. Double-click the `.exe` file.
+3. Your browser will open automatically at `http://localhost:8080`.
+
+#### macOS
+
+1. Download the appropriate version for your Mac:
+
+   - **Intel Mac**: `GitHousekeeper-darwin-amd64`
+   - **Apple Silicon (M1/M2/M3)**: `GitHousekeeper-darwin-arm64`
+
+2. Open Terminal and make the file executable:
+
+   ```bash
+   chmod +x ~/Downloads/GitHousekeeper-darwin-*
+   ```
+
+3. On first run, macOS may block the app. To allow it:
+
+   - Right-click the file → **Open**, or
+   - Go to **System Preferences → Security & Privacy → General** and click **Open Anyway**
+
+4. Run the application:
+
+   ```bash
+   ~/Downloads/GitHousekeeper-darwin-arm64
+   ```
+
+5. Your browser will open automatically at `http://localhost:8080`.
+
+#### Linux
+
+1. Download `GitHousekeeper-linux-amd64` from the [Releases page](https://github.com/gorecodecom/GitHousekeeper/releases).
+
+2. Make the file executable:
+
+   ```bash
+   chmod +x GitHousekeeper-linux-amd64
+   ```
+
+3. Run the application:
+
+   ```bash
+   ./GitHousekeeper-linux-amd64
+   ```
+
+4. Your browser will open automatically at `http://localhost:8080`.
+
+   > **Note**: On Linux, the folder picker dialog requires `zenity` (GNOME/GTK) or `kdialog` (KDE) to be installed.
 
 ### Option B: Build from Source
+
+#### Prerequisites
+
+- **Go**: Version 1.21 or higher ([Download](https://go.dev/dl/))
+
+#### Build Steps (All Platforms)
 
 1. **Clone the repository**:
 
@@ -99,17 +170,33 @@ To build from source:
    cd GitHousekeeper
    ```
 
-2. **Build the application**:
+2. **Build for your current platform**:
 
    ```bash
-   go build -o GitHousekeeper.exe .
+   go build -o GitHousekeeper .
    ```
 
-   _Note: The HTML/CSS/JS assets are embedded directly into the executable. You only need the `.exe` file to run the app._
+   Or build for a specific platform:
+
+   ```bash
+   # Windows
+   GOOS=windows GOARCH=amd64 go build -o GitHousekeeper-windows-amd64.exe .
+
+   # macOS Intel
+   GOOS=darwin GOARCH=amd64 go build -o GitHousekeeper-darwin-amd64 .
+
+   # macOS Apple Silicon
+   GOOS=darwin GOARCH=arm64 go build -o GitHousekeeper-darwin-arm64 .
+
+   # Linux
+   GOOS=linux GOARCH=amd64 go build -o GitHousekeeper-linux-amd64 .
+   ```
+
+   > 💡 The HTML/CSS/JS assets are embedded directly into the executable. You only need the single binary file to run the app.
 
 3. **Run**:
    ```bash
-   ./GitHousekeeper.exe
+   ./GitHousekeeper
    ```
 
 ### Development Mode
@@ -185,14 +272,8 @@ _About Page_
 
 ## Author
 
-**GoreCode**  
+**GoreCode**
 GitHub: [@gorecodecom](https://github.com/gorecodecom)
-
-## Version
-
-Current version: **2.0.0**
-
-See [CHANGELOG.md](CHANGELOG.md) for release history.
 
 ## License
 

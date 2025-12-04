@@ -27,11 +27,11 @@
           loadSpringVersions();
           checkOpenRewriteVersions();
         }
-        
+
         if (tabId === "dashboard") {
             // Priority 1: Current input value
             const currentPath = document.getElementById("rootPath").value;
-            
+
             if (currentPath) {
                 // Only reload if path changed
                 if (currentPath !== lastLoadedPath) {
@@ -377,7 +377,7 @@
               document.getElementById("rootPath").value = settings.rootPath;
               loadDashboardStats(settings.rootPath);
               // Also trigger folder load for settings tab
-              loadFolders(); 
+              loadFolders();
             } else {
                // No path, show empty state
                document.getElementById("dashboard-empty").classList.remove("hidden");
@@ -402,7 +402,7 @@
         empty.classList.add("hidden");
         header.classList.remove("hidden");
         content.classList.remove("hidden");
-        
+
         // Reset UI
         tbody.innerHTML = "";
         document.getElementById("metric-health").innerText = "--";
@@ -425,11 +425,11 @@
           const response = await fetch("/api/dashboard-stats", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ RootPath: rootPath, Excluded: [] }) 
+            body: JSON.stringify({ RootPath: rootPath, Excluded: [] })
           });
-          
+
           if (!response.ok) throw new Error("Failed to load stats");
-          
+
           const reader = response.body.getReader();
           const decoder = new TextDecoder();
           let buffer = "";
@@ -437,7 +437,7 @@
           while (true) {
             const { done, value } = await reader.read();
             if (done) break;
-            
+
             buffer += decoder.decode(value, { stream: true });
             const lines = buffer.split("\n");
             buffer = lines.pop(); // Keep incomplete line
@@ -535,10 +535,10 @@
         const sortedDeps = Object.entries(currentStats.topDependencies)
             .sort((a, b) => b[1] - a[1])
             .slice(0, 5);
-        
+
         const depsContainer = document.getElementById("chart-deps");
         depsContainer.innerHTML = "";
-        
+
         // Find max for scaling
         const maxDep = sortedDeps.length > 0 ? sortedDeps[0][1] : 1;
 
@@ -559,7 +559,7 @@
         // Spring Boot Versions
         const sortedSpring = Object.entries(currentStats.springVersions)
             .sort((a, b) => b[1] - a[1]); // Sort by count desc
-        
+
         const springContainer = document.getElementById("chart-spring");
         springContainer.innerHTML = "";
 
@@ -585,12 +585,12 @@
 
       async function loadSpringVersions() {
         const container = document.getElementById("spring-versions-list");
-        
+
         try {
           const res = await fetch("/api/spring-versions");
           if (!res.ok) throw new Error("Failed to fetch versions");
           const versions = await res.json();
-          
+
           // Cache for Migration Assistant
           window.springVersionsCache = versions;
 
@@ -706,13 +706,13 @@
         const select = document.getElementById("targetBootVersion");
         if (!select) return;
         select.innerHTML = '<option value="">Select Version...</option>';
-        
+
         versions.forEach((v) => {
-            // Add the latest version of each branch
+            // Add the branch (Major.Minor) as value - OpenRewrite only has recipes for minor versions
             if (v.Versions && v.Versions.length > 0) {
                 const opt = document.createElement("option");
-                opt.value = v.Versions[0];
-                opt.innerText = `Spring Boot ${v.Versions[0]}`;
+                opt.value = v.Branch; // Use Major.Minor (e.g., "3.5") instead of full version
+                opt.innerText = `Spring Boot ${v.Branch} (latest: ${v.Versions[0]})`;
                 select.appendChild(opt);
             }
         });
@@ -722,7 +722,7 @@
         const typeInput = document.querySelector('input[name="migrationType"]:checked');
         if (!typeInput) return;
         const type = typeInput.value;
-        
+
         const title = document.getElementById('migration-options-title');
         const select = document.getElementById('targetBootVersion');
         const hint = document.getElementById('migration-hint');
@@ -758,7 +758,7 @@
         } else if (type === 'jakarta-ee') {
             title.innerText = 'Jakarta EE Migration';
             hint.innerText = 'Runs OpenRewrite to migrate from javax to jakarta namespace.';
-            select.style.display = 'none'; 
+            select.style.display = 'none';
             if (container) container.style.justifyContent = 'flex-end';
         } else if (type === 'quarkus') {
             title.innerText = 'Quarkus Migration';
@@ -1010,7 +1010,7 @@
         const rootPath = document.getElementById("rootPath").value;
         const targetVersionSelect = document.getElementById("targetBootVersion");
         const targetVersion = targetVersionSelect ? targetVersionSelect.value : "";
-        
+
         const typeInput = document.querySelector('input[name="migrationType"]:checked');
         const migrationType = typeInput ? typeInput.value : "spring-boot";
 
@@ -1036,7 +1036,7 @@
           alert("Please configure the project path first.");
           return;
         }
-        
+
         // Validate target version only if needed
         if ((migrationType === 'spring-boot' || migrationType === 'java-version') && !targetVersion) {
           alert("Please select a target version.");

@@ -410,7 +410,7 @@ func handleAnalyzeSpring(w http.ResponseWriter, r *http.Request) {
 	}
 
 	fmt.Fprintf(w, "PROGRESS_INIT:%d\n", len(repos))
-	
+
 	migrationLabel := "Spring Boot"
 	switch req.MigrationType {
 	case "java-version":
@@ -458,7 +458,15 @@ func handleAnalyzeSpring(w http.ResponseWriter, r *http.Request) {
 		flusher.Flush()
 		return
 	default: // "spring-boot" or empty
-		cleanVersion := strings.ReplaceAll(req.TargetVersion, ".", "_")
+
+		// OpenRewrite only has recipes for minor versions (e.g., 3.5), not patch versions (e.g., 3.5.8)
+		// Extract only major.minor from the target version
+		minorVersion := req.TargetVersion
+		versionParts := strings.Split(req.TargetVersion, ".")
+		if len(versionParts) >= 2 {
+			minorVersion = versionParts[0] + "." + versionParts[1]
+		}
+		cleanVersion := strings.ReplaceAll(minorVersion, ".", "_")
 		if strings.HasPrefix(req.TargetVersion, "3.") {
 			recipe = fmt.Sprintf("org.openrewrite.java.spring.boot3.UpgradeSpringBoot_%s", cleanVersion)
 		} else if strings.HasPrefix(req.TargetVersion, "2.") {
