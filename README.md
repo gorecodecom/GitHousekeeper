@@ -230,45 +230,61 @@ If you want to modify the frontend (HTML/CSS/JS) without rebuilding the Go appli
 
 ### Spring Boot Migration Analysis
 
-1. Navigate to the **Frameworks** tab.
-2. View available Spring Boot versions and click **Scan** to detect local project versions.
-3. Select a **Target Version** from the dropdown.
-4. Click **Run Analysis** to start the OpenRewrite dry-run.
+1. Navigate to the **Migration Assistant** tab.
+2. Select a migration type (Spring Boot, Java, Jakarta EE, or Quarkus).
+3. Choose a **Target Version** from the dropdown.
+4. Click **Analyze** to start the OpenRewrite dry-run.
 5. Review the categorized summary showing what changes would be made.
 6. Apply changes manually or use OpenRewrite's `run` goal to apply them automatically.
 
 ## Screenshots
 
+### Dashboard
+
+![Dashboard](screenshots/01_Dashboard.png)
+_Repository health overview with analytics and metrics_
+
 ### Project Setup
 
-![Project Setup](screenshots/01_project_setup.png)
+![Project Setup](screenshots/02_Project_Setup.png)
+_Configure projects, branch strategy, and version settings_
 
 ### POM Replacements
 
-![POM Replacements](screenshots/02_pom_replacements.png)
+![POM Replacements](screenshots/03_POM_Replacements.png)
+_Search and replace within pom.xml files_
 
 ### Project Replacements
 
-![Project Replacements](screenshots/03_project_replacements.png)
+![Project Replacements](screenshots/04_Project_Replacements.png)
+_Project-wide search and replace across all files_
 
 ### Report
 
-![Report](screenshots/04_report.png)
+![Report](screenshots/05_Report.png)
+_Live execution log with deprecation warnings_
 
-### Frameworks Selection
+### Framework Info
 
-![Frameworks Selection](screenshots/06_frameworks_selection.png)
-_Framework Selection & Analysis_
+![Framework Info](screenshots/06_Framework_Info.png)
+_Spring Boot versions, Java SE support matrix, and framework references_
 
-### Dashboard & Analytics
+### Migration Assistant
 
-![Dashboard](screenshots/08_dashboard.png)
-_Dashboard & Analytics_
+![Migration Assistant](screenshots/07_Migration_Assistant.png)
+_OpenRewrite-powered migration analysis for Spring Boot, Java, and Jakarta EE_
 
-### About
+## Contributing
 
-![About](screenshots/07_about.png)
-_About Page_
+Contributions are welcome! Please read our [Contributing Guide](CONTRIBUTING.md) for details on:
+
+- Setting up the development environment
+- Code style guidelines
+- Submitting pull requests
+
+## Security
+
+Found a vulnerability? Please read our [Security Policy](SECURITY.md) for responsible disclosure guidelines.
 
 ## Author
 

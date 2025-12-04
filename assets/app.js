@@ -292,17 +292,17 @@
               if (line.startsWith("REPO:")) {
                 div.className = "log-repo";
                 div.textContent = line.substring(5);
-              } else if (line.includes("[FEHLER]") || line.includes("✗")) {
+              } else if (line.includes("[ERROR]") || line.includes("✗")) {
                 div.className = "log-error";
                 div.textContent = line;
               } else if (
-                line.includes("[WARNUNG]") ||
+                line.includes("[WARNING]") ||
                 line.toLowerCase().includes("warning") ||
                 line.toLowerCase().includes("deprecated")
               ) {
                 div.className = "log-warning";
                 div.textContent = line;
-              } else if (line.includes("✓") || line.includes("erfolgreich")) {
+              } else if (line.includes("✓") || line.includes("success")) {
                 div.className = "log-success";
                 div.textContent = line;
               } else {
@@ -673,17 +673,17 @@
             showMoreBtn.className = "btn btn-secondary";
             showMoreBtn.style.width = "100%";
             showMoreBtn.style.marginTop = "10px";
-            showMoreBtn.innerHTML = `📋 Ältere Versionen anzeigen (+${
+            showMoreBtn.innerHTML = `📋 Show older versions (+${
               versions.length - initialShowCount
             })`;
             showMoreBtn.onclick = () => {
               const hidden = document.getElementById("hidden-versions");
               if (hidden.style.display === "none") {
                 hidden.style.display = "block";
-                showMoreBtn.innerHTML = "📋 Ältere Versionen ausblenden";
+                showMoreBtn.innerHTML = "📋 Hide older versions";
               } else {
                 hidden.style.display = "none";
-                showMoreBtn.innerHTML = `📋 Ältere Versionen anzeigen (+${
+                showMoreBtn.innerHTML = `📋 Show older versions (+${
                   versions.length - initialShowCount
                 })`;
               }
@@ -786,20 +786,20 @@
             const hasUpdate = item.updateAvailable;
             const statusColor = hasUpdate ? "#f9e2af" : "#a6e3a1";
             const statusIcon = hasUpdate ? "⚠️" : "✅";
-            const statusText = hasUpdate ? "Update verfügbar" : "Aktuell";
+            const statusText = hasUpdate ? "Update available" : "Up to date";
 
             card.innerHTML = `
               <div style="font-weight: 500; margin-bottom: 8px; color: var(--text-color);">
                 ${item.component}
               </div>
               <div style="display: flex; justify-content: space-between; font-size: 0.9em; margin-bottom: 4px;">
-                <span style="color: #6c7086;">Verwendet:</span>
+                <span style="color: #6c7086;">Using:</span>
                 <span style="color: var(--text-color); font-family: monospace;">${
                   item.currentVersion
                 }</span>
               </div>
               <div style="display: flex; justify-content: space-between; font-size: 0.9em; margin-bottom: 8px;">
-                <span style="color: #6c7086;">Aktuell:</span>
+                <span style="color: #6c7086;">Latest:</span>
                 <span style="color: ${
                   hasUpdate ? "#a6e3a1" : "var(--text-color)"
                 }; font-family: monospace;">${item.latestVersion}</span>
@@ -817,7 +817,7 @@
             container.appendChild(card);
           });
         } catch (e) {
-          container.innerHTML = `<div class="log-error">Fehler: ${e.message}</div>`;
+          container.innerHTML = `<div class="log-error">Error: ${e.message}</div>`;
         }
       }
 

@@ -144,9 +144,9 @@ func handleRun(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if entry.Success {
-			fmt.Fprintf(w, "✓ %s erfolgreich bearbeitet.\n", repoName)
+			fmt.Fprintf(w, "✓ %s processed successfully.\n", repoName)
 		} else {
-			fmt.Fprintf(w, "✗ %s fehlgeschlagen.\n", repoName)
+			fmt.Fprintf(w, "✗ %s failed.\n", repoName)
 		}
 		flusher.Flush()
 	}
@@ -271,7 +271,7 @@ func openBrowser(url string) {
 		err = fmt.Errorf("unsupported platform")
 	}
 	if err != nil {
-		fmt.Printf("Konnte Browser nicht öffnen: %v\n", err)
+		fmt.Printf("Could not open browser: %v\n", err)
 	}
 }
 
@@ -339,7 +339,7 @@ func openFolderDialogLinux() (string, error) {
 		return path, nil
 	}
 
-	return "", fmt.Errorf("kein GUI-Dialog-Tool gefunden (zenity oder kdialog benötigt)")
+	return "", fmt.Errorf("no GUI dialog tool found (zenity or kdialog required)")
 }
 
 func runCommandOutput(name string, args ...string) (string, error) {
