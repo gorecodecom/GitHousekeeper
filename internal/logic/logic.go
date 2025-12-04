@@ -27,8 +27,8 @@ type ReportEntry struct {
 }
 
 type RepoOptions struct {
-	PomReplacements     []Replacement
-	ProjectReplacements []Replacement
+	Replacements        []Replacement
+	ReplacementScope    string // "all", "pom-only", "exclude-pom"
 	TargetParentVersion string
 	VersionBumpStrategy string
 	RunCleanInstall     bool
@@ -163,9 +163,25 @@ func ProcessRepo(path string, opts RepoOptions) ReportEntry {
 	tag := getLatestTag(path)
 	captureLog(fmt.Sprintf("  Current Tag: %s", tag))
 
-	processPomXml(path, tag, opts.PomReplacements, opts.TargetParentVersion, opts.VersionBumpStrategy, captureLog)
+	// Handle replacements based on scope
+	var pomReplacements []Replacement
+	var projectReplacements []Replacement
+	
+	switch opts.ReplacementScope {
+	case "pom-only":
+		pomReplacements = opts.Replacements
+		projectReplacements = nil
+	case "exclude-pom":
+		pomReplacements = nil
+		projectReplacements = opts.Replacements
+	default: // "all" or empty
+		pomReplacements = opts.Replacements
+		projectReplacements = opts.Replacements
+	}
+
+	processPomXml(path, tag, pomReplacements, opts.TargetParentVersion, opts.VersionBumpStrategy, captureLog)
 	processCiSettingsXml(path, captureLog)
-	projectChangesMade := processProjectReplacements(path, opts.ProjectReplacements, opts.ExcludedFolders, captureLog)
+	projectChangesMade := processProjectReplacements(path, projectReplacements, opts.ExcludedFolders, opts.ReplacementScope, captureLog)
 
 	var buildOutput string
 
@@ -557,7 +573,7 @@ func processCiSettingsXml(repoPath string, log func(string)) {
 	}
 }
 
-func processProjectReplacements(root string, replacements []Replacement, excludedFolders []string, log func(string)) bool {
+func processProjectReplacements(root string, replacements []Replacement, excludedFolders []string, scope string, log func(string)) bool {
 	if len(replacements) == 0 {
 		return false
 	}
@@ -578,6 +594,12 @@ func processProjectReplacements(root string, replacements []Replacement, exclude
 			if info.Name() == ".git" || info.Name() == "target" || info.Name() == "node_modules" {
 				return filepath.SkipDir
 			}
+			return nil
+		}
+
+		// Skip pom.xml if scope is "exclude-pom" (pom.xml is handled separately by processPomXml)
+		// Also skip pom.xml for "all" scope since it's already processed by processPomXml
+		if info.Name() == "pom.xml" {
 			return nil
 		}
 

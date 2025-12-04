@@ -26,8 +26,8 @@ type RunRequest struct {
 	VersionBumpStrategy string // "major", "minor", "patch"
 	RunCleanInstall     bool
 	TargetBranch        string // "housekeeping", "custom-name", or ""
-	PomReplacements     []logic.Replacement
-	ProjectReplacements []logic.Replacement
+	Replacements        []logic.Replacement
+	ReplacementScope    string // "all", "pom-only", "exclude-pom"
 }
 
 func main() {
@@ -123,8 +123,8 @@ func handleRun(w http.ResponseWriter, r *http.Request) {
 		}
 
 		opts := logic.RepoOptions{
-			PomReplacements:     req.PomReplacements,
-			ProjectReplacements: req.ProjectReplacements,
+			Replacements:        req.Replacements,
+			ReplacementScope:    req.ReplacementScope,
 			TargetParentVersion: req.ParentVersion,
 			VersionBumpStrategy: req.VersionBumpStrategy,
 			RunCleanInstall:     req.RunCleanInstall,

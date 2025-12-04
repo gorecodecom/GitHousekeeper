@@ -13,10 +13,7 @@
         📊 Dashboard
       </div>
       <div class="nav-item" onclick="showTab('settings')">⚙️ Project Setup</div>
-      <div class="nav-item" onclick="showTab('pom')">📝 POM Replacements</div>
-      <div class="nav-item" onclick="showTab('project')">
-        🔧 Project Replacements
-      </div>
+      <div class="nav-item" onclick="showTab('replacements')">🔄 Replacements</div>
       <div class="nav-item" onclick="showTab('report')">📄 Report</div>
       <div class="nav-item" onclick="showTab('framework-info')">
         📚 Framework Info
@@ -344,16 +341,47 @@
           >
             🗑️ Reset
           </button>
-          <button class="btn btn-primary" onclick="showTab('pom')">
+          <button class="btn btn-primary" onclick="showTab('replacements')">
             Next &rarr;
           </button>
         </div>
       </div>
 
-      <!-- Tab: POM Replacements -->
-      <div id="tab-pom" class="tab-content">
-        <h2>POM.xml Replacements</h2>
-        <div id="pom-list">
+      <!-- Tab: Replacements -->
+      <div id="tab-replacements" class="tab-content">
+        <h2>Text Replacements</h2>
+        
+        <!-- Explanation Card -->
+        <div class="card" style="margin-bottom: 25px; padding: 20px;">
+          <p style="margin: 0; color: #a6adc8; line-height: 1.6;">
+            <strong style="color: var(--text-color);">🔄 Search & Replace across your projects</strong><br>
+            Define text patterns to find and replace. These changes will be applied to all files 
+            in your repositories (excluding .git, target, node_modules, etc.).
+          </p>
+        </div>
+
+        <!-- Scope Selection -->
+        <div class="form-group" style="margin-bottom: 25px;">
+          <label>File Scope</label>
+          <div style="display: flex; gap: 15px; flex-wrap: wrap;">
+            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 10px 15px; background: var(--input-bg); border-radius: 6px; border: 1px solid var(--border-color);">
+              <input type="radio" name="replacementScope" value="all" checked>
+              <span>📁 All Files</span>
+            </label>
+            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 10px 15px; background: var(--input-bg); border-radius: 6px; border: 1px solid var(--border-color);">
+              <input type="radio" name="replacementScope" value="pom-only">
+              <span>📝 Only pom.xml</span>
+            </label>
+            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 10px 15px; background: var(--input-bg); border-radius: 6px; border: 1px solid var(--border-color);">
+              <input type="radio" name="replacementScope" value="exclude-pom">
+              <span>🚫 Exclude pom.xml</span>
+            </label>
+          </div>
+          <div class="hint">Choose which files should be affected by the replacements.</div>
+        </div>
+
+        <!-- Replacements List -->
+        <div id="replacements-list">
           <div class="replacement-row">
             <button
               class="btn-remove"
@@ -364,65 +392,22 @@
             </button>
             <textarea
               placeholder="Search Text"
-              class="pom-search"
+              class="replacement-search"
               oninput="autoResize(this)"
             ></textarea>
             <textarea
               placeholder="Replacement"
-              class="pom-replace"
+              class="replacement-replace"
               oninput="autoResize(this)"
             ></textarea>
           </div>
         </div>
-        <button class="btn btn-add" onclick="addRow('pom-list')">
+        <button class="btn btn-add" onclick="addRow('replacements-list')">
           + Add Row
         </button>
 
         <div style="text-align: right; margin-top: 40px">
           <button class="btn btn-secondary" onclick="showTab('settings')">
-            &larr; Back
-          </button>
-          <button class="btn btn-primary" onclick="showTab('project')">
-            Next &rarr;
-          </button>
-        </div>
-      </div>
-
-      <!-- Tab: Project Replacements -->
-      <div id="tab-project" class="tab-content">
-        <h2>Project-wide Replacements</h2>
-        <div class="hint" style="margin-bottom: 20px">
-          These replacements will be performed in ALL files (except .git,
-          target, etc.).
-        </div>
-
-        <div id="project-list">
-          <div class="replacement-row">
-            <button
-              class="btn-remove"
-              onclick="removeRow(this)"
-              title="Remove Row"
-            >
-              -
-            </button>
-            <textarea
-              placeholder="Search Text"
-              class="proj-search"
-              oninput="autoResize(this)"
-            ></textarea>
-            <textarea
-              placeholder="Replacement"
-              class="proj-replace"
-              oninput="autoResize(this)"
-            ></textarea>
-          </div>
-        </div>
-        <button class="btn btn-add" onclick="addRow('project-list')">
-          + Add Row
-        </button>
-
-        <div style="text-align: right; margin-top: 40px">
-          <button class="btn btn-secondary" onclick="showTab('pom')">
             &larr; Back
           </button>
           <button class="btn btn-primary" onclick="runHousekeeper()">
