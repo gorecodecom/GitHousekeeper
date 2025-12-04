@@ -921,11 +921,11 @@ textarea {
 .repo-card {
   display: flex;
   flex-direction: column;
-  padding: 8px 12px;
-  border-radius: 6px;
-  min-width: 200px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  min-width: 220px;
   flex: 1;
-  max-width: calc(33.333% - 6px);
+  max-width: calc(33.333% - 10px);
   position: relative;
   overflow: hidden;
 }
