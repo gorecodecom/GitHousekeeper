@@ -5,6 +5,20 @@ All notable changes to GitHousekeeper will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.0] - 2025-12-04
+
+### Changed
+
+- **Unified Replacements Tab** - Merged "POM Replacements" and "Project Replacements" into a single "Replacements" tab
+  - New **Scope Selection** with radio buttons: "All Files", "Only pom.xml", or "Exclude pom.xml"
+  - Cleaner UI with explanation card describing fuzzy matching and smart indentation
+  - Simplified workflow - one place for all replacement operations
+
+### Updated
+
+- Screenshots updated to reflect new unified Replacements tab
+- README documentation updated for new replacement workflow
+
 ## [2.0.0] - 2025-12-03
 
 ### Added

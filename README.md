@@ -4,7 +4,7 @@ GitHousekeeper is a powerful tool designed to automate maintenance tasks and mas
 
 ## 📥 Download
 
-**Current Version: 2.0.0**
+**Current Version: 2.1.0**
 
 Download the pre-built executable for your platform:
 
@@ -42,8 +42,9 @@ See [CHANGELOG.md](CHANGELOG.md) for release history and all versions on the [Re
 
 ### 🔄 Mass Search & Replace
 
-- **POM Replacements**: Targeted fuzzy search and replace within `pom.xml` files.
-- **Project-Wide Replacements**: Fuzzy search and replace across all project files (excluding `.git`, `target`, etc.).
+- **Unified Replacements Tab**: Single interface with file scope selection.
+- **Scope Options**: Choose between "All Files", "Only pom.xml", or "Exclude pom.xml".
+- **Fuzzy Matching**: Smart search that handles whitespace and indentation differences.
 - **Smart Indentation**: Automatically detects and preserves the indentation of replaced blocks, ensuring clean XML/code formatting.
 
 ### 🛠️ Maven Integration
@@ -219,8 +220,8 @@ If you want to modify the frontend (HTML/CSS/JS) without rebuilding the Go appli
 
 2. **Define Replacements**:
 
-   - Use the **POM Replacements** tab for specific changes in `pom.xml`.
-   - Use the **Project Replacements** tab for global changes across all files.
+   - Use the **Replacements** tab to define search/replace patterns.
+   - Select the **Scope**: All Files, Only pom.xml, or Exclude pom.xml.
 
 3. **Execute**:
    - Click **Start** to begin.
@@ -249,29 +250,24 @@ _Repository health overview with analytics and metrics_
 ![Project Setup](screenshots/02_Project_Setup.png)
 _Configure projects, branch strategy, and version settings_
 
-### POM Replacements
+### Replacements
 
-![POM Replacements](screenshots/03_POM_Replacements.png)
-_Search and replace within pom.xml files_
-
-### Project Replacements
-
-![Project Replacements](screenshots/04_Project_Replacements.png)
-_Project-wide search and replace across all files_
+![Replacements](screenshots/03_POM_Replacements.png)
+_Unified search and replace with file scope selection (All Files / Only pom.xml / Exclude pom.xml)_
 
 ### Report
 
-![Report](screenshots/05_Report.png)
+![Report](screenshots/04_Report.png)
 _Live execution log with deprecation warnings_
 
 ### Framework Info
 
-![Framework Info](screenshots/06_Framework_Info.png)
+![Framework Info](screenshots/05_Framework_Info.png)
 _Spring Boot versions, Java SE support matrix, and framework references_
 
 ### Migration Assistant
 
-![Migration Assistant](screenshots/07_Migration_Assistant.png)
+![Migration Assistant](screenshots/06_Migration_Assistant.png)
 _OpenRewrite-powered migration analysis for Spring Boot, Java, and Jakarta EE_
 
 ## Contributing
