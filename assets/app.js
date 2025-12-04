@@ -1244,11 +1244,10 @@
                 if (repoStatusItems) {
                   const repoItem = document.createElement("div");
                   repoItem.id = `repo-status-${repoName}`;
-                  repoItem.style.cssText = "display: flex; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--border-color);";
+                  repoItem.style.cssText = "display: flex; align-items: center; padding: 6px 10px; background: rgba(124, 138, 255, 0.1); border-radius: 6px; border: 1px solid rgba(124, 138, 255, 0.3); min-width: 200px; flex: 1; max-width: calc(33.333% - 6px);";
                   repoItem.innerHTML = `
-                    <span style="color: #7c8aff; margin-right: 10px; font-size: 1.1em;">🔄</span>
-                    <span style="flex: 1; color: #e0e0e0;">${repoName}</span>
-                    <span style="color: #9ca0b0; font-size: 0.85em;">Running...</span>
+                    <span style="margin-right: 8px;">🔄</span>
+                    <span style="flex: 1; color: #e0e0e0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${repoName}</span>
                   `;
                   repoStatusItems.appendChild(repoItem);
                 }
@@ -1266,13 +1265,15 @@
                 if (repoItem) {
                   const isSuccess = status === "SUCCESS";
                   const icon = isSuccess ? "✅" : "❌";
+                  const bgColor = isSuccess ? "rgba(76, 175, 80, 0.1)" : "rgba(239, 83, 80, 0.1)";
+                  const borderColor = isSuccess ? "rgba(76, 175, 80, 0.3)" : "rgba(239, 83, 80, 0.3)";
                   const statusColor = isSuccess ? "#4caf50" : "#ef5350";
-                  const statusText = isSuccess ? "Done" : "Failed";
 
+                  repoItem.style.cssText = `display: flex; align-items: center; padding: 6px 10px; background: ${bgColor}; border-radius: 6px; border: 1px solid ${borderColor}; min-width: 200px; flex: 1; max-width: calc(33.333% - 6px);`;
                   repoItem.innerHTML = `
-                    <span style="margin-right: 10px; font-size: 1.1em;">${icon}</span>
-                    <span style="flex: 1; color: #e0e0e0;">${repoName}</span>
-                    <span style="color: ${statusColor}; font-size: 0.85em;">${statusText} (${duration.toFixed(1)}s)</span>
+                    <span style="margin-right: 8px;">${icon}</span>
+                    <span style="flex: 1; color: #e0e0e0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${repoName}</span>
+                    <span style="color: ${statusColor}; font-size: 0.85em; margin-left: 8px;">${duration.toFixed(1)}s</span>
                   `;
                 }
                 continue;
