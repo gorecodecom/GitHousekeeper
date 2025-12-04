@@ -488,7 +488,13 @@ func handleAnalyzeSpring(w http.ResponseWriter, r *http.Request) {
 	// Use globally defined plugin versions
 	pluginVersion := openRewritePluginVersion
 
-	// 3. Run Analysis in Parallel
+	// 3. Send list of repos that will be analyzed (for live status display)
+	for _, repo := range repos {
+		fmt.Fprintf(w, "REPO_QUEUED:%s\n", filepath.Base(repo))
+	}
+	flusher.Flush()
+
+	// 4. Run Analysis in Parallel
 	resultChan := make(chan AnalysisResult, len(repos))
 
 	for i, repo := range repos {
@@ -498,13 +504,20 @@ func handleAnalyzeSpring(w http.ResponseWriter, r *http.Request) {
 		}(i, repo)
 	}
 
-	// 4. Collect and output results in order of completion
+	// 5. Collect and output results in order of completion
 	completed := 0
 	var totalDuration time.Duration
 	for completed < len(repos) {
 		result := <-resultChan
 		completed++
 		totalDuration += result.Duration
+
+		// Send repo completion status
+		statusMarker := "SUCCESS"
+		if !result.Success {
+			statusMarker = "FAILED"
+		}
+		fmt.Fprintf(w, "REPO_DONE:%s:%s:%.1f\n", result.RepoName, statusMarker, result.Duration.Seconds())
 
 		// Calculate average time per project and estimate remaining
 		avgDuration := totalDuration / time.Duration(completed)

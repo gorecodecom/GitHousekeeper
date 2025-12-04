@@ -1229,6 +1229,52 @@
                 progressText.textContent = `Analyzing... 0/${totalProjects}`;
                 progressEta.textContent = "Estimated: calculating...";
                 progressPercent.textContent = "0%";
+                // Clear repo status list
+                const repoStatusItems = document.getElementById("repo-status-items");
+                if (repoStatusItems) {
+                  repoStatusItems.innerHTML = "";
+                }
+                continue;
+              }
+
+              // Handle individual repo queued (show as "waiting")
+              if (line.startsWith("REPO_QUEUED:")) {
+                const repoName = line.split(":")[1];
+                const repoStatusItems = document.getElementById("repo-status-items");
+                if (repoStatusItems) {
+                  const repoItem = document.createElement("div");
+                  repoItem.id = `repo-status-${repoName}`;
+                  repoItem.style.cssText = "display: flex; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--border-color);";
+                  repoItem.innerHTML = `
+                    <span style="color: #7c8aff; margin-right: 10px; font-size: 1.1em;">🔄</span>
+                    <span style="flex: 1; color: #e0e0e0;">${repoName}</span>
+                    <span style="color: #9ca0b0; font-size: 0.85em;">Running...</span>
+                  `;
+                  repoStatusItems.appendChild(repoItem);
+                }
+                continue;
+              }
+
+              // Handle individual repo done
+              if (line.startsWith("REPO_DONE:")) {
+                const parts = line.split(":");
+                const repoName = parts[1];
+                const status = parts[2]; // SUCCESS or FAILED
+                const duration = parseFloat(parts[3]);
+
+                const repoItem = document.getElementById(`repo-status-${repoName}`);
+                if (repoItem) {
+                  const isSuccess = status === "SUCCESS";
+                  const icon = isSuccess ? "✅" : "❌";
+                  const statusColor = isSuccess ? "#4caf50" : "#ef5350";
+                  const statusText = isSuccess ? "Done" : "Failed";
+
+                  repoItem.innerHTML = `
+                    <span style="margin-right: 10px; font-size: 1.1em;">${icon}</span>
+                    <span style="flex: 1; color: #e0e0e0;">${repoName}</span>
+                    <span style="color: ${statusColor}; font-size: 0.85em;">${statusText} (${duration.toFixed(1)}s)</span>
+                  `;
+                }
                 continue;
               }
 
