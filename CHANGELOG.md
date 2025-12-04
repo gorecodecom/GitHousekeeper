@@ -5,6 +5,30 @@ All notable changes to GitHousekeeper will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.0] - 2025-12-04
+
+### Added
+
+- **🔔 Error Handling & User Feedback**
+  - Toast notification system for success, error, and warning messages
+  - Connection status banner with offline detection and server health monitoring
+  - Server health endpoint (`/api/health`) for connectivity checks
+  - Warning dialog when closing browser tab with running process
+  - Automatic reconnection detection with user notification
+
+- **♿ Accessibility (a11y)**
+  - Full keyboard navigation for sidebar menu (Arrow keys, Enter, Space)
+  - Skip-to-content link for screen reader users
+  - ARIA roles and labels throughout the UI (menubar, menuitem, navigation)
+  - Focus-visible styles for all interactive elements
+  - Improved color contrast for WCAG AA compliance
+  - Semantic HTML with proper landmark regions
+
+### Technical
+
+- Added 20 unit tests covering replacement scope routing and health endpoint
+- Test coverage for edge cases in unified replacements feature
+
 ## [2.1.0] - 2025-12-04
 
 ### Changed

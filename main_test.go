@@ -10,7 +10,7 @@ import (
 )
 
 // ===========================================
-// Tests for Health Endpoint (v2.1.0)
+// Tests for Health Endpoint (v2.2.0)
 // ===========================================
 
 func TestHandleHealth_ReturnsOK(t *testing.T) {
@@ -82,7 +82,7 @@ func TestHandleHealth_SupportsPOST(t *testing.T) {
 }
 
 // ===========================================
-// Tests for RunRequest Struct (v2.1.0)
+// Tests for RunRequest Struct (v2.2.0)
 // ===========================================
 
 func TestRunRequest_ReplacementScope(t *testing.T) {

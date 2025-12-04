@@ -4,7 +4,7 @@ GitHousekeeper is a powerful tool designed to automate maintenance tasks and mas
 
 ## 📥 Download
 
-**Current Version: 2.1.0**
+**Current Version: 2.2.0**
 
 Download the pre-built executable for your platform:
 
@@ -79,6 +79,19 @@ See [CHANGELOG.md](CHANGELOG.md) for release history and all versions on the [Re
 
 - Detailed execution log with color-coded output.
 - **PDF Export**: Export the general log or the deprecation report as a PDF file.
+
+### 🔔 Error Handling & Notifications
+
+- **Toast Notifications**: Real-time feedback for success, errors, and warnings.
+- **Connection Monitoring**: Automatic detection of offline status and server health.
+- **Process Protection**: Warning dialog when closing browser with running operations.
+
+### ♿ Accessibility
+
+- **Keyboard Navigation**: Full keyboard support for sidebar and all interactive elements.
+- **Screen Reader Support**: ARIA labels, roles, and semantic HTML throughout.
+- **Focus Indicators**: Clear visual focus states for keyboard users.
+- **WCAG AA Compliance**: Improved color contrast ratios.
 
 ### 🔀 Git Automation
 
