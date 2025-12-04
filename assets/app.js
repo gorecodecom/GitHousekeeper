@@ -63,12 +63,8 @@
         div.className = "replacement-row";
         div.innerHTML = `
             <button class="btn-remove" onclick="removeRow(this)" title="Remove Row">-</button>
-            <textarea placeholder="Search Text" class="${
-              containerId === "pom-list" ? "pom-search" : "proj-search"
-            }" oninput="autoResize(this)"></textarea>
-            <textarea placeholder="Replacement" class="${
-              containerId === "pom-list" ? "pom-replace" : "proj-replace"
-            }" oninput="autoResize(this)"></textarea>
+            <textarea placeholder="Search Text" class="replacement-search" oninput="autoResize(this)"></textarea>
+            <textarea placeholder="Replacement" class="replacement-replace" oninput="autoResize(this)"></textarea>
         `;
         container.appendChild(div);
       }
@@ -118,25 +114,21 @@
         document.getElementById("folder-list-container").innerHTML =
           '<div class="hint">Select a root path to see folders.</div>';
 
-        // Reset POM replacements to single empty row
-        const pomList = document.getElementById("pom-list");
-        pomList.innerHTML = `
-          <div class="replacement-row">
-            <button class="btn-remove" onclick="removeRow(this)" title="Remove Row">-</button>
-            <textarea placeholder="Search Text" class="pom-search" oninput="autoResize(this)"></textarea>
-            <textarea placeholder="Replacement" class="pom-replace" oninput="autoResize(this)"></textarea>
-          </div>
-        `;
+        // Reset Replacements to single empty row
+        const replacementsList = document.getElementById("replacements-list");
+        if (replacementsList) {
+          replacementsList.innerHTML = `
+            <div class="replacement-row">
+              <button class="btn-remove" onclick="removeRow(this)" title="Remove Row">-</button>
+              <textarea placeholder="Search Text" class="replacement-search" oninput="autoResize(this)"></textarea>
+              <textarea placeholder="Replacement" class="replacement-replace" oninput="autoResize(this)"></textarea>
+            </div>
+          `;
+        }
 
-        // Reset Project replacements to single empty row
-        const projectList = document.getElementById("project-list");
-        projectList.innerHTML = `
-          <div class="replacement-row">
-            <button class="btn-remove" onclick="removeRow(this)" title="Remove Row">-</button>
-            <textarea placeholder="Search Text" class="proj-search" oninput="autoResize(this)"></textarea>
-            <textarea placeholder="Replacement" class="proj-replace" oninput="autoResize(this)"></textarea>
-          </div>
-        `;
+        // Reset replacement scope to default
+        const scopeAll = document.querySelector('input[name="replacementScope"][value="all"]');
+        if (scopeAll) scopeAll.checked = true;
 
         // Clear report logs
         document.getElementById("report-log").innerHTML =
@@ -192,8 +184,8 @@
             .value,
           runCleanInstall: document.getElementById("runCleanInstall").checked,
           targetBranch: targetBranch,
-          pomReplacements: [],
-          projectReplacements: [],
+          replacements: [],
+          replacementScope: document.querySelector('input[name="replacementScope"]:checked')?.value || "all",
         };
 
         if (!data.rootPath) {
@@ -216,31 +208,18 @@
               'input[name="branchStrategy"]:checked'
             ).value,
             customBranchName: document.getElementById("customBranchName").value,
+            replacementScope: data.replacementScope,
           })
         );
 
-        // Collect POM
+        // Collect Replacements
         document
-          .querySelectorAll("#pom-list .replacement-row")
+          .querySelectorAll("#replacements-list .replacement-row")
           .forEach((row) => {
-            const search = row.querySelector(".pom-search").value;
-            const replace = row.querySelector(".pom-replace").value;
+            const search = row.querySelector(".replacement-search").value;
+            const replace = row.querySelector(".replacement-replace").value;
             if (search) {
-              data.pomReplacements.push({ Search: search, Replace: replace });
-            }
-          });
-
-        // Collect Project
-        document
-          .querySelectorAll("#project-list .replacement-row")
-          .forEach((row) => {
-            const search = row.querySelector(".proj-search").value;
-            const replace = row.querySelector(".proj-replace").value;
-            if (search) {
-              data.projectReplacements.push({
-                Search: search,
-                Replace: replace,
-              });
+              data.replacements.push({ Search: search, Replace: replace });
             }
           });
 
