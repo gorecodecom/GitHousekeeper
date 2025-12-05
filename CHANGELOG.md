@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **🐹 Go Project Support (Dashboard & Security Scanner)**
+
   - Automatic detection of Go projects via `go.mod`
   - Go framework detection: Gin, Fiber, Echo, Chi, Gorilla Mux, gRPC
   - Go version display from `go.mod`
@@ -18,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Framework badges in Dashboard and Security Scanner
 
 - **🐍 Python Project Support (Dashboard & Security Scanner)**
+
   - Automatic detection of Python projects via `requirements.txt`, `setup.py`, `pyproject.toml`, `Pipfile`
   - Python framework detection: Django, Flask, FastAPI, Streamlit, PyTorch, TensorFlow, Data Science
   - Python version display from `pyproject.toml` or `setup.py`
@@ -26,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Framework badges in Dashboard and Security Scanner
 
 - **🐘 PHP Project Support (Dashboard & Security Scanner)**
+
   - Automatic detection of PHP projects via `composer.json`
   - PHP framework detection: Laravel, Symfony, CodeIgniter, CakePHP, Yii, Slim
   - PHP version display from `composer.json`
@@ -34,6 +37,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Framework badges in Dashboard and Security Scanner
 
 - **🎯 Dashboard Framework Detection**
+
   - Automatic detection of JavaScript/TypeScript frameworks
   - Support for: React, Angular, Vue.js, Next.js, Nuxt.js, Svelte, Express, Fastify, NestJS, Gatsby, Remix, Koa, Electron
   - Framework icons and badges in the repository table
@@ -41,6 +45,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Spring Boot projects now show version alongside framework badge
 
 - **📗 Node.js Version Display**
+
   - Shows Node.js version requirements from:
     - `.nvmrc` file
     - `.node-version` file (nodenv, volta)
@@ -49,6 +54,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Icons: ☕ for Java, 📗 for Node.js
 
 - **📦 Outdated Dependencies Check**
+
   - Real-time check for outdated npm/yarn/pnpm dependencies
   - New "Outdated Dependencies" metric card on dashboard
   - Per-repository outdated package count in table
@@ -56,6 +62,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Support for npm, Yarn Classic, and pnpm outdated commands
 
 - **📦 Full-Stack Security Scanner - Node.js Support**
+
   - Extended CVE vulnerability scanning to support Node.js/Frontend projects
   - npm audit integration for projects with `package-lock.json`
   - yarn audit integration for projects with `yarn.lock`
@@ -63,6 +70,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Automatic parsing of all package manager audit formats
 
 - **🔀 Branch Selection for Security Scans**
+
   - New "Target Branch" dropdown in the Security Scanner
   - Scan all repositories on a specific branch (e.g., `main`, `develop`, `release/1.0`)
   - Automatic branch switching during scan with safe stash/restore of uncommitted changes
@@ -71,6 +79,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Default branches (main/master) shown first with ⭐ icon
 
 - **🧶 Yarn Berry (v2/v3/v4) Support**
+
   - Full support for Yarn Modern (Berry) including versions 2.x, 3.x, and 4.x
   - Automatic detection of Yarn version via `packageManager` field in `package.json`
   - Corepack integration for projects using managed Yarn versions
@@ -83,6 +92,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Automatic fallback: detects global vs project-local Yarn version
 
 - **🔄 Auto-detect Project Type**
+
   - New "Auto-detect" scanner mode (recommended default)
   - Automatically detects project type based on lock files:
     - `pom.xml` → Maven (OWASP Dependency-Check)
@@ -95,11 +105,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Mixed repositories: scans using detected package manager
 
 - **🎨 UI Enhancements**
+
   - Project type badges in scan results (☕ Maven, 📦 npm, 🧶 yarn, ⚡ pnpm, 🐹 Go, 🐍 Python, 🐘 PHP, 🐳 Trivy)
   - Scanner selection dropdown with clear icons and descriptions
   - Package manager availability check in UI for all scanner types
   - Updated scanner descriptions for all options
   - Framework badges for Go, Python, and PHP frameworks in Dashboard
+
+- **📚 Extended Framework Info Tab**
+  - **Node.js Section**: LTS versions (22, 20, 18, 16) with EOL dates
+  - **JavaScript/TypeScript Frameworks**: Next.js, React, Vue.js, Angular, Nuxt.js, Svelte
+  - **Node.js Backend Frameworks**: Express, Fastify, NestJS, Koa, Electron
+  - **Go Section**: Versions (1.23, 1.22, 1.21, 1.20) with key features
+  - **Go Web Frameworks**: Gin, Fiber, Echo, Chi, Gorilla Mux, gRPC
+  - **Python Section**: Versions (3.13 - 3.9) with EOL dates
+  - **Python Frameworks**: Django, Flask, FastAPI, Streamlit, PyTorch, TensorFlow
+  - **PHP Section**: Versions (8.4 - 8.0) with security support dates
+  - **PHP Frameworks**: Laravel, Symfony, CodeIgniter, CakePHP, Yii, Slim
+  - **Package Managers & Tools**: Overview for Java, Node.js, Go, Python, PHP
+  - **Migration Guides**: Links to official upgrade guides for all supported languages
 
 ### Changed
 
@@ -125,6 +149,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **🛡️ New Security Tab with CVE Vulnerability Scanner**
+
   - Scan all Maven projects for known CVE vulnerabilities
   - Support for OWASP Dependency-Check Maven Plugin (12.1.0)
   - Optional Trivy scanner integration (auto-detect available scanners)
@@ -138,6 +163,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Re-check Button**: Verify Trivy availability after installation without page reload
 
 - **🔧 New Maintenance Tab**
+
   - Branch overview showing all local branches per repository
   - Tracking status with ahead/behind counts for each branch
   - One-click "Sync All Tracked Branches" to fetch and pull all repos
@@ -145,6 +171,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Accessible with ARIA labels, roles, and keyboard navigation
 
 - **🔀 Auto-detect Default Branch**
+
   - Automatically detects `main` or `master` as default branch per repository
   - Falls back gracefully: symbolic-ref → local main → remote main → master
   - No more hardcoded "master" - works with modern Git workflows
@@ -187,6 +214,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **🔔 Error Handling & User Feedback**
+
   - Toast notification system for success, error, and warning messages
   - Connection status banner with offline detection and server health monitoring
   - Server health endpoint (`/api/health`) for connectivity checks

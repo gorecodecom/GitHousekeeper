@@ -89,6 +89,21 @@ See [CHANGELOG.md](CHANGELOG.md) for release history and all versions on the [Re
 - **Project Scanning**: Scans local repositories to identify their current Spring Boot parent version.
 - **Expandable Version List**: Shows the 5 newest version branches by default, with option to show older versions.
 
+### 📚 Framework Info Tab (NEW in v2.4.0)
+
+Comprehensive reference for all supported languages and frameworks:
+
+- **Version Information**: Current LTS versions with EOL dates for Java, Node.js, Go, Python, PHP
+- **Framework Overview**: Popular frameworks with links to documentation
+  - **Java/JVM**: Spring Boot, Jakarta EE, Quarkus
+  - **JavaScript/TypeScript**: React, Vue, Angular, Next.js, Nuxt.js, Svelte
+  - **Node.js Backend**: Express, Fastify, NestJS, Koa, Electron
+  - **Go**: Gin, Fiber, Echo, Chi, Gorilla Mux, gRPC
+  - **Python**: Django, Flask, FastAPI, Streamlit, PyTorch, TensorFlow
+  - **PHP**: Laravel, Symfony, CodeIgniter, CakePHP, Yii, Slim
+- **Package Managers**: Overview of Maven, Gradle, npm, Yarn, pnpm, Go Modules, pip, Poetry, Composer
+- **Migration Guides**: Direct links to official upgrade documentation for all platforms
+
 ### 🚀 Spring Boot Migration Analysis (OpenRewrite)
 
 - **Parallel Processing**: Analyzes multiple projects simultaneously using Go routines for maximum speed.
@@ -471,20 +486,21 @@ Scan repositories for CVE vulnerabilities in dependencies. Supports **Maven**, *
 
 **Supported Project Types:**
 
-| Project Type | Lock File | Scanner |
-|-------------|-----------|---------|
-| Maven | `pom.xml` | OWASP / Trivy |
-| npm | `package-lock.json` | npm audit / Trivy |
-| Yarn Classic (v1) | `yarn.lock` | yarn audit / Trivy |
-| Yarn Berry (v2/v3/v4) | `yarn.lock` + `packageManager` | yarn npm audit / Trivy |
-| pnpm | `pnpm-lock.yaml` | pnpm audit / Trivy |
-| Go | `go.mod` | govulncheck |
-| Python | `requirements.txt` / `pyproject.toml` | pip-audit |
-| PHP | `composer.json` | composer audit |
+| Project Type          | Lock File                             | Scanner                |
+| --------------------- | ------------------------------------- | ---------------------- |
+| Maven                 | `pom.xml`                             | OWASP / Trivy          |
+| npm                   | `package-lock.json`                   | npm audit / Trivy      |
+| Yarn Classic (v1)     | `yarn.lock`                           | yarn audit / Trivy     |
+| Yarn Berry (v2/v3/v4) | `yarn.lock` + `packageManager`        | yarn npm audit / Trivy |
+| pnpm                  | `pnpm-lock.yaml`                      | pnpm audit / Trivy     |
+| Go                    | `go.mod`                              | govulncheck            |
+| Python                | `requirements.txt` / `pyproject.toml` | pip-audit              |
+| PHP                   | `composer.json`                       | composer audit         |
 
 **Yarn Version Detection:**
 
 GitHousekeeper automatically detects your Yarn version:
+
 - If `package.json` contains `"packageManager": "yarn@4.x.x"`, uses Corepack + Yarn Berry commands
 - If no `packageManager` field, checks global `yarn --version`
 - Yarn Classic (v1.x): Uses `yarn audit --json`
@@ -527,6 +543,7 @@ GitHousekeeper automatically detects your Yarn version:
 **Known CVEs detected:**
 
 The scanner detects critical vulnerabilities like:
+
 - **CVE-2025-66478 / CVE-2025-55182**: Critical RCE in Next.js React Server Components (affects Next.js 15.x, 16.x)
 - And thousands more from npm advisory database, GHSA, and NVD.
 
@@ -581,30 +598,43 @@ For a typical maintenance workflow:
 ![Dashboard](screenshots/01_Dashboard.png)
 _Repository health overview with analytics and metrics_
 
+### Maintenance
+
+![Maintenance](screenshots/02_Maintenance.png)
+_Branch overview and one-click sync across all repositories_
+
 ### Project Setup
 
-![Project Setup](screenshots/02_Project_Setup.png)
+![Project Setup](screenshots/03_Project_Setup.png)
 _Configure projects, branch strategy, and version settings_
 
 ### Replacements
 
-![Replacements](screenshots/03_POM_Replacements.png)
+![Replacements](screenshots/04_Replacements.png)
 _Unified search and replace with file scope selection (All Files / Only pom.xml / Exclude pom.xml)_
 
 ### Report
 
-![Report](screenshots/04_Report.png)
+![Report](screenshots/05_Report.png)
 _Live execution log with deprecation warnings_
 
 ### Framework Info
 
-![Framework Info](screenshots/05_Framework_Info.png)
-_Spring Boot versions, Java SE support matrix, and framework references_
+![Framework Info 1](screenshots/06_1_Framework_Info.png)
+_OpenRewrite status, Spring Boot versions, Jakarta EE, Quarkus, and Java SE support_
+
+![Framework Info 2](screenshots/06_2_Framework_Info.png)
+_Node.js, Go, Python, PHP versions with frameworks and migration guides_
 
 ### Migration Assistant
 
-![Migration Assistant](screenshots/06_Migration_Assistant.png)
+![Migration Assistant](screenshots/07_Migration_Assistant.png)
 _OpenRewrite-powered migration analysis for Spring Boot, Java, and Jakarta EE_
+
+### Security Scanner
+
+![Security Scanner](screenshots/08_Security_Scanner.png)
+_CVE vulnerability scanning for Maven, Node.js, Go, Python, and PHP projects_
 
 ## Contributing
 

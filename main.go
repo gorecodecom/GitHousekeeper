@@ -887,7 +887,11 @@ func handleDashboardStats(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Use mutex to protect concurrent writes to ResponseWriter
+	var mu sync.Mutex
 	logic.StreamDashboardStats(req.RootPath, req.Excluded, func(result interface{}) {
+		mu.Lock()
+		defer mu.Unlock()
 		json.NewEncoder(w).Encode(result)
 		flusher.Flush()
 	})

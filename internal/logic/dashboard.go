@@ -2,8 +2,10 @@ package logic
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"encoding/xml"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -11,6 +13,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"time"
 )
 
 // DashboardStats holds the aggregated data for the dashboard
@@ -62,6 +65,7 @@ func StreamDashboardStats(rootPath string, excluded []string, onResult func(inte
 	}
 
 	var wg sync.WaitGroup
+	var mu sync.Mutex // Mutex to protect concurrent writes
 	// Limit concurrency to avoid overwhelming the system/Maven
 	sem := make(chan struct{}, 5)
 
@@ -74,12 +78,14 @@ func StreamDashboardStats(rootPath string, excluded []string, onResult func(inte
 
 			health, deps := analyzeRepoHealth(path)
 
-			// Send Repo Result
+			// Send Repo Result - protected by mutex
+			mu.Lock()
 			onResult(map[string]interface{}{
 				"type": "repo",
 				"data": health,
 				"deps": deps,
 			})
+			mu.Unlock()
 		}(repo)
 	}
 
@@ -330,17 +336,24 @@ func ParsePOM(path string) (*MinimalProjectSimpleFixed, error) {
 
 func getEffectivePomInfo(dir string) (springVer, javaVer string, err error) {
 	// Use help:effective-pom to see the resolved versions
+	// Add timeout context to prevent hanging
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
 	var cmd *exec.Cmd
 	if strings.Contains(strings.ToLower(os.Getenv("OS")), "windows") {
-		cmd = exec.Command("cmd", "/C", "mvn", "help:effective-pom", "-N")
+		cmd = exec.CommandContext(ctx, "cmd", "/C", "mvn", "help:effective-pom", "-N")
 	} else {
-		cmd = exec.Command("mvn", "help:effective-pom", "-N")
+		cmd = exec.CommandContext(ctx, "mvn", "help:effective-pom", "-N")
 	}
 	cmd.Dir = dir
 
 	// Capture output
 	outputBytes, err := cmd.CombinedOutput()
 	if err != nil {
+		if ctx.Err() == context.DeadlineExceeded {
+			return "", "", fmt.Errorf("timeout after 30 seconds")
+		}
 		return "", "", err
 	}
 	output := string(outputBytes)
