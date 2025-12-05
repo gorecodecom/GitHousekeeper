@@ -454,3 +454,366 @@ func TestBranchExists_NonExistentRepo(t *testing.T) {
 		t.Error("Expected false for non-existent repo")
 	}
 }
+
+// ===========================================
+// Tests for Go Project Detection (v2.4.0)
+// ===========================================
+
+func TestDetectGoFramework(t *testing.T) {
+	// Create a temporary directory
+	tempDir, err := os.MkdirTemp("", "test-go-framework-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	tests := []struct {
+		name           string
+		goModContent   string
+		expectedResult string
+	}{
+		{
+			name:           "Gin Framework",
+			goModContent:   "module myapp\n\ngo 1.21\n\nrequire github.com/gin-gonic/gin v1.9.0\n",
+			expectedResult: "Gin",
+		},
+		{
+			name:           "Fiber Framework",
+			goModContent:   "module myapp\n\ngo 1.21\n\nrequire github.com/gofiber/fiber/v2 v2.50.0\n",
+			expectedResult: "Fiber",
+		},
+		{
+			name:           "Echo Framework",
+			goModContent:   "module myapp\n\ngo 1.21\n\nrequire github.com/labstack/echo/v4 v4.11.0\n",
+			expectedResult: "Echo",
+		},
+		{
+			name:           "Chi Router",
+			goModContent:   "module myapp\n\ngo 1.21\n\nrequire github.com/go-chi/chi/v5 v5.0.10\n",
+			expectedResult: "Chi",
+		},
+		{
+			name:           "Gorilla Mux",
+			goModContent:   "module myapp\n\ngo 1.21\n\nrequire github.com/gorilla/mux v1.8.0\n",
+			expectedResult: "Gorilla Mux",
+		},
+		{
+			name:           "gRPC",
+			goModContent:   "module myapp\n\ngo 1.21\n\nrequire google.golang.org/grpc v1.59.0\n",
+			expectedResult: "gRPC",
+		},
+		{
+			name:           "Plain Go (no framework)",
+			goModContent:   "module myapp\n\ngo 1.21\n",
+			expectedResult: "Go",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Write go.mod
+			err := os.WriteFile(filepath.Join(tempDir, "go.mod"), []byte(tt.goModContent), 0644)
+			if err != nil {
+				t.Fatalf("Failed to write go.mod: %v", err)
+			}
+
+			result := detectGoFramework(tempDir)
+			if result != tt.expectedResult {
+				t.Errorf("Expected '%s', got '%s'", tt.expectedResult, result)
+			}
+		})
+	}
+}
+
+func TestGetGoVersion(t *testing.T) {
+	// Create a temporary directory
+	tempDir, err := os.MkdirTemp("", "test-go-version-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	tests := []struct {
+		name           string
+		goModContent   string
+		expectedResult string
+	}{
+		{
+			name:           "Go 1.21",
+			goModContent:   "module myapp\n\ngo 1.21\n",
+			expectedResult: "1.21",
+		},
+		{
+			name:           "Go 1.22.0",
+			goModContent:   "module myapp\n\ngo 1.22.0\n",
+			expectedResult: "1.22.0",
+		},
+		{
+			name:           "No go version",
+			goModContent:   "module myapp\n",
+			expectedResult: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := os.WriteFile(filepath.Join(tempDir, "go.mod"), []byte(tt.goModContent), 0644)
+			if err != nil {
+				t.Fatalf("Failed to write go.mod: %v", err)
+			}
+
+			result := getGoVersion(tempDir)
+			if result != tt.expectedResult {
+				t.Errorf("Expected '%s', got '%s'", tt.expectedResult, result)
+			}
+		})
+	}
+}
+
+// ===========================================
+// Tests for Python Project Detection (v2.4.0)
+// ===========================================
+
+func TestIsPythonProject(t *testing.T) {
+	// Create a temporary directory
+	tempDir, err := os.MkdirTemp("", "test-python-project-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Initially should not be a Python project
+	if isPythonProject(tempDir) {
+		t.Error("Empty directory should not be detected as Python project")
+	}
+
+	// Create requirements.txt
+	os.WriteFile(filepath.Join(tempDir, "requirements.txt"), []byte("flask==2.0.0\n"), 0644)
+	if !isPythonProject(tempDir) {
+		t.Error("Directory with requirements.txt should be detected as Python project")
+	}
+
+	// Remove and test with pyproject.toml
+	os.Remove(filepath.Join(tempDir, "requirements.txt"))
+	os.WriteFile(filepath.Join(tempDir, "pyproject.toml"), []byte("[project]\nname = \"myapp\"\n"), 0644)
+	if !isPythonProject(tempDir) {
+		t.Error("Directory with pyproject.toml should be detected as Python project")
+	}
+
+	// Remove and test with .py file
+	os.Remove(filepath.Join(tempDir, "pyproject.toml"))
+	os.WriteFile(filepath.Join(tempDir, "main.py"), []byte("print('hello')\n"), 0644)
+	if !isPythonProject(tempDir) {
+		t.Error("Directory with .py files should be detected as Python project")
+	}
+}
+
+func TestDetectPythonFramework(t *testing.T) {
+	// Create a temporary directory
+	tempDir, err := os.MkdirTemp("", "test-python-framework-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	tests := []struct {
+		name           string
+		requirements   string
+		expectedResult string
+	}{
+		{
+			name:           "Django",
+			requirements:   "django==4.2.0\npsycopg2==2.9.0\n",
+			expectedResult: "Django",
+		},
+		{
+			name:           "Flask",
+			requirements:   "flask==2.3.0\nflask-sqlalchemy==3.0.0\n",
+			expectedResult: "Flask",
+		},
+		{
+			name:           "FastAPI",
+			requirements:   "fastapi==0.103.0\nuvicorn==0.23.0\n",
+			expectedResult: "FastAPI",
+		},
+		{
+			name:           "Streamlit",
+			requirements:   "streamlit==1.28.0\npandas==2.0.0\n",
+			expectedResult: "Streamlit",
+		},
+		{
+			name:           "PyTorch",
+			requirements:   "torch==2.0.0\ntorchvision==0.15.0\n",
+			expectedResult: "PyTorch",
+		},
+		{
+			name:           "TensorFlow",
+			requirements:   "tensorflow==2.14.0\nkeras==2.14.0\n",
+			expectedResult: "TensorFlow",
+		},
+		{
+			name:           "Data Science (pandas)",
+			requirements:   "pandas==2.0.0\nmatplotlib==3.7.0\n",
+			expectedResult: "Data Science",
+		},
+		{
+			name:           "Plain Python",
+			requirements:   "requests==2.31.0\n",
+			expectedResult: "Python",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := os.WriteFile(filepath.Join(tempDir, "requirements.txt"), []byte(tt.requirements), 0644)
+			if err != nil {
+				t.Fatalf("Failed to write requirements.txt: %v", err)
+			}
+
+			result := detectPythonFramework(tempDir)
+			if result != tt.expectedResult {
+				t.Errorf("Expected '%s', got '%s'", tt.expectedResult, result)
+			}
+		})
+	}
+}
+
+// ===========================================
+// Tests for PHP Project Detection (v2.4.0)
+// ===========================================
+
+func TestIsPhpProject(t *testing.T) {
+	// Create a temporary directory
+	tempDir, err := os.MkdirTemp("", "test-php-project-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Initially should not be a PHP project
+	if isPhpProject(tempDir) {
+		t.Error("Empty directory should not be detected as PHP project")
+	}
+
+	// Create composer.json
+	composerJSON := `{"name": "vendor/myapp", "require": {"php": "^8.1"}}`
+	os.WriteFile(filepath.Join(tempDir, "composer.json"), []byte(composerJSON), 0644)
+	if !isPhpProject(tempDir) {
+		t.Error("Directory with composer.json should be detected as PHP project")
+	}
+}
+
+func TestDetectPhpFramework(t *testing.T) {
+	// Create a temporary directory
+	tempDir, err := os.MkdirTemp("", "test-php-framework-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	tests := []struct {
+		name           string
+		composerJSON   string
+		expectedResult string
+	}{
+		{
+			name:           "Laravel",
+			composerJSON:   `{"require": {"laravel/framework": "^10.0"}}`,
+			expectedResult: "Laravel",
+		},
+		{
+			name:           "Symfony",
+			composerJSON:   `{"require": {"symfony/framework-bundle": "^6.3"}}`,
+			expectedResult: "Symfony",
+		},
+		{
+			name:           "Yii2",
+			composerJSON:   `{"require": {"yiisoft/yii2": "^2.0"}}`,
+			expectedResult: "Yii2",
+		},
+		{
+			name:           "CakePHP",
+			composerJSON:   `{"require": {"cakephp/cakephp": "^4.0"}}`,
+			expectedResult: "CakePHP",
+		},
+		{
+			name:           "CodeIgniter",
+			composerJSON:   `{"require": {"codeigniter4/framework": "^4.0"}}`,
+			expectedResult: "CodeIgniter",
+		},
+		{
+			name:           "Slim",
+			composerJSON:   `{"require": {"slim/slim": "^4.0"}}`,
+			expectedResult: "Slim",
+		},
+		{
+			name:           "Plain PHP",
+			composerJSON:   `{"require": {"php": "^8.1", "guzzlehttp/guzzle": "^7.0"}}`,
+			expectedResult: "PHP",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := os.WriteFile(filepath.Join(tempDir, "composer.json"), []byte(tt.composerJSON), 0644)
+			if err != nil {
+				t.Fatalf("Failed to write composer.json: %v", err)
+			}
+
+			result := detectPhpFramework(tempDir)
+			if result != tt.expectedResult {
+				t.Errorf("Expected '%s', got '%s'", tt.expectedResult, result)
+			}
+		})
+	}
+}
+
+func TestGetPhpVersion(t *testing.T) {
+	// Create a temporary directory
+	tempDir, err := os.MkdirTemp("", "test-php-version-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	tests := []struct {
+		name           string
+		composerJSON   string
+		expectedResult string
+	}{
+		{
+			name:           "PHP version from require",
+			composerJSON:   `{"require": {"php": "^8.1"}}`,
+			expectedResult: "8.1",
+		},
+		{
+			name:           "PHP version with >=",
+			composerJSON:   `{"require": {"php": ">=7.4"}}`,
+			expectedResult: "7.4",
+		},
+		{
+			name:           "PHP version from platform config",
+			composerJSON:   `{"require": {"php": "^8.0"}, "config": {"platform": {"php": "8.2.0"}}}`,
+			expectedResult: "8.2.0",
+		},
+		{
+			name:           "No PHP version",
+			composerJSON:   `{"require": {"guzzlehttp/guzzle": "^7.0"}}`,
+			expectedResult: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := os.WriteFile(filepath.Join(tempDir, "composer.json"), []byte(tt.composerJSON), 0644)
+			if err != nil {
+				t.Fatalf("Failed to write composer.json: %v", err)
+			}
+
+			result := getPhpVersion(tempDir)
+			if result != tt.expectedResult {
+				t.Errorf("Expected '%s', got '%s'", tt.expectedResult, result)
+			}
+		})
+	}
+}

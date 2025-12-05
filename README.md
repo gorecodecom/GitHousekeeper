@@ -2,9 +2,11 @@
 
 GitHousekeeper is a powerful tool designed to automate maintenance tasks and mass-refactoring across multiple Git repositories. It provides a user-friendly Web GUI to orchestrate updates, manage versions, and perform project-wide replacements efficiently.
 
+Supports **Maven**, **Node.js** (npm/yarn/pnpm), **Go**, **Python**, and **PHP** projects.
+
 ## 📥 Download
 
-**Current Version: 2.3.0**
+**Current Version: 2.4.0**
 
 Download the pre-built executable for your platform:
 
@@ -27,12 +29,22 @@ See [CHANGELOG.md](CHANGELOG.md) for release history and all versions on the [Re
 - **Selective Processing**: Include/exclude specific projects via checkbox selection.
 - **Batch Operations**: Apply changes across dozens of repositories simultaneously.
 
-### 🛡️ Security Vulnerability Scanner (NEW in v2.3.0)
+### 🛡️ Security Vulnerability Scanner (Enhanced in v2.4.0)
 
-- **CVE Detection**: Scan all Maven projects for known security vulnerabilities.
-- **Dual Scanner Support**: Choose between OWASP Dependency-Check or Trivy.
+- **Full-Stack Support**: Scan **Maven**, **Node.js**, **Go**, **Python**, and **PHP** projects.
+- **Branch Selection**: Choose which branch to scan (main, develop, feature branches, etc.).
+- **Auto-detect Mode**: Automatically detects project type and uses appropriate scanner.
+- **Multi-Scanner Support**:
+  - OWASP Dependency-Check (Maven)
+  - Trivy (Maven + Node.js)
+  - npm/yarn/pnpm audit (Node.js)
+  - govulncheck (Go)
+  - pip-audit (Python)
+  - composer audit (PHP)
+- **Yarn Berry Support**: Full support for Yarn Modern (v2/v3/v4) with corepack integration.
 - **Parallel Scanning**: Analyzes up to 4 repositories simultaneously.
 - **Severity Grouping**: CVEs organized by Critical, High, Medium, Low.
+- **Project Type Badges**: Visual indicators showing ☕ Maven, 📦 npm, 🧶 yarn, ⚡ pnpm, 🐹 Go, 🐍 Python, 🐘 PHP.
 - **NVD Links**: Direct links to National Vulnerability Database for details.
 - **Per-Repo PDF Export**: Export security reports for individual repositories.
 - **Full Report Export**: Export comprehensive PDF for all scanned projects.
@@ -76,6 +88,21 @@ See [CHANGELOG.md](CHANGELOG.md) for release history and all versions on the [Re
 - **Migration Guides**: Direct links to official migration guides for major version upgrades.
 - **Project Scanning**: Scans local repositories to identify their current Spring Boot parent version.
 - **Expandable Version List**: Shows the 5 newest version branches by default, with option to show older versions.
+
+### 📚 Framework Info Tab (NEW in v2.4.0)
+
+Comprehensive reference for all supported languages and frameworks:
+
+- **Version Information**: Current LTS versions with EOL dates for Java, Node.js, Go, Python, PHP
+- **Framework Overview**: Popular frameworks with links to documentation
+  - **Java/JVM**: Spring Boot, Jakarta EE, Quarkus
+  - **JavaScript/TypeScript**: React, Vue, Angular, Next.js, Nuxt.js, Svelte
+  - **Node.js Backend**: Express, Fastify, NestJS, Koa, Electron
+  - **Go**: Gin, Fiber, Echo, Chi, Gorilla Mux, gRPC
+  - **Python**: Django, Flask, FastAPI, Streamlit, PyTorch, TensorFlow
+  - **PHP**: Laravel, Symfony, CodeIgniter, CakePHP, Yii, Slim
+- **Package Managers**: Overview of Maven, Gradle, npm, Yarn, pnpm, Go Modules, pip, Poetry, Composer
+- **Migration Guides**: Direct links to official upgrade documentation for all platforms
 
 ### 🚀 Spring Boot Migration Analysis (OpenRewrite)
 
@@ -127,6 +154,9 @@ To run the pre-built executable:
 - **Maven**: Required for project builds, OpenRewrite analysis, and OWASP security scans.
 - **Java**: JDK 17+ recommended for Spring Boot 3.x projects.
 - **Trivy** _(optional)_: For faster security scanning. Install via `brew install trivy` (macOS) or see [trivy.dev/installation](https://aquasecurity.github.io/trivy/latest/getting-started/installation/).
+- **govulncheck** _(optional)_: For Go vulnerability scanning. Install via `go install golang.org/x/vuln/cmd/govulncheck@latest`.
+- **pip-audit** _(optional)_: For Python vulnerability scanning. Install via `pip install pip-audit`.
+- **Composer** _(optional)_: For PHP vulnerability scanning. Requires Composer 2.4+.
 
 To build from source:
 
@@ -228,6 +258,7 @@ To build from source:
    > 💡 The HTML/CSS/JS assets are embedded directly into the executable. You only need the single binary file to run the app.
 
 3. **Run**:
+
    ```bash
    ./GitHousekeeper
    ```
@@ -379,7 +410,7 @@ Reference information about supported frameworks and versions.
 2. **Spring Boot Versions**: List of all Spring Boot releases grouped by major.minor version.
    - Click **Show More** to see older versions.
    - Direct links to official migration guides.
-3. **Jakarta EE**: Migration information for javax._ → jakarta._ namespace.
+3. **Jakarta EE**: Migration information for `javax.*` → `jakarta.*` namespace.
 4. **Quarkus**: Quarkus framework version information.
 5. **Java SE Support**: Table of Java versions with:
    - LTS indicators (Long-Term Support)
@@ -403,7 +434,7 @@ Analyze projects for framework migrations using OpenRewrite.
 
 - **Spring Boot Upgrade**: Migrate between Spring Boot versions (e.g., 2.7 → 3.2).
 - **Java Version Upgrade**: Upgrade Java version (e.g., 8 → 17 → 21).
-- **Jakarta EE Migration**: Migrate javax._ packages to jakarta._.
+- **Jakarta EE Migration**: Migrate `javax.*` packages to `jakarta.*`.
 - **Quarkus Migration**: Migrate to Quarkus 2.x framework.
 
 **Workflow:**
@@ -434,36 +465,88 @@ Analyze projects for framework migrations using OpenRewrite.
 
 ### 🛡️ Security Scanner
 
-Scan repositories for CVE vulnerabilities in dependencies.
+Scan repositories for CVE vulnerabilities in dependencies. Supports **Maven**, **Node.js**, **Go**, **Python**, and **PHP** projects.
 
 **Scanner Options:**
 
-- **OWASP Dependency-Check** (recommended): Uses Maven plugin, no additional install needed. Comprehensive CVE database. First scan downloads vulnerability database (~10 minutes).
-- **Trivy**: Faster alternative by Aqua Security. Requires separate installation. See install hints in the UI.
+- **🔄 Auto-detect (recommended)**: Automatically detects project type and uses the best scanner:
+  - `pom.xml` → OWASP Dependency-Check
+  - `package-lock.json` → npm audit
+  - `yarn.lock` → yarn audit
+  - `pnpm-lock.yaml` → pnpm audit
+  - `go.mod` → govulncheck
+  - `requirements.txt` / `pyproject.toml` → pip-audit
+  - `composer.json` → composer audit
+- **☕ OWASP Dependency-Check**: For Maven projects. Uses Maven plugin, no additional install needed. Comprehensive CVE database. First scan downloads vulnerability database (~10 minutes).
+- **🐳 Trivy**: Fast scanner by Aqua Security. Supports Maven and Node.js. Requires separate installation. See install hints in the UI.
+- **📦 npm/yarn/pnpm audit**: For Node.js projects. Uses native package manager security auditing. No additional installation required.
+  - **Yarn Berry Support**: Full support for Yarn v2, v3, and v4 (Berry). Automatically detects version via `packageManager` field in `package.json` and uses Corepack when needed.
+- **🐹 govulncheck**: Official Go vulnerability scanner from the Go team. Install via `go install golang.org/x/vuln/cmd/govulncheck@latest`.
+- **🐍 pip-audit**: Python package vulnerability scanner by PyPA. Install via `pip install pip-audit`.
+- **🐘 composer audit**: Official PHP vulnerability scanner. Requires Composer 2.4+.
+
+**Supported Project Types:**
+
+| Project Type          | Lock File                             | Scanner                |
+| --------------------- | ------------------------------------- | ---------------------- |
+| Maven                 | `pom.xml`                             | OWASP / Trivy          |
+| npm                   | `package-lock.json`                   | npm audit / Trivy      |
+| Yarn Classic (v1)     | `yarn.lock`                           | yarn audit / Trivy     |
+| Yarn Berry (v2/v3/v4) | `yarn.lock` + `packageManager`        | yarn npm audit / Trivy |
+| pnpm                  | `pnpm-lock.yaml`                      | pnpm audit / Trivy     |
+| Go                    | `go.mod`                              | govulncheck            |
+| Python                | `requirements.txt` / `pyproject.toml` | pip-audit              |
+| PHP                   | `composer.json`                       | composer audit         |
+
+**Yarn Version Detection:**
+
+GitHousekeeper automatically detects your Yarn version:
+
+- If `package.json` contains `"packageManager": "yarn@4.x.x"`, uses Corepack + Yarn Berry commands
+- If no `packageManager` field, checks global `yarn --version`
+- Yarn Classic (v1.x): Uses `yarn audit --json`
+- Yarn Berry (v2+): Uses `corepack yarn npm audit --json`
 
 **Workflow:**
 
 1. Navigate to the **Security Scanner** tab.
 2. Click **🔄 Refresh** to load repositories from your configured root path.
-3. Select a **Scanner Engine** from the dropdown.
-4. Click **🔍 Scan for Vulnerabilities**.
-5. Monitor the **progress bar** and live scan status.
-6. Review the **Security Summary**:
+3. Select a **Scanner Engine** from the dropdown (Auto-detect recommended).
+4. **(Optional)** Select a **Target Branch** to scan all repos on a specific branch:
+   - Default: "Current branch" - scans whatever is currently checked out
+   - Select a branch (e.g., `main`, `develop`) to temporarily switch and scan
+   - Branch switching is safe: uncommitted changes are stashed and restored
+5. Click **🔍 Scan for Vulnerabilities**.
+6. Monitor the **progress bar** and live scan status.
+7. Review the **Security Summary**:
    - Total repositories scanned
    - Total CVEs found
    - Breakdown by severity: Critical, High, Medium, Low
-7. Examine **per-repository results** showing:
+8. Examine **per-repository results** showing:
+   - Project type badge (☕ Maven, 📦 npm, 🧶 yarn, ⚡ pnpm, 🐹 Go, 🐍 Python, 🐘 PHP)
    - Vulnerability count and severity badges
    - CVE IDs with direct NVD links
    - Affected components and versions
-8. Click **📄 Export PDF** for a comprehensive security report.
+9. Click **📄 Export PDF** for a comprehensive security report.
 
 **Tips:**
 
-- Run OWASP first if you don't have Trivy installed.
+- Use **Auto-detect** to scan mixed Java/Node.js/Go/Python/PHP workspaces seamlessly.
+- Run OWASP first if you don't have Trivy installed (Maven projects).
+- For Go projects: install govulncheck via `go install golang.org/x/vuln/cmd/govulncheck@latest`.
+- For Python projects: install pip-audit via `pip install pip-audit`.
+- For PHP projects: ensure Composer 2.4+ is installed.
 - Schedule regular scans to catch new vulnerabilities.
 - Focus on Critical and High severity CVEs first.
 - Export PDF reports for compliance documentation.
+- For Yarn Berry projects: ensure `corepack enable` has been run if using `packageManager` field.
+
+**Known CVEs detected:**
+
+The scanner detects critical vulnerabilities like:
+
+- **CVE-2025-66478 / CVE-2025-55182**: Critical RCE in Next.js React Server Components (affects Next.js 15.x, 16.x)
+- And thousands more from npm advisory database, GHSA, and NVD.
 
 ---
 
@@ -516,30 +599,43 @@ For a typical maintenance workflow:
 ![Dashboard](screenshots/01_Dashboard.png)
 _Repository health overview with analytics and metrics_
 
+### Maintenance
+
+![Maintenance](screenshots/02_Maintenance.png)
+_Branch overview and one-click sync across all repositories_
+
 ### Project Setup
 
-![Project Setup](screenshots/02_Project_Setup.png)
+![Project Setup](screenshots/03_Project_Setup.png)
 _Configure projects, branch strategy, and version settings_
 
 ### Replacements
 
-![Replacements](screenshots/03_POM_Replacements.png)
+![Replacements](screenshots/04_Replacements.png)
 _Unified search and replace with file scope selection (All Files / Only pom.xml / Exclude pom.xml)_
 
 ### Report
 
-![Report](screenshots/04_Report.png)
+![Report](screenshots/05_Report.png)
 _Live execution log with deprecation warnings_
 
 ### Framework Info
 
-![Framework Info](screenshots/05_Framework_Info.png)
-_Spring Boot versions, Java SE support matrix, and framework references_
+![Framework Info 1](screenshots/06_1_Framework_Info.png)
+_OpenRewrite status, Spring Boot versions, Jakarta EE, Quarkus, and Java SE support_
+
+![Framework Info 2](screenshots/06_2_Framework_Info.png)
+_Node.js, Go, Python, PHP versions with frameworks and migration guides_
 
 ### Migration Assistant
 
-![Migration Assistant](screenshots/06_Migration_Assistant.png)
+![Migration Assistant](screenshots/07_Migration_Assistant.png)
 _OpenRewrite-powered migration analysis for Spring Boot, Java, and Jakarta EE_
+
+### Security Scanner
+
+![Security Scanner](screenshots/08_Security_Scanner.png)
+_CVE vulnerability scanning for Maven, Node.js, Go, Python, and PHP projects_
 
 ## Contributing
 
@@ -579,4 +675,4 @@ GitHub: [@gorecodecom](https://github.com/gorecodecom)
 
 ---
 
-Made with ❤️ for developers who manage multiple Spring Boot microservices.
+Made with ❤️ for developers who manage multiple repositories across Java, Node.js, Go, Python, and PHP.

@@ -5,11 +5,148 @@ All notable changes to GitHousekeeper will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.0] - 2025-12-05
+
+### Added
+
+- **🐹 Go Project Support (Dashboard & Security Scanner)**
+
+  - Automatic detection of Go projects via `go.mod`
+  - Go framework detection: Gin, Fiber, Echo, Chi, Gorilla Mux, gRPC
+  - Go version display from `go.mod`
+  - Go dependencies collection from `go.mod`
+  - **govulncheck integration**: Official Go vulnerability scanner
+  - Framework badges in Dashboard and Security Scanner
+
+- **🐍 Python Project Support (Dashboard & Security Scanner)**
+
+  - Automatic detection of Python projects via `requirements.txt`, `setup.py`, `pyproject.toml`, `Pipfile`
+  - Python framework detection: Django, Flask, FastAPI, Streamlit, PyTorch, TensorFlow, Data Science
+  - Python version display from `pyproject.toml` or `setup.py`
+  - Python dependencies collection from `requirements.txt` and `pyproject.toml`
+  - **pip-audit integration**: PyPA vulnerability scanner
+  - Framework badges in Dashboard and Security Scanner
+
+- **🐘 PHP Project Support (Dashboard & Security Scanner)**
+
+  - Automatic detection of PHP projects via `composer.json`
+  - PHP framework detection: Laravel, Symfony, CodeIgniter, CakePHP, Yii, Slim
+  - PHP version display from `composer.json`
+  - PHP dependencies collection from `composer.json`
+  - **composer audit integration**: Official Composer security scanner
+  - Framework badges in Dashboard and Security Scanner
+
+- **🎯 Dashboard Framework Detection**
+
+  - Automatic detection of JavaScript/TypeScript frameworks
+  - Support for: React, Angular, Vue.js, Next.js, Nuxt.js, Svelte, Express, Fastify, NestJS, Gatsby, Remix, Koa, Electron
+  - Framework icons and badges in the repository table
+  - New "Frameworks" chart replacing "Spring Boot Versions" chart
+  - Spring Boot projects now show version alongside framework badge
+
+- **📗 Node.js Version Display**
+
+  - Shows Node.js version requirements from:
+    - `.nvmrc` file
+    - `.node-version` file (nodenv, volta)
+    - `engines.node` in `package.json`
+  - New "Runtime" column combines Java and Node.js versions
+  - Icons: ☕ for Java, 📗 for Node.js
+
+- **📦 Outdated Dependencies Check**
+
+  - Real-time check for outdated npm/yarn/pnpm dependencies
+  - New "Outdated Dependencies" metric card on dashboard
+  - Per-repository outdated package count in table
+  - Visual indicators: ✅ (0 outdated), 📦 (1-10), ⚠️ (>10)
+  - Support for npm, Yarn Classic, and pnpm outdated commands
+
+- **📦 Full-Stack Security Scanner - Node.js Support**
+
+  - Extended CVE vulnerability scanning to support Node.js/Frontend projects
+  - npm audit integration for projects with `package-lock.json`
+  - yarn audit integration for projects with `yarn.lock`
+  - pnpm audit integration for projects with `pnpm-lock.yaml`
+  - Automatic parsing of all package manager audit formats
+
+- **🔀 Branch Selection for Security Scans**
+
+  - New "Target Branch" dropdown in the Security Scanner
+  - Scan all repositories on a specific branch (e.g., `main`, `develop`, `release/1.0`)
+  - Automatic branch switching during scan with safe stash/restore of uncommitted changes
+  - Shows "Current branch" as default option
+  - Branch list populated from all available branches across all repositories
+  - Default branches (main/master) shown first with ⭐ icon
+
+- **🧶 Yarn Berry (v2/v3/v4) Support**
+
+  - Full support for Yarn Modern (Berry) including versions 2.x, 3.x, and 4.x
+  - Automatic detection of Yarn version via `packageManager` field in `package.json`
+  - Corepack integration for projects using managed Yarn versions
+  - New `parseYarnBerryAuditOutput()` parser for Yarn Berry's unique NDJSON format
+  - Correctly parses Yarn Berry's `yarn npm audit --json` output format: `{"value":"next","children":{"ID":1111229,"Issue":"...","Severity":"critical",...}}`
+  - Separate `parseYarnClassicAuditOutput()` for Yarn Classic (v1) format
+  - Automatic fallback: detects global vs project-local Yarn version
+
+- **🔄 Auto-detect Project Type**
+
+  - New "Auto-detect" scanner mode (recommended default)
+  - Automatically detects project type based on lock files:
+    - `pom.xml` → Maven (OWASP Dependency-Check)
+    - `package-lock.json` → npm audit
+    - `yarn.lock` → yarn audit (Classic or Berry, auto-detected)
+    - `pnpm-lock.yaml` → pnpm audit
+    - `go.mod` → govulncheck (Go)
+    - `requirements.txt` / `pyproject.toml` → pip-audit (Python)
+    - `composer.json` → composer audit (PHP)
+  - Mixed repositories: scans using detected package manager
+
+- **🎨 UI Enhancements**
+
+  - Project type badges in scan results (☕ Maven, 📦 npm, 🧶 yarn, ⚡ pnpm, 🐹 Go, 🐍 Python, 🐘 PHP, 🐳 Trivy)
+  - Scanner selection dropdown with clear icons and descriptions
+  - Package manager availability check in UI for all scanner types
+  - Updated scanner descriptions for all options
+  - Framework badges for Go, Python, and PHP frameworks in Dashboard
+
+- **📚 Extended Framework Info Tab**
+  - **Node.js Section**: LTS versions (22, 20, 18, 16) with EOL dates
+  - **JavaScript/TypeScript Frameworks**: Next.js, React, Vue.js, Angular, Nuxt.js, Svelte
+  - **Node.js Backend Frameworks**: Express, Fastify, NestJS, Koa, Electron
+  - **Go Section**: Versions (1.23, 1.22, 1.21, 1.20) with key features
+  - **Go Web Frameworks**: Gin, Fiber, Echo, Chi, Gorilla Mux, gRPC
+  - **Python Section**: Versions (3.13 - 3.9) with EOL dates
+  - **Python Frameworks**: Django, Flask, FastAPI, Streamlit, PyTorch, TensorFlow
+  - **PHP Section**: Versions (8.4 - 8.0) with security support dates
+  - **PHP Frameworks**: Laravel, Symfony, CodeIgniter, CakePHP, Yii, Slim
+  - **Package Managers & Tools**: Overview for Java, Node.js, Go, Python, PHP
+  - **Migration Guides**: Links to official upgrade guides for all supported languages
+
+### Changed
+
+- Dashboard table now has 8 columns: Repository, Health Score, Framework, Runtime, Last Change, TODOs, Outdated, Status
+- "Spring Boot Versions" chart replaced with "Frameworks" chart showing all detected frameworks
+- Scanner dropdown now defaults to "Auto-detect (recommended)"
+- Trivy scanner now supports both Maven and Node.js projects
+- Updated description text to reflect multi-language support
+- `detectYarnVersion()` now reads `packageManager` field from `package.json` first
+- Yarn commands use `corepack yarn` when `packageManager` is defined
+- **Yarn Berry now uses text output instead of JSON**: More reliable scanning since `yarn npm audit --json` often fails with HTTP 500 errors from GitHub Advisory API
+
+### Fixed
+
+- **Yarn Berry audit parsing**: Fixed issue where Yarn v2/v3/v4 projects showed "No vulnerabilities found" despite having CVEs
+- **Corepack compatibility**: Projects with `packageManager: "yarn@4.0.2"` now correctly use corepack to run the project-specific Yarn version
+- **CVE-2025-66478 detection**: Critical Next.js RCE vulnerability now correctly detected in Yarn Berry projects
+- **Yarn Berry JSON API failure**: Added `parseYarnBerryTextOutput()` parser that parses human-readable text output when JSON fails
+- **Branch-specific scanning**: Fixed issue where scanning different branches showed same results due to Yarn Berry JSON API returning HTTP 500 errors
+
 ## [2.3.0] - 2025-12-04
 
 ### Added
 
 - **🛡️ New Security Tab with CVE Vulnerability Scanner**
+
   - Scan all Maven projects for known CVE vulnerabilities
   - Support for OWASP Dependency-Check Maven Plugin (12.1.0)
   - Optional Trivy scanner integration (auto-detect available scanners)
@@ -23,6 +160,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Re-check Button**: Verify Trivy availability after installation without page reload
 
 - **🔧 New Maintenance Tab**
+
   - Branch overview showing all local branches per repository
   - Tracking status with ahead/behind counts for each branch
   - One-click "Sync All Tracked Branches" to fetch and pull all repos
@@ -30,6 +168,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Accessible with ARIA labels, roles, and keyboard navigation
 
 - **🔀 Auto-detect Default Branch**
+
   - Automatically detects `main` or `master` as default branch per repository
   - Falls back gracefully: symbolic-ref → local main → remote main → master
   - No more hardcoded "master" - works with modern Git workflows
@@ -72,6 +211,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **🔔 Error Handling & User Feedback**
+
   - Toast notification system for success, error, and warning messages
   - Connection status banner with offline detection and server health monitoring
   - Server health endpoint (`/api/health`) for connectivity checks
@@ -124,7 +264,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **📚 Framework Info** (NEW TAB)
 
   - Centralized reference for framework information
-  - **Jakarta EE Overview** - Namespace change documentation (javax._ → jakarta._)
+  - **Jakarta EE Overview** - Namespace change documentation (`javax.*` → `jakarta.*`)
   - **Quarkus Information** - Version comparison and migration paths
   - **Java SE Support Matrix** - LTS versions, release dates, and support timelines (Java 8 → Java 25)
 
@@ -133,7 +273,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Migration Type Selection** - Radio button UI for choosing migration type
   - **Spring Boot Upgrade** - Upgrade between Spring Boot versions (2.x → 3.x → 3.5)
   - **Java Version Upgrade** - Java 8 → 17 → 21 migration recipes
-  - **Jakarta EE Migration** - Dedicated javax._ to jakarta._ migration
+  - **Jakarta EE Migration** - Dedicated `javax.*` to `jakarta.*` migration
   - **Quarkus Migration** - Migration path to Quarkus 2.x
 
 - **🎨 UI/UX Improvements**
