@@ -251,6 +251,7 @@ GitHousekeeper provides 8 main tabs, each with specific workflows for different 
 The Dashboard provides an at-a-glance overview of your entire repository landscape.
 
 **What you see:**
+
 - **Avg Health Score**: Aggregated repository health (0-100%) based on deprecations, TODOs, and version status.
 - **Total Repositories**: Number of repositories discovered in your root path.
 - **Technical Debt**: Count of TODO comments found across all projects.
@@ -259,6 +260,7 @@ The Dashboard provides an at-a-glance overview of your entire repository landsca
 - **Repository Details Table**: Sortable table with branch, version, deprecations, and TODOs per repo.
 
 **Usage:**
+
 1. Configure your **Root Path** first (via Project Setup tab).
 2. The Dashboard automatically refreshes after scanning.
 3. Click on any repository row to see detailed information.
@@ -271,6 +273,7 @@ The Dashboard provides an at-a-glance overview of your entire repository landsca
 The Maintenance tab helps you keep all local branches synchronized with their remotes.
 
 **Workflow:**
+
 1. Navigate to the **Maintenance** tab.
 2. Click **🔄 Refresh** to load all repositories and their branches.
 3. Review the branch cards showing:
@@ -281,6 +284,7 @@ The Maintenance tab helps you keep all local branches synchronized with their re
 5. Monitor the **progress bar** and **sync log** for real-time status.
 
 **Use cases:**
+
 - Morning sync before starting work
 - After returning from vacation to catch up on all team changes
 - Before running migrations to ensure you have the latest code
@@ -292,6 +296,7 @@ The Maintenance tab helps you keep all local branches synchronized with their re
 Configure which repositories to process and how.
 
 **Settings:**
+
 1. **Root Folder**: Click **📂 Browse** to select the directory containing your repositories.
 2. **Included Repositories**: Check/uncheck repositories to include or exclude from processing.
 3. **Branch Strategy**:
@@ -303,6 +308,7 @@ Configure which repositories to process and how.
 6. **Maven Clean Install**: Check to run `mvn clean install -DskipTests` after changes.
 
 **Tips:**
+
 - Use "Housekeeping branch" for routine maintenance to keep your default branch clean.
 - Use "Custom branch" for major migrations that require review.
 - Parent Version updates the `<parent><version>` in your `pom.xml`.
@@ -314,6 +320,7 @@ Configure which repositories to process and how.
 Perform mass search and replace across multiple repositories.
 
 **Workflow:**
+
 1. Navigate to the **Replacements** tab.
 2. **Select File Scope**:
    - **All Files**: Search across all text files.
@@ -325,11 +332,13 @@ Perform mass search and replace across multiple repositories.
 6. Review changes in the **Report** tab.
 
 **Features:**
+
 - **Fuzzy Matching**: Handles whitespace and indentation differences intelligently.
 - **Smart Indentation**: Preserves original indentation when replacing XML/code blocks.
 - **Multiple Patterns**: Add as many search/replace rows as needed.
 
 **Example use cases:**
+
 - Update artifact versions: `<version>1.0.0</version>` → `<version>2.0.0</version>`
 - Rename packages: `com.oldcompany` → `com.newcompany`
 - Update deprecated APIs across all services
@@ -341,6 +350,7 @@ Perform mass search and replace across multiple repositories.
 View execution logs and deprecation warnings.
 
 **Panels:**
+
 1. **Log Panel**: Real-time execution log showing:
    - Repository processing status
    - Git operations (checkout, commit, push)
@@ -352,6 +362,7 @@ View execution logs and deprecation warnings.
    - Links to problematic files and line numbers
 
 **Actions:**
+
 - **🖨️ PDF / Print**: Export each panel as a PDF document.
 - Scroll through logs to review detailed output.
 - Warnings help identify technical debt to address.
@@ -363,11 +374,12 @@ View execution logs and deprecation warnings.
 Reference information about supported frameworks and versions.
 
 **Sections:**
+
 1. **OpenRewrite Status**: Shows current and latest OpenRewrite Maven plugin versions with update notifications.
 2. **Spring Boot Versions**: List of all Spring Boot releases grouped by major.minor version.
    - Click **Show More** to see older versions.
    - Direct links to official migration guides.
-3. **Jakarta EE**: Migration information for javax.* → jakarta.* namespace.
+3. **Jakarta EE**: Migration information for javax._ → jakarta._ namespace.
 4. **Quarkus**: Quarkus framework version information.
 5. **Java SE Support**: Table of Java versions with:
    - LTS indicators (Long-Term Support)
@@ -376,6 +388,7 @@ Reference information about supported frameworks and versions.
    - Status badges (🟢 Current / 🟡 Ending Soon / 🔴 Ended)
 
 **Use cases:**
+
 - Check which Spring Boot version to target for migration
 - Verify Java version support timelines
 - Quick reference during upgrade planning
@@ -387,12 +400,14 @@ Reference information about supported frameworks and versions.
 Analyze projects for framework migrations using OpenRewrite.
 
 **Migration Types:**
+
 - **Spring Boot Upgrade**: Migrate between Spring Boot versions (e.g., 2.7 → 3.2).
 - **Java Version Upgrade**: Upgrade Java version (e.g., 8 → 17 → 21).
-- **Jakarta EE Migration**: Migrate javax.* packages to jakarta.*.
+- **Jakarta EE Migration**: Migrate javax._ packages to jakarta._.
 - **Quarkus Migration**: Migrate to Quarkus 2.x framework.
 
 **Workflow:**
+
 1. Navigate to the **Migration Assistant** tab.
 2. Select a **Migration Type** (radio buttons).
 3. Choose the **Target Version** from the dropdown.
@@ -410,6 +425,7 @@ Analyze projects for framework migrations using OpenRewrite.
 7. Click **🖨️ PDF / Print** to export the analysis.
 
 **Notes:**
+
 - Analysis runs in **dry-run mode**—no files are modified.
 - OpenRewrite plugin is injected dynamically, no changes to your `pom.xml`.
 - Use the analysis to plan your migration before applying changes.
@@ -421,10 +437,12 @@ Analyze projects for framework migrations using OpenRewrite.
 Scan repositories for CVE vulnerabilities in dependencies.
 
 **Scanner Options:**
+
 - **OWASP Dependency-Check** (recommended): Uses Maven plugin, no additional install needed. Comprehensive CVE database. First scan downloads vulnerability database (~10 minutes).
 - **Trivy**: Faster alternative by Aqua Security. Requires separate installation. See install hints in the UI.
 
 **Workflow:**
+
 1. Navigate to the **Security Scanner** tab.
 2. Click **🔄 Refresh** to load repositories from your configured root path.
 3. Select a **Scanner Engine** from the dropdown.
@@ -441,6 +459,7 @@ Scan repositories for CVE vulnerabilities in dependencies.
 8. Click **📄 Export PDF** for a comprehensive security report.
 
 **Tips:**
+
 - Run OWASP first if you don't have Trivy installed.
 - Schedule regular scans to catch new vulnerabilities.
 - Focus on Critical and High severity CVEs first.
@@ -455,11 +474,11 @@ Information about the application, version, and links.
 - **Version**: Current GitHousekeeper version.
 - **Feature Summary**: Quick overview of all capabilities.
 - **Links**:
-   - GitHub Repository
-   - Report Issues
-   - Contributing Guide
-   - Security Policy
-   - Author Profile
+  - GitHub Repository
+  - Report Issues
+  - Contributing Guide
+  - Security Policy
+  - Author Profile
 
 ---
 
@@ -468,16 +487,19 @@ Information about the application, version, and links.
 For a typical maintenance workflow:
 
 1. **Configure** (Project Setup tab):
+
    - Select your **Root Path** containing repositories.
    - Check/uncheck repositories to include.
    - Set **Branch Strategy** (recommended: Housekeeping).
    - Configure **Version Bump** if updating versions.
 
 2. **Define Replacements** (Replacements tab):
+
    - Add search/replace patterns.
    - Select appropriate **File Scope**.
 
 3. **Execute**:
+
    - Click **Start** to begin processing.
    - Monitor **Live Log** in Report tab.
    - Review **Deprecation Warnings**.
