@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -63,6 +64,9 @@ func main() {
 	http.HandleFunc("/api/security-scan", handleSecurityScan)
 	http.HandleFunc("/api/check-trivy", handleCheckTrivy)
 	http.HandleFunc("/api/check-npm", handleCheckNpm)
+	http.HandleFunc("/api/check-go", handleCheckGo)
+	http.HandleFunc("/api/check-python", handleCheckPython)
+	http.HandleFunc("/api/check-php", handleCheckPhp)
 
 	port := "8080"
 	url := "http://localhost:" + port
@@ -1159,6 +1163,27 @@ func detectProjectType(repoPath string) string {
 	if _, err := os.Stat(filepath.Join(repoPath, "pom.xml")); err == nil {
 		return "maven"
 	}
+	// Check for Go
+	if _, err := os.Stat(filepath.Join(repoPath, "go.mod")); err == nil {
+		return "go"
+	}
+	// Check for PHP (composer.json)
+	if _, err := os.Stat(filepath.Join(repoPath, "composer.json")); err == nil {
+		return "php"
+	}
+	// Check for Python (in priority order)
+	if _, err := os.Stat(filepath.Join(repoPath, "requirements.txt")); err == nil {
+		return "python"
+	}
+	if _, err := os.Stat(filepath.Join(repoPath, "pyproject.toml")); err == nil {
+		return "python"
+	}
+	if _, err := os.Stat(filepath.Join(repoPath, "setup.py")); err == nil {
+		return "python"
+	}
+	if _, err := os.Stat(filepath.Join(repoPath, "Pipfile")); err == nil {
+		return "python"
+	}
 	// Check for pnpm
 	if _, err := os.Stat(filepath.Join(repoPath, "pnpm-lock.yaml")); err == nil {
 		return "pnpm"
@@ -1175,7 +1200,25 @@ func detectProjectType(repoPath string) string {
 	if _, err := os.Stat(filepath.Join(repoPath, "package.json")); err == nil {
 		return "npm"
 	}
+	// Check for .py files in root as a fallback for Python projects
+	if hasPythonFiles(repoPath) {
+		return "python-no-deps"
+	}
 	return ""
+}
+
+// hasPythonFiles checks if there are .py files in the root directory
+func hasPythonFiles(repoPath string) bool {
+	entries, err := os.ReadDir(repoPath)
+	if err != nil {
+		return false
+	}
+	for _, entry := range entries {
+		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".py") {
+			return true
+		}
+	}
+	return false
 }
 
 // checkNpmAvailable checks if npm is available
@@ -1193,6 +1236,24 @@ func checkYarnAvailable() bool {
 // checkPnpmAvailable checks if pnpm is available
 func checkPnpmAvailable() bool {
 	cmd := exec.Command("pnpm", "--version")
+	return cmd.Run() == nil
+}
+
+// checkGovulncheckAvailable checks if govulncheck is available
+func checkGovulncheckAvailable() bool {
+	cmd := exec.Command("govulncheck", "-version")
+	return cmd.Run() == nil
+}
+
+// checkPipAuditAvailable checks if pip-audit is available
+func checkPipAuditAvailable() bool {
+	cmd := exec.Command("pip-audit", "--version")
+	return cmd.Run() == nil
+}
+
+// checkComposerAvailable checks if composer is available
+func checkComposerAvailable() bool {
+	cmd := exec.Command("composer", "--version")
 	return cmd.Run() == nil
 }
 
@@ -1237,6 +1298,67 @@ func handleCheckNpm(w http.ResponseWriter, r *http.Request) {
 	}
 
 	json.NewEncoder(w).Encode(result)
+}
+
+func handleCheckGo(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	available := checkGovulncheckAvailable()
+	version := ""
+
+	if available {
+		cmd := exec.Command("govulncheck", "-version")
+		output, err := cmd.Output()
+		if err == nil {
+			version = strings.TrimSpace(string(output))
+		}
+	}
+
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"available": available,
+		"version":   version,
+	})
+}
+
+func handleCheckPython(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	available := checkPipAuditAvailable()
+	version := ""
+
+	if available {
+		cmd := exec.Command("pip-audit", "--version")
+		output, err := cmd.Output()
+		if err == nil {
+			version = strings.TrimSpace(string(output))
+		}
+	}
+
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"available": available,
+		"version":   version,
+	})
+}
+
+func handleCheckPhp(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	available := checkComposerAvailable()
+	version := ""
+
+	if available {
+		cmd := exec.Command("composer", "--version")
+		output, err := cmd.Output()
+		if err == nil {
+			// Extract version from "Composer version 2.x.x ..."
+			version = strings.TrimSpace(string(output))
+		}
+	}
+
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"available": available,
+		"version":   version,
+	})
 }
 
 func handleSecurityScan(w http.ResponseWriter, r *http.Request) {
@@ -1370,8 +1492,24 @@ func handleSecurityScan(w http.ResponseWriter, r *http.Request) {
 						scannerToUse = "owasp"
 					case "npm", "yarn", "pnpm":
 						scannerToUse = "npm"
+					case "go":
+						scannerToUse = "govulncheck"
+					case "python":
+						scannerToUse = "pip-audit"
+					case "php":
+						scannerToUse = "composer-audit"
+					case "python-no-deps":
+						result.Error = "Python project found but no requirements.txt, pyproject.toml, setup.py, or Pipfile. Cannot scan without dependency file."
+						result.ProjectType = "python"
+						result.Duration = time.Since(start).Seconds()
+						if branchSwitched {
+							exec.Command("git", "checkout", originalBranch).Run()
+							exec.Command("git", "stash", "pop").Run()
+						}
+						results <- scanResult{result: result, index: job.index}
+						continue
 					default:
-						result.Error = "No supported project type found (pom.xml or package.json)"
+						result.Error = "No supported project type found (pom.xml, package.json, go.mod, requirements.txt, or composer.json)"
 						result.Duration = time.Since(start).Seconds()
 						// Switch back to original branch before returning error
 						if branchSwitched {
@@ -1393,7 +1531,7 @@ func handleSecurityScan(w http.ResponseWriter, r *http.Request) {
 					}
 				case "trivy":
 					if projectType == "" {
-						result.Error = "No pom.xml or package.json found"
+						result.Error = "No supported project files found"
 					} else {
 						result = runTrivyScan(job.repoPath, job.repoName)
 						result.ProjectType = projectType
@@ -1403,6 +1541,27 @@ func handleSecurityScan(w http.ResponseWriter, r *http.Request) {
 						result.Error = "No pom.xml found (OWASP requires Maven project)"
 					} else {
 						result = runOwaspScan(job.repoPath, job.repoName)
+						result.ProjectType = projectType
+					}
+				case "govulncheck":
+					if projectType != "go" {
+						result.Error = "No go.mod found (govulncheck requires Go project)"
+					} else {
+						result = runGovulncheck(job.repoPath, job.repoName)
+						result.ProjectType = projectType
+					}
+				case "pip-audit":
+					if projectType != "python" {
+						result.Error = "No Python project found (requires requirements.txt or pyproject.toml)"
+					} else {
+						result = runPipAudit(job.repoPath, job.repoName)
+						result.ProjectType = projectType
+					}
+				case "composer-audit":
+					if projectType != "php" {
+						result.Error = "No PHP project found (requires composer.json)"
+					} else {
+						result = runComposerAudit(job.repoPath, job.repoName)
 						result.ProjectType = projectType
 					}
 				default:
@@ -2273,4 +2432,372 @@ func truncateString(s string, maxLen int) string {
 		return s
 	}
 	return s[:maxLen-3] + "..."
+}
+
+// runGovulncheck runs govulncheck for Go projects
+func runGovulncheck(repoPath, repoName string) RepoSecurityResult {
+	result := RepoSecurityResult{RepoName: repoName, ProjectType: "go"}
+
+	// Check if govulncheck is available
+	if !checkGovulncheckAvailable() {
+		result.Error = "govulncheck not installed. Install with: go install golang.org/x/vuln/cmd/govulncheck@latest"
+		return result
+	}
+
+	// Run govulncheck with JSON output
+	cmd := exec.Command("govulncheck", "-json", "./...")
+	cmd.Dir = repoPath
+	output, err := cmd.Output()
+
+	// govulncheck returns exit code 3 if vulnerabilities found
+	if err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			if exitErr.ExitCode() != 3 && len(output) == 0 {
+				result.Error = fmt.Sprintf("govulncheck failed: %v", err)
+				return result
+			}
+		} else if len(output) == 0 {
+			result.Error = fmt.Sprintf("govulncheck failed: %v", err)
+			return result
+		}
+	}
+
+	// Parse JSON output (NDJSON format - one JSON object per line)
+	lines := strings.Split(string(output), "\n")
+	vulnMap := make(map[string]CVEFinding) // Deduplicate by CVE
+
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+
+		var entry struct {
+			Finding *struct {
+				OSV   string `json:"osv"`
+				Trace []struct {
+					Module  string `json:"module"`
+					Version string `json:"version"`
+					Package string `json:"package"`
+				} `json:"trace"`
+			} `json:"finding"`
+			OSV *struct {
+				ID       string `json:"id"`
+				Summary  string `json:"summary"`
+				Severity []struct {
+					Type  string `json:"type"`
+					Score string `json:"score"`
+				} `json:"severity"`
+				Affected []struct {
+					Package struct {
+						Name string `json:"name"`
+					} `json:"package"`
+					Ranges []struct {
+						Events []struct {
+							Fixed string `json:"fixed"`
+						} `json:"events"`
+					} `json:"ranges"`
+				} `json:"affected"`
+			} `json:"osv"`
+		}
+
+		if err := json.Unmarshal([]byte(line), &entry); err != nil {
+			continue
+		}
+
+		// Process OSV entries (vulnerability details)
+		if entry.OSV != nil {
+			osv := entry.OSV
+			severity := "MEDIUM" // Default
+
+			// Parse CVSS score if available
+			for _, sev := range osv.Severity {
+				if sev.Type == "CVSS_V3" {
+					if score, err := strconv.ParseFloat(sev.Score, 64); err == nil {
+						if score >= 9.0 {
+							severity = "CRITICAL"
+						} else if score >= 7.0 {
+							severity = "HIGH"
+						} else if score >= 4.0 {
+							severity = "MEDIUM"
+						} else {
+							severity = "LOW"
+						}
+					}
+				}
+			}
+
+			// Get package name and fixed version
+			pkgName := ""
+			fixedIn := ""
+			if len(osv.Affected) > 0 {
+				pkgName = osv.Affected[0].Package.Name
+				for _, r := range osv.Affected[0].Ranges {
+					for _, ev := range r.Events {
+						if ev.Fixed != "" {
+							fixedIn = ev.Fixed
+						}
+					}
+				}
+			}
+
+			vulnMap[osv.ID] = CVEFinding{
+				CVE:         osv.ID,
+				Severity:    severity,
+				Package:     pkgName,
+				FixedIn:     fixedIn,
+				Description: truncateString(osv.Summary, 200),
+			}
+		}
+
+		// Process finding entries (actual usage in code)
+		if entry.Finding != nil && len(entry.Finding.Trace) > 0 {
+			trace := entry.Finding.Trace[0]
+			if existing, ok := vulnMap[entry.Finding.OSV]; ok {
+				existing.Version = trace.Version
+				if existing.Package == "" {
+					existing.Package = trace.Module
+				}
+				vulnMap[entry.Finding.OSV] = existing
+			}
+		}
+	}
+
+	// Convert map to slice
+	for _, finding := range vulnMap {
+		result.Findings = append(result.Findings, finding)
+	}
+
+	return result
+}
+
+// runPipAudit runs pip-audit for Python projects
+func runPipAudit(repoPath, repoName string) RepoSecurityResult {
+	result := RepoSecurityResult{RepoName: repoName, ProjectType: "python"}
+
+	// Check if pip-audit is available
+	if !checkPipAuditAvailable() {
+		result.Error = "pip-audit not installed. Install with: pip install pip-audit"
+		return result
+	}
+
+	// Determine which requirements file to use
+	var requirementsArg string
+	if _, err := os.Stat(filepath.Join(repoPath, "requirements.txt")); err == nil {
+		requirementsArg = "-r requirements.txt"
+	} else if _, err := os.Stat(filepath.Join(repoPath, "pyproject.toml")); err == nil {
+		// pip-audit can handle pyproject.toml directly in the directory
+		requirementsArg = ""
+	} else {
+		result.Error = "No requirements.txt or pyproject.toml found"
+		return result
+	}
+
+	// Run pip-audit with JSON output
+	var cmd *exec.Cmd
+	if requirementsArg != "" {
+		cmd = exec.Command("pip-audit", "-r", "requirements.txt", "--format", "json", "--progress-spinner=off")
+	} else {
+		cmd = exec.Command("pip-audit", "--format", "json", "--progress-spinner=off")
+	}
+	cmd.Dir = repoPath
+	output, err := cmd.Output()
+
+	// pip-audit returns exit code 1 if vulnerabilities found
+	if err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			if exitErr.ExitCode() != 1 && len(output) == 0 {
+				// Check stderr for more info
+				if len(exitErr.Stderr) > 0 {
+					result.Error = fmt.Sprintf("pip-audit failed: %s", string(exitErr.Stderr))
+				} else {
+					result.Error = fmt.Sprintf("pip-audit failed: %v", err)
+				}
+				return result
+			}
+		} else if len(output) == 0 {
+			result.Error = fmt.Sprintf("pip-audit failed: %v", err)
+			return result
+		}
+	}
+
+	// Parse pip-audit JSON output
+	var pipResult struct {
+		Dependencies []struct {
+			Name    string `json:"name"`
+			Version string `json:"version"`
+			Vulns   []struct {
+				ID          string   `json:"id"`
+				FixVersions []string `json:"fix_versions"`
+				Description string   `json:"description"`
+			} `json:"vulns"`
+		} `json:"dependencies"`
+	}
+
+	// pip-audit outputs an array directly
+	var vulnArray []struct {
+		Name    string `json:"name"`
+		Version string `json:"version"`
+		Vulns   []struct {
+			ID          string   `json:"id"`
+			FixVersions []string `json:"fix_versions"`
+			Description string   `json:"description"`
+		} `json:"vulns"`
+	}
+
+	// Try parsing as array first (newer pip-audit format)
+	if err := json.Unmarshal(output, &vulnArray); err == nil {
+		for _, dep := range vulnArray {
+			for _, vuln := range dep.Vulns {
+				severity := determinePythonSeverity(vuln.ID)
+				fixedIn := ""
+				if len(vuln.FixVersions) > 0 {
+					fixedIn = vuln.FixVersions[len(vuln.FixVersions)-1] // Latest fix version
+				}
+
+				result.Findings = append(result.Findings, CVEFinding{
+					CVE:         vuln.ID,
+					Severity:    severity,
+					Package:     dep.Name,
+					Version:     dep.Version,
+					FixedIn:     fixedIn,
+					Description: truncateString(vuln.Description, 200),
+				})
+			}
+		}
+		return result
+	}
+
+	// Try parsing as object (older format)
+	if err := json.Unmarshal(output, &pipResult); err != nil {
+		result.Error = fmt.Sprintf("Failed to parse pip-audit output: %v", err)
+		return result
+	}
+
+	for _, dep := range pipResult.Dependencies {
+		for _, vuln := range dep.Vulns {
+			severity := determinePythonSeverity(vuln.ID)
+			fixedIn := ""
+			if len(vuln.FixVersions) > 0 {
+				fixedIn = vuln.FixVersions[len(vuln.FixVersions)-1]
+			}
+
+			result.Findings = append(result.Findings, CVEFinding{
+				CVE:         vuln.ID,
+				Severity:    severity,
+				Package:     dep.Name,
+				Version:     dep.Version,
+				FixedIn:     fixedIn,
+				Description: truncateString(vuln.Description, 200),
+			})
+		}
+	}
+
+	return result
+}
+
+// determinePythonSeverity determines severity from CVE/PYSEC ID
+// Since pip-audit doesn't always include severity, we default to MEDIUM
+// but could be enhanced with OSV API lookup
+func determinePythonSeverity(id string) string {
+	// pip-audit doesn't provide severity directly
+	// Could be enhanced to lookup from OSV API
+	// For now, use heuristics based on ID prefix
+	if strings.HasPrefix(id, "GHSA-") {
+		// GitHub Security Advisories are usually at least MEDIUM
+		return "MEDIUM"
+	}
+	if strings.HasPrefix(id, "CVE-") || strings.HasPrefix(id, "PYSEC-") {
+		return "MEDIUM"
+	}
+	return "LOW"
+}
+
+// runComposerAudit runs composer audit for PHP projects
+func runComposerAudit(repoPath, repoName string) RepoSecurityResult {
+	result := RepoSecurityResult{RepoName: repoName, ProjectType: "php"}
+
+	// Check if composer is available
+	if !checkComposerAvailable() {
+		result.Error = "Composer not installed. Install from: https://getcomposer.org/download/"
+		return result
+	}
+
+	// Check if composer.json exists
+	composerPath := filepath.Join(repoPath, "composer.json")
+	if _, err := os.Stat(composerPath); os.IsNotExist(err) {
+		result.Error = "No composer.json found"
+		return result
+	}
+
+	// Run composer audit with JSON output
+	cmd := exec.Command("composer", "audit", "--format=json")
+	cmd.Dir = repoPath
+	output, err := cmd.Output()
+
+	// composer audit returns exit code 1 if vulnerabilities found
+	if err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			if exitErr.ExitCode() != 1 && len(output) == 0 {
+				// Check stderr for more info
+				if len(exitErr.Stderr) > 0 {
+					result.Error = fmt.Sprintf("composer audit failed: %s", string(exitErr.Stderr))
+				} else {
+					result.Error = fmt.Sprintf("composer audit failed: %v", err)
+				}
+				return result
+			}
+		} else if len(output) == 0 {
+			result.Error = fmt.Sprintf("composer audit failed: %v", err)
+			return result
+		}
+	}
+
+	// Parse composer audit JSON output
+	var auditResult struct {
+		Advisories map[string][]struct {
+			AdvisoryID       string `json:"advisoryId"`
+			PackageName      string `json:"packageName"`
+			AffectedVersions string `json:"affectedVersions"`
+			Title            string `json:"title"`
+			CVE              string `json:"cve"`
+			Link             string `json:"link"`
+			ReportedAt       string `json:"reportedAt"`
+			Severity         string `json:"severity"`
+		} `json:"advisories"`
+	}
+
+	if err := json.Unmarshal(output, &auditResult); err != nil {
+		// Check if it's empty (no vulnerabilities)
+		if len(output) == 0 || string(output) == "{}" || string(output) == "{\"advisories\":[]}" {
+			return result // No vulnerabilities
+		}
+		result.Error = fmt.Sprintf("Failed to parse composer audit output: %v", err)
+		return result
+	}
+
+	// Process advisories
+	for packageName, advisories := range auditResult.Advisories {
+		for _, advisory := range advisories {
+			cveID := advisory.CVE
+			if cveID == "" {
+				cveID = advisory.AdvisoryID
+			}
+
+			severity := strings.ToUpper(advisory.Severity)
+			if severity == "" {
+				severity = "MEDIUM"
+			}
+
+			result.Findings = append(result.Findings, CVEFinding{
+				CVE:         cveID,
+				Severity:    severity,
+				Package:     packageName,
+				Version:     advisory.AffectedVersions,
+				Description: truncateString(advisory.Title, 200),
+			})
+		}
+	}
+
+	return result
 }

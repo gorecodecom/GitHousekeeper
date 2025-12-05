@@ -90,13 +90,13 @@
 
       // Online/Offline Detection
       window.addEventListener('offline', () => {
-        showConnectionBanner('offline', '🔴', 'Keine Internetverbindung - Einige Funktionen sind möglicherweise eingeschränkt');
-        showToast('Offline', 'Sie haben keine Internetverbindung.', 'warning');
+        showConnectionBanner('offline', '🔴', 'No internet connection - Some features may be limited');
+        showToast('Offline', 'You have no internet connection.', 'warning');
       });
 
       window.addEventListener('online', () => {
-        showConnectionBanner('reconnected', '🟢', 'Verbindung wiederhergestellt');
-        showToast('Online', 'Internetverbindung wiederhergestellt.', 'success', 3000);
+        showConnectionBanner('reconnected', '🟢', 'Connection restored');
+        showToast('Online', 'Internet connection restored.', 'success', 3000);
         setTimeout(hideConnectionBanner, 3000);
       });
 
@@ -115,15 +115,15 @@
           if (!serverHealthy) {
             // Server was down, now back up
             serverHealthy = true;
-            showConnectionBanner('reconnected', '🟢', 'Server-Verbindung wiederhergestellt');
-            showToast('Server verbunden', 'Die Verbindung zum GitHousekeeper Server wurde wiederhergestellt.', 'success', 3000);
+            showConnectionBanner('reconnected', '🟢', 'Server connection restored');
+            showToast('Server connected', 'Connection to GitHousekeeper server has been restored.', 'success', 3000);
             setTimeout(hideConnectionBanner, 3000);
           }
         } catch (e) {
           if (serverHealthy) {
             serverHealthy = false;
-            showConnectionBanner('server-error', '⚠️', 'Server nicht erreichbar - Bitte starten Sie GitHousekeeper neu');
-            showToast('Server nicht erreichbar', 'Der GitHousekeeper Server antwortet nicht. Bitte überprüfen Sie, ob die Anwendung noch läuft.', 'error', 0);
+            showConnectionBanner('server-error', '⚠️', 'Server unreachable - Please restart GitHousekeeper');
+            showToast('Server unreachable', 'The GitHousekeeper server is not responding. Please check if the application is still running.', 'error', 0);
           }
         }
       }
@@ -140,7 +140,7 @@
       window.addEventListener('beforeunload', (event) => {
         if (isProcessRunning) {
           event.preventDefault();
-          event.returnValue = 'Ein Prozess läuft noch. Möchten Sie die Seite wirklich verlassen?';
+          event.returnValue = 'A process is still running. Do you really want to leave this page?';
           return event.returnValue;
         }
       });
@@ -157,8 +157,8 @@
         } catch (error) {
           if (error.name === 'TypeError' || error.message.includes('fetch')) {
             serverHealthy = false;
-            showConnectionBanner('server-error', '⚠️', 'Server nicht erreichbar');
-            showToast('Verbindungsfehler', 'Der Server ist nicht erreichbar. Bitte überprüfen Sie, ob GitHousekeeper noch läuft.', 'error', 0);
+            showConnectionBanner('server-error', '⚠️', 'Server unreachable');
+            showToast('Connection error', 'The server is not reachable. Please check if GitHousekeeper is still running.', 'error', 0);
           }
           throw error;
         }
@@ -295,7 +295,7 @@
           }
         } catch (e) {
           console.error('Print failed:', e);
-          showToast('Fehler', 'PDF-Export fehlgeschlagen. Bitte versuchen Sie es erneut.', 'error');
+          showToast('Error', 'PDF export failed. Please try again.', 'error');
           document.body.classList.remove("print-" + section);
         }
       }
@@ -508,13 +508,13 @@
           }
         } catch (e) {
           log.innerHTML += `<div class="log-error">Error: ${e.message}</div>`;
-          showToast('Fehler', `Ein Fehler ist aufgetreten: ${e.message}`, 'error');
+          showToast('Error', `An error occurred: ${e.message}`, 'error');
         } finally {
           loading.classList.add("hidden");
           isProcessRunning = false; // Mark process as complete
           log.innerHTML +=
             '<div class="log-info" style="margin-top:20px; border-top:1px solid #333; padding-top:10px;">--- Done ---</div>';
-          showToast('Fertig', 'Der Housekeeping-Prozess wurde abgeschlossen.', 'success', 4000);
+          showToast('Complete', 'The housekeeping process has finished.', 'success', 4000);
         }
       }
 
@@ -604,17 +604,19 @@
         document.getElementById("metric-health").innerText = "--";
         document.getElementById("metric-repos").innerText = "0";
         document.getElementById("metric-todos").innerText = "0";
+        document.getElementById("metric-outdated").innerText = "0";
         document.getElementById("chart-deps").innerHTML = '<div class="hint">Loading...</div>';
-        document.getElementById("chart-spring").innerHTML = '<div class="hint">Loading...</div>';
+        document.getElementById("chart-frameworks").innerHTML = '<div class="hint">Loading...</div>';
 
         // Reset Stats
         currentStats = {
             totalRepos: 0,
             repoDetails: [],
-            springVersions: {},
+            frameworks: {},      // Framework distribution
             topDependencies: {}, // Map for easy counting
             totalTodos: 0,
-            totalHealth: 0
+            totalHealth: 0,
+            totalOutdated: 0
         };
 
         try {
@@ -660,7 +662,7 @@
             document.getElementById("metric-repos").innerText = msg.totalRepos;
             // Clear charts
             document.getElementById("chart-deps").innerHTML = "";
-            document.getElementById("chart-spring").innerHTML = "";
+            document.getElementById("chart-frameworks").innerHTML = "";
         } else if (msg.type === "repo") {
             const repo = msg.data;
             const deps = msg.deps || [];
@@ -669,9 +671,31 @@
             currentStats.repoDetails.push(repo);
             currentStats.totalTodos += repo.todoCount;
             currentStats.totalHealth += repo.healthScore;
+            currentStats.totalOutdated += repo.outdatedDeps || 0;
 
-            if (repo.springBootVer) {
-                currentStats.springVersions[repo.springBootVer] = (currentStats.springVersions[repo.springBootVer] || 0) + 1;
+            // Track frameworks (including Spring Boot versions as separate entries)
+            if (repo.framework) {
+                let frameworkLabel = repo.framework;
+                // Add version info for Spring Boot
+                if (repo.framework === "Spring Boot" && repo.springBootVer) {
+                    frameworkLabel = `Spring Boot ${repo.springBootVer}`;
+                }
+                currentStats.frameworks[frameworkLabel] = (currentStats.frameworks[frameworkLabel] || 0) + 1;
+            } else if (repo.projectType === "maven" && repo.springBootVer) {
+                const frameworkLabel = `Spring Boot ${repo.springBootVer}`;
+                currentStats.frameworks[frameworkLabel] = (currentStats.frameworks[frameworkLabel] || 0) + 1;
+            } else if (repo.projectType && repo.projectType !== "unknown") {
+                // For projects without detected framework, use project type
+                const typeLabels = {
+                    'npm': 'Node.js',
+                    'yarn': 'Node.js',
+                    'pnpm': 'Node.js',
+                    'go': 'Go',
+                    'python': 'Python',
+                    'maven': 'Maven'
+                };
+                const frameworkLabel = typeLabels[repo.projectType] || repo.projectType;
+                currentStats.frameworks[frameworkLabel] = (currentStats.frameworks[frameworkLabel] || 0) + 1;
             }
 
             deps.forEach(d => {
@@ -683,6 +707,7 @@
             const avgHealth = Math.round(currentStats.totalHealth / count);
             document.getElementById("metric-health").innerText = avgHealth + "/100";
             document.getElementById("metric-todos").innerText = currentStats.totalTodos;
+            document.getElementById("metric-outdated").innerText = currentStats.totalOutdated;
 
             // Add Row
             addRepoRow(repo);
@@ -692,6 +717,54 @@
         } else if (msg.type === "done") {
             // Final polish if needed
         }
+      }
+
+      // Get framework icon/badge
+      function getFrameworkBadge(framework) {
+        const frameworkIcons = {
+            'Next.js': { icon: '▲', color: '#000' },
+            'Nuxt.js': { icon: '💚', color: '#00DC82' },
+            'Angular': { icon: '🅰️', color: '#DD0031' },
+            'Vue.js': { icon: '💚', color: '#4FC08D' },
+            'React': { icon: '⚛️', color: '#61DAFB' },
+            'Svelte': { icon: '🔥', color: '#FF3E00' },
+            'Express': { icon: '🚀', color: '#000' },
+            'Fastify': { icon: '⚡', color: '#000' },
+            'NestJS': { icon: '🐱', color: '#E0234E' },
+            'Gatsby': { icon: '💜', color: '#663399' },
+            'Remix': { icon: '💿', color: '#000' },
+            'Koa': { icon: '🥝', color: '#000' },
+            'Electron': { icon: '⚡', color: '#47848F' },
+            'Spring Boot': { icon: '🍃', color: '#6DB33F' },
+            // Go frameworks
+            'Go': { icon: '🐹', color: '#00ADD8' },
+            'Gin': { icon: '🐹', color: '#00ADD8' },
+            'Fiber': { icon: '🐹', color: '#00ADD8' },
+            'Echo': { icon: '🐹', color: '#00ADD8' },
+            'Chi': { icon: '🐹', color: '#00ADD8' },
+            'Gorilla Mux': { icon: '🐹', color: '#00ADD8' },
+            'gRPC': { icon: '🐹', color: '#00ADD8' },
+            // Python frameworks
+            'Python': { icon: '🐍', color: '#3776AB' },
+            'Django': { icon: '🐍', color: '#092E20' },
+            'Flask': { icon: '🐍', color: '#000' },
+            'FastAPI': { icon: '🐍', color: '#009688' },
+            'Streamlit': { icon: '🐍', color: '#FF4B4B' },
+            'PyTorch': { icon: '🔥', color: '#EE4C2C' },
+            'TensorFlow': { icon: '🧠', color: '#FF6F00' },
+            'Data Science': { icon: '📊', color: '#3776AB' },
+            // PHP frameworks
+            'PHP': { icon: '🐘', color: '#777BB4' },
+            'Laravel': { icon: '🐘', color: '#FF2D20' },
+            'Symfony': { icon: '🐘', color: '#000' },
+            'CodeIgniter': { icon: '🐘', color: '#EE4623' },
+            'CakePHP': { icon: '🐘', color: '#D33C44' },
+            'Yii': { icon: '🐘', color: '#40B3D8' },
+            'Slim': { icon: '🐘', color: '#74A045' }
+        };
+
+        const info = frameworkIcons[framework] || { icon: '📦', color: '#888' };
+        return `<span style="color: ${info.color};" title="${framework}">${info.icon}</span>`;
       }
 
       function addRepoRow(repo) {
@@ -706,6 +779,34 @@
             statusText = "Warning";
         }
 
+        // Build Framework column
+        let frameworkDisplay = '-';
+        if (repo.framework) {
+            frameworkDisplay = `${getFrameworkBadge(repo.framework)} ${repo.framework}`;
+            if (repo.framework === "Spring Boot" && repo.springBootVer) {
+                frameworkDisplay += ` ${repo.springBootVer}`;
+            }
+        } else if (repo.springBootVer) {
+            frameworkDisplay = `${getFrameworkBadge('Spring Boot')} Spring Boot ${repo.springBootVer}`;
+        }
+
+        // Build Runtime column (Java, Node.js, Go, or Python version)
+        let runtimeDisplay = '-';
+        if (repo.javaVersion) {
+            runtimeDisplay = `☕ Java ${repo.javaVersion}`;
+        } else if (repo.nodeVersion) {
+            runtimeDisplay = `📗 Node ${repo.nodeVersion}`;
+        } else if (repo.goVersion) {
+            runtimeDisplay = `🐹 Go ${repo.goVersion}`;
+        } else if (repo.pythonVersion) {
+            runtimeDisplay = `🐍 Python ${repo.pythonVersion}`;
+        }
+
+        // Outdated deps display
+        let outdatedDisplay = repo.outdatedDeps || 0;
+        let outdatedClass = outdatedDisplay === 0 ? 'status-good' : (outdatedDisplay > 10 ? 'status-bad' : 'status-warn');
+        let outdatedBadge = outdatedDisplay === 0 ? '✅' : (outdatedDisplay > 10 ? '⚠️' : '📦');
+
         const tr = document.createElement("tr");
         tr.innerHTML = `
             <td>${repo.name}</td>
@@ -717,10 +818,11 @@
                     <span>${repo.healthScore}</span>
                 </div>
             </td>
-            <td>${repo.springBootVer || '-'}</td>
-            <td>${repo.javaVersion || '-'}</td>
+            <td>${frameworkDisplay}</td>
+            <td>${runtimeDisplay}</td>
             <td>${repo.lastCommit || '-'}</td>
             <td>${repo.todoCount}</td>
+            <td><span title="${outdatedDisplay} outdated packages">${outdatedBadge} ${outdatedDisplay}</span></td>
             <td><span class="status-badge ${statusClass}">${statusText}</span></td>
         `;
         tbody.appendChild(tr);
@@ -735,46 +837,58 @@
         const depsContainer = document.getElementById("chart-deps");
         depsContainer.innerHTML = "";
 
-        // Find max for scaling
-        const maxDep = sortedDeps.length > 0 ? sortedDeps[0][1] : 1;
-
-        sortedDeps.forEach(([name, count]) => {
-            const pct = (count / maxDep) * 100;
-            const row = document.createElement("div");
-            row.className = "bar-row";
-            row.innerHTML = `
-                <div class="bar-label" title="${name}">${name}</div>
-                <div class="bar-track">
-                    <div class="bar-fill" style="width: ${pct}%"></div>
-                </div>
-                <div class="bar-value">${count}</div>
-            `;
-            depsContainer.appendChild(row);
-        });
-
-        // Spring Boot Versions
-        const sortedSpring = Object.entries(currentStats.springVersions)
-            .sort((a, b) => b[1] - a[1]); // Sort by count desc
-
-        const springContainer = document.getElementById("chart-spring");
-        springContainer.innerHTML = "";
-
-        if (sortedSpring.length === 0) {
-            springContainer.innerHTML = '<div class="hint">No Spring Boot projects found.</div>';
+        if (sortedDeps.length === 0) {
+            depsContainer.innerHTML = '<div class="hint" style="color: #a6adc8; font-size: 0.9em;">Dependencies are collected during scan. Maven, Node.js, Go and Python projects are supported.</div>';
         } else {
-            const maxSpring = sortedSpring[0][1];
-            sortedSpring.forEach(([ver, count]) => {
-                const pct = (count / maxSpring) * 100;
+            // Find max for scaling
+            const maxDep = sortedDeps[0][1];
+
+            sortedDeps.forEach(([name, count]) => {
+                const pct = (count / maxDep) * 100;
+                const tooltip = `${name} is used in ${count} project${count > 1 ? 's' : ''}`;
                 const row = document.createElement("div");
                 row.className = "bar-row";
+                row.style.cursor = "help";
+                row.title = tooltip;
                 row.innerHTML = `
-                    <div class="bar-label">Spring Boot ${ver}</div>
-                    <div class="bar-track">
+                    <div class="bar-label" title="${tooltip}">${name}</div>
+                    <div class="bar-track" title="${tooltip}">
                         <div class="bar-fill" style="width: ${pct}%; background-color: #89b4fa;"></div>
                     </div>
                     <div class="bar-value">${count}</div>
                 `;
-                springContainer.appendChild(row);
+                depsContainer.appendChild(row);
+            });
+        }
+
+        // Frameworks Chart
+        const sortedFrameworks = Object.entries(currentStats.frameworks)
+            .sort((a, b) => b[1] - a[1]); // Sort by count desc
+
+        const frameworksContainer = document.getElementById("chart-frameworks");
+        frameworksContainer.innerHTML = "";
+
+        if (sortedFrameworks.length === 0) {
+            frameworksContainer.innerHTML = '<div class="hint" style="color: #a6adc8; font-size: 0.9em;">No frameworks detected. Supported: Spring Boot, React, Vue, Angular, Next.js, Go, Python, Django, Flask, etc.</div>';
+        } else {
+            const maxFramework = sortedFrameworks[0][1];
+
+            sortedFrameworks.forEach(([name, count]) => {
+                const pct = (count / maxFramework) * 100;
+                const tooltip = `${count} project${count > 1 ? 's' : ''} use${count > 1 ? '' : 's'} ${name}`;
+
+                const row = document.createElement("div");
+                row.className = "bar-row";
+                row.style.cursor = "help";
+                row.title = tooltip;
+                row.innerHTML = `
+                    <div class="bar-label" title="${tooltip}">${name}</div>
+                    <div class="bar-track" title="${tooltip}">
+                        <div class="bar-fill" style="width: ${pct}%; background-color: #a6e3a1;"></div>
+                    </div>
+                    <div class="bar-value">${count}</div>
+                `;
+                frameworksContainer.appendChild(row);
             });
         }
       }
@@ -1437,12 +1551,12 @@
           log.innerHTML +=
             '<div class="log-success" style="margin-top: 20px; border-top: 1px solid #444; padding-top: 10px;">--- Analysis Complete ---</div>';
           isProcessRunning = false; // Mark process as complete
-          showToast('Analyse abgeschlossen', 'Die Migration-Analyse wurde erfolgreich beendet.', 'success', 4000);
+          showToast('Analysis complete', 'Migration analysis has finished successfully.', 'success', 4000);
         } catch (e) {
           log.innerHTML += `<div class="log-error">Error: ${e.message}</div>`;
           progressContainer.classList.add("hidden");
           isProcessRunning = false; // Mark process as complete
-          showToast('Fehler', `Analyse fehlgeschlagen: ${e.message}`, 'error');
+          showToast('Error', `Analysis failed: ${e.message}`, 'error');
         }
       }
 
@@ -1461,7 +1575,7 @@
       async function loadBranchInfo() {
         const rootPath = document.getElementById("rootPath")?.value;
         if (!rootPath) {
-          showToast('Fehler', 'Bitte zuerst einen Root Path im Project Setup konfigurieren.', 'error');
+          showToast('Error', 'Please configure a root path in Project Setup first.', 'error');
           return;
         }
 
@@ -1517,18 +1631,18 @@
             </div>
           `).join('');
 
-          showToast('Geladen', `${repos.length} Repositories gefunden`, 'success', 2000);
+          showToast('Loaded', `${repos.length} repositories found`, 'success', 2000);
 
         } catch (e) {
           container.innerHTML = `<div style="color: #ef5350; grid-column: 1 / -1; text-align: center; padding: 40px;">Error: ${e.message}</div>`;
-          showToast('Fehler', e.message, 'error');
+          showToast('Error', e.message, 'error');
         }
       }
 
       async function syncAllBranches() {
         const rootPath = document.getElementById("rootPath")?.value;
         if (!rootPath) {
-          showToast('Fehler', 'Bitte zuerst einen Root Path im Project Setup konfigurieren.', 'error');
+          showToast('Error', 'Please configure a root path in Project Setup first.', 'error');
           return;
         }
 
@@ -1619,12 +1733,12 @@
             }
           }
 
-          showToast('Sync abgeschlossen', 'Alle Branches wurden aktualisiert.', 'success', 3000);
+          showToast('Sync complete', 'All branches have been updated.', 'success', 3000);
           loadBranchInfo(); // Refresh the branch list
 
         } catch (e) {
           syncLog.innerHTML += `<div style="color: #ef5350;">Error: ${e.message}</div>`;
-          showToast('Fehler', e.message, 'error');
+          showToast('Error', e.message, 'error');
         } finally {
           btn.disabled = false;
           btn.textContent = "⬇️ Sync All Tracked Branches";
@@ -1904,12 +2018,18 @@
         const owaspInfo = document.getElementById('owasp-info');
         const trivyInfo = document.getElementById('trivy-info');
         const npmInfo = document.getElementById('npm-info');
+        const goInfo = document.getElementById('go-info');
+        const pythonInfo = document.getElementById('python-info');
+        const phpInfo = document.getElementById('php-info');
 
         // Hide all
         autoInfo.classList.add('hidden');
         owaspInfo.classList.add('hidden');
         trivyInfo.classList.add('hidden');
         npmInfo.classList.add('hidden');
+        goInfo.classList.add('hidden');
+        pythonInfo.classList.add('hidden');
+        phpInfo.classList.add('hidden');
 
         // Show selected
         switch (scanner) {
@@ -1931,7 +2051,121 @@
               checkNpmAvailability();
             }
             break;
+          case 'govulncheck':
+            goInfo.classList.remove('hidden');
+            if (!goCheckDone) {
+              checkGoAvailability();
+            }
+            break;
+          case 'pip-audit':
+            pythonInfo.classList.remove('hidden');
+            if (!pythonCheckDone) {
+              checkPythonAvailability();
+            }
+            break;
+          case 'composer-audit':
+            phpInfo.classList.remove('hidden');
+            if (!phpCheckDone) {
+              checkPhpAvailability();
+            }
+            break;
         }
+      }
+
+      // Go availability check
+      let goCheckDone = false;
+      async function checkGoAvailability() {
+        const statusIcon = document.getElementById('go-status-icon');
+        const statusText = document.getElementById('go-status');
+        const installHint = document.getElementById('go-install-hint');
+
+        statusIcon.textContent = '⏳';
+        statusText.textContent = 'Checking govulncheck availability...';
+        installHint.classList.add('hidden');
+
+        try {
+          const res = await fetch('/api/check-go');
+          const data = await res.json();
+
+          if (data.available) {
+            statusIcon.textContent = '✅';
+            statusText.textContent = `govulncheck installed (${data.version || 'available'})`;
+            installHint.classList.add('hidden');
+          } else {
+            statusIcon.textContent = '❌';
+            statusText.textContent = 'govulncheck not found';
+            installHint.classList.remove('hidden');
+          }
+        } catch (e) {
+          statusIcon.textContent = '⚠️';
+          statusText.textContent = 'Could not check govulncheck';
+        }
+
+        goCheckDone = true;
+      }
+
+      // Python availability check
+      let pythonCheckDone = false;
+      async function checkPythonAvailability() {
+        const statusIcon = document.getElementById('python-status-icon');
+        const statusText = document.getElementById('python-status');
+        const installHint = document.getElementById('python-install-hint');
+
+        statusIcon.textContent = '⏳';
+        statusText.textContent = 'Checking pip-audit availability...';
+        installHint.classList.add('hidden');
+
+        try {
+          const res = await fetch('/api/check-python');
+          const data = await res.json();
+
+          if (data.available) {
+            statusIcon.textContent = '✅';
+            statusText.textContent = `pip-audit installed (${data.version || 'available'})`;
+            installHint.classList.add('hidden');
+          } else {
+            statusIcon.textContent = '❌';
+            statusText.textContent = 'pip-audit not found';
+            installHint.classList.remove('hidden');
+          }
+        } catch (e) {
+          statusIcon.textContent = '⚠️';
+          statusText.textContent = 'Could not check pip-audit';
+        }
+
+        pythonCheckDone = true;
+      }
+
+      // PHP availability check
+      let phpCheckDone = false;
+      async function checkPhpAvailability() {
+        const statusIcon = document.getElementById('php-status-icon');
+        const statusText = document.getElementById('php-status');
+        const installHint = document.getElementById('php-install-hint');
+
+        statusIcon.textContent = '⏳';
+        statusText.textContent = 'Checking Composer availability...';
+        installHint.classList.add('hidden');
+
+        try {
+          const res = await fetch('/api/check-php');
+          const data = await res.json();
+
+          if (data.available) {
+            statusIcon.textContent = '✅';
+            statusText.textContent = `Composer installed (${data.version || 'available'})`;
+            installHint.classList.add('hidden');
+          } else {
+            statusIcon.textContent = '❌';
+            statusText.textContent = 'Composer not found';
+            installHint.classList.remove('hidden');
+          }
+        } catch (e) {
+          statusIcon.textContent = '⚠️';
+          statusText.textContent = 'Could not check Composer';
+        }
+
+        phpCheckDone = true;
       }
 
       // Get severity color
@@ -1954,20 +2188,20 @@
       // Run security scan
       async function runSecurityScan() {
         if (isProcessRunning) {
-          showToast('Prozess läuft', 'Bitte warten Sie, bis der aktuelle Prozess abgeschlossen ist.', 'warning');
+          showToast('Process running', 'Please wait until the current process is complete.', 'warning');
           return;
         }
 
         const rootPath = document.getElementById("rootPath").value.trim();
         if (!rootPath) {
-          showToast('Pfad fehlt', 'Bitte wählen Sie zuerst einen Root-Pfad.', 'warning');
+          showToast('Path missing', 'Please select a root path first.', 'warning');
           return;
         }
 
         const scanner = document.getElementById('security-scanner-select').value;
 
         if (scanner === 'trivy' && !trivyAvailable) {
-          showToast('Trivy nicht verfügbar', 'Bitte installieren Sie Trivy oder wählen Sie OWASP.', 'warning');
+          showToast('Trivy not available', 'Please install Trivy or select OWASP.', 'warning');
           return;
         }
 
@@ -2128,10 +2362,10 @@
           displaySecurityResults();
           displaySecuritySummary(summaryStats);
 
-          showToast('Scan abgeschlossen', `${securityScanResults.length} Repositories gescannt.`, 'success', 3000);
+          showToast('Scan complete', `${securityScanResults.length} repositories scanned.`, 'success', 3000);
 
         } catch (e) {
-          showToast('Fehler', e.message, 'error');
+          showToast('Error', e.message, 'error');
           resultsDiv.innerHTML = `<div style="color: #f38ba8; grid-column: 1 / -1; text-align: center; padding: 40px;">Error: ${e.message}</div>`;
         } finally {
           btn.disabled = false;
@@ -2183,6 +2417,15 @@
               break;
             case 'pnpm':
               projectBadge = '<span style="background: #f9e2af22; color: #f9e2af; padding: 2px 6px; border-radius: 4px; font-size: 0.7em; margin-left: 8px;">⚡ pnpm</span>';
+              break;
+            case 'go':
+              projectBadge = '<span style="background: #00ADD822; color: #00ADD8; padding: 2px 6px; border-radius: 4px; font-size: 0.7em; margin-left: 8px;">🐹 Go</span>';
+              break;
+            case 'python':
+              projectBadge = '<span style="background: #3776AB22; color: #3776AB; padding: 2px 6px; border-radius: 4px; font-size: 0.7em; margin-left: 8px;">🐍 Python</span>';
+              break;
+            case 'php':
+              projectBadge = '<span style="background: #8892BF22; color: #8892BF; padding: 2px 6px; border-radius: 4px; font-size: 0.7em; margin-left: 8px;">🐘 PHP</span>';
               break;
             case 'trivy':
               projectBadge = '<span style="background: #a6e3a122; color: #a6e3a1; padding: 2px 6px; border-radius: 4px; font-size: 0.7em; margin-left: 8px;">🐳 Trivy</span>';
@@ -2271,11 +2514,11 @@
       // Export security report as PDF
       async function exportSecurityPdf() {
         if (securityScanResults.length === 0) {
-          showToast('Keine Daten', 'Führen Sie zuerst einen Scan durch.', 'warning');
+          showToast('No data', 'Please run a scan first.', 'warning');
           return;
         }
 
-        showToast('Export', 'PDF-Export wird vorbereitet...', 'info', 2000);
+        showToast('Export', 'Preparing PDF export...', 'info', 2000);
 
         // Create printable HTML
         let html = `<!DOCTYPE html>
@@ -2368,7 +2611,7 @@
           }, 300);
         } catch (e) {
           console.error('PDF export failed:', e);
-          showToast('Fehler', 'PDF-Export fehlgeschlagen: ' + e.message, 'error');
+          showToast('Error', 'PDF export failed: ' + e.message, 'error');
         }
       }
 
@@ -2376,11 +2619,11 @@
       function exportSingleRepoSecurityPdf(repoName) {
         const result = securityScanResults.find(r => r.repoName === repoName);
         if (!result) {
-          showToast('Fehler', 'Repository nicht gefunden.', 'error');
+          showToast('Error', 'Repository not found.', 'error');
           return;
         }
 
-        showToast('Export', `PDF-Export für ${repoName} wird vorbereitet...`, 'info', 2000);
+        showToast('Export', `Preparing PDF export for ${repoName}...`, 'info', 2000);
 
         const cveCount = result.findings ? result.findings.length : 0;
         let criticalCount = 0, highCount = 0, mediumCount = 0, lowCount = 0;

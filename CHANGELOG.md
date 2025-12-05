@@ -9,6 +9,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **🐹 Go Project Support (Dashboard & Security Scanner)**
+  - Automatic detection of Go projects via `go.mod`
+  - Go framework detection: Gin, Fiber, Echo, Chi, Gorilla Mux, gRPC
+  - Go version display from `go.mod`
+  - Go dependencies collection from `go.mod`
+  - **govulncheck integration**: Official Go vulnerability scanner
+  - Framework badges in Dashboard and Security Scanner
+
+- **🐍 Python Project Support (Dashboard & Security Scanner)**
+  - Automatic detection of Python projects via `requirements.txt`, `setup.py`, `pyproject.toml`, `Pipfile`
+  - Python framework detection: Django, Flask, FastAPI, Streamlit, PyTorch, TensorFlow, Data Science
+  - Python version display from `pyproject.toml` or `setup.py`
+  - Python dependencies collection from `requirements.txt` and `pyproject.toml`
+  - **pip-audit integration**: PyPA vulnerability scanner
+  - Framework badges in Dashboard and Security Scanner
+
+- **🐘 PHP Project Support (Dashboard & Security Scanner)**
+  - Automatic detection of PHP projects via `composer.json`
+  - PHP framework detection: Laravel, Symfony, CodeIgniter, CakePHP, Yii, Slim
+  - PHP version display from `composer.json`
+  - PHP dependencies collection from `composer.json`
+  - **composer audit integration**: Official Composer security scanner
+  - Framework badges in Dashboard and Security Scanner
+
+- **🎯 Dashboard Framework Detection**
+  - Automatic detection of JavaScript/TypeScript frameworks
+  - Support for: React, Angular, Vue.js, Next.js, Nuxt.js, Svelte, Express, Fastify, NestJS, Gatsby, Remix, Koa, Electron
+  - Framework icons and badges in the repository table
+  - New "Frameworks" chart replacing "Spring Boot Versions" chart
+  - Spring Boot projects now show version alongside framework badge
+
+- **📗 Node.js Version Display**
+  - Shows Node.js version requirements from:
+    - `.nvmrc` file
+    - `.node-version` file (nodenv, volta)
+    - `engines.node` in `package.json`
+  - New "Runtime" column combines Java and Node.js versions
+  - Icons: ☕ for Java, 📗 for Node.js
+
+- **📦 Outdated Dependencies Check**
+  - Real-time check for outdated npm/yarn/pnpm dependencies
+  - New "Outdated Dependencies" metric card on dashboard
+  - Per-repository outdated package count in table
+  - Visual indicators: ✅ (0 outdated), 📦 (1-10), ⚠️ (>10)
+  - Support for npm, Yarn Classic, and pnpm outdated commands
+
 - **📦 Full-Stack Security Scanner - Node.js Support**
   - Extended CVE vulnerability scanning to support Node.js/Frontend projects
   - npm audit integration for projects with `package-lock.json`
@@ -43,16 +89,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - `package-lock.json` → npm audit
     - `yarn.lock` → yarn audit (Classic or Berry, auto-detected)
     - `pnpm-lock.yaml` → pnpm audit
+    - `go.mod` → govulncheck (Go)
+    - `requirements.txt` / `pyproject.toml` → pip-audit (Python)
+    - `composer.json` → composer audit (PHP)
   - Mixed repositories: scans using detected package manager
 
 - **🎨 UI Enhancements**
-  - Project type badges in scan results (☕ Maven, 📦 npm, 🧶 yarn, ⚡ pnpm, 🐳 Trivy)
+  - Project type badges in scan results (☕ Maven, 📦 npm, 🧶 yarn, ⚡ pnpm, 🐹 Go, 🐍 Python, 🐘 PHP, 🐳 Trivy)
   - Scanner selection dropdown with clear icons and descriptions
-  - Package manager availability check in UI
+  - Package manager availability check in UI for all scanner types
   - Updated scanner descriptions for all options
+  - Framework badges for Go, Python, and PHP frameworks in Dashboard
 
 ### Changed
 
+- Dashboard table now has 8 columns: Repository, Health Score, Framework, Runtime, Last Change, TODOs, Outdated, Status
+- "Spring Boot Versions" chart replaced with "Frameworks" chart showing all detected frameworks
 - Scanner dropdown now defaults to "Auto-detect (recommended)"
 - Trivy scanner now supports both Maven and Node.js projects
 - Updated description text to reflect multi-language support
