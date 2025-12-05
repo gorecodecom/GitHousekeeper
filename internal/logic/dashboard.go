@@ -41,13 +41,13 @@ type RepoHealth struct {
 	LastCommit     string `json:"lastCommit"`
 	HasBuildErrors bool   `json:"hasBuildErrors"`
 	// New fields for enhanced dashboard
-	Framework      string `json:"framework"`      // React, Angular, Vue, Next.js, Express, Spring Boot, Go, Python, PHP, etc.
-	NodeVersion    string `json:"nodeVersion"`    // Node.js version from package.json or .nvmrc
-	GoVersion      string `json:"goVersion"`      // Go version from go.mod
-	PythonVersion  string `json:"pythonVersion"`  // Python version from .python-version or pyproject.toml
-	PhpVersion     string `json:"phpVersion"`     // PHP version from composer.json
-	OutdatedDeps   int    `json:"outdatedDeps"`   // Count of outdated dependencies
-	ProjectType    string `json:"projectType"`    // "maven", "npm", "yarn", "pnpm", "go", "python", "php", "unknown"
+	Framework     string `json:"framework"`     // React, Angular, Vue, Next.js, Express, Spring Boot, Go, Python, PHP, etc.
+	NodeVersion   string `json:"nodeVersion"`   // Node.js version from package.json or .nvmrc
+	GoVersion     string `json:"goVersion"`     // Go version from go.mod
+	PythonVersion string `json:"pythonVersion"` // Python version from .python-version or pyproject.toml
+	PhpVersion    string `json:"phpVersion"`    // PHP version from composer.json
+	OutdatedDeps  int    `json:"outdatedDeps"`  // Count of outdated dependencies
+	ProjectType   string `json:"projectType"`   // "maven", "npm", "yarn", "pnpm", "go", "python", "php", "unknown"
 }
 
 // StreamDashboardStats scans and streams results in real-time

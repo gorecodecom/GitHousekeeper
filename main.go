@@ -1794,7 +1794,7 @@ func detectYarnVersion(repoPath string) (version string, useCorepack bool) {
 				parts := strings.Split(pkg.PackageManager, "@")
 				if len(parts) >= 2 {
 					ver := strings.Split(parts[1], "+")[0] // Remove hash
-					return ver, true // Use corepack for packageManager-managed yarn
+					return ver, true                       // Use corepack for packageManager-managed yarn
 				}
 			}
 		}
@@ -2217,21 +2217,21 @@ func parseYarnAuditOutput(output []byte, repoName string) RepoSecurityResult {
 		// Try npm-like format first (Yarn Modern)
 		var yarnModernResult struct {
 			Advisories map[string]struct {
-				ID               int    `json:"id"`
-				ModuleName       string `json:"module_name"`
-				Severity         string `json:"severity"`
-				Title            string `json:"title"`
-				URL              string `json:"url"`
+				ID                 int    `json:"id"`
+				ModuleName         string `json:"module_name"`
+				Severity           string `json:"severity"`
+				Title              string `json:"title"`
+				URL                string `json:"url"`
 				VulnerableVersions string `json:"vulnerable_versions"`
-				PatchedVersions  string `json:"patched_versions"`
+				PatchedVersions    string `json:"patched_versions"`
 			} `json:"advisories"`
 			// Alternative structure for yarn npm audit
 			Vulnerabilities map[string]struct {
-				Name     string        `json:"name"`
-				Severity string        `json:"severity"`
-				Via      []interface{} `json:"via"`
-				Range    string        `json:"range"`
-				FixAvailable interface{} `json:"fixAvailable"`
+				Name         string        `json:"name"`
+				Severity     string        `json:"severity"`
+				Via          []interface{} `json:"via"`
+				Range        string        `json:"range"`
+				FixAvailable interface{}   `json:"fixAvailable"`
 			} `json:"vulnerabilities"`
 		}
 
