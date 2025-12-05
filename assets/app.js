@@ -1689,6 +1689,8 @@
                 ✓ Root path is a single Git repository
               </div>`;
             securityReposLoaded = true;
+            // Still load branches for single repo
+            await loadSecurityBranches();
             return;
           }
 
@@ -1728,11 +1730,86 @@
           container.innerHTML = html;
           securityReposLoaded = true;
 
+          // Also load available branches for the dropdown
+          await loadSecurityBranches();
+
         } catch (e) {
           container.innerHTML = `
             <div style="color: #f38ba8; text-align: center; padding: 20px;">
               Error loading repositories: ${e.message}
             </div>`;
+        }
+      }
+
+      // Load available branches for security scan dropdown
+      async function loadSecurityBranches() {
+        const rootPath = document.getElementById("rootPath")?.value?.trim();
+        const branchSelect = document.getElementById("security-branch-select");
+
+        console.log('[loadSecurityBranches] rootPath:', rootPath, 'branchSelect:', branchSelect);
+
+        if (!rootPath || !branchSelect) {
+          console.log('[loadSecurityBranches] Early return - missing rootPath or branchSelect');
+          return;
+        }
+
+        // Keep current selection
+        const currentSelection = branchSelect.value;
+
+        try {
+          const excluded = getExcludedProjects();
+          console.log('[loadSecurityBranches] Fetching branches for:', rootPath);
+          const response = await fetch("/api/list-branches", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ rootPath, excluded }),
+          });
+
+          if (!response.ok) throw new Error("Failed to load branches");
+
+          const repos = await response.json();
+          console.log('[loadSecurityBranches] Got repos:', repos);
+
+          // Collect all unique branches across all repos
+          const branchSet = new Set();
+          const defaultBranches = new Set();
+
+          for (const repo of repos) {
+            if (repo.defaultBranch) {
+              defaultBranches.add(repo.defaultBranch);
+            }
+            for (const branch of repo.branches || []) {
+              branchSet.add(branch.name);
+            }
+          }
+
+          console.log('[loadSecurityBranches] Found branches:', Array.from(branchSet));
+
+          // Sort branches: default branches first, then alphabetically
+          const allBranches = Array.from(branchSet).sort((a, b) => {
+            const aIsDefault = defaultBranches.has(a);
+            const bIsDefault = defaultBranches.has(b);
+            if (aIsDefault && !bIsDefault) return -1;
+            if (!aIsDefault && bIsDefault) return 1;
+            return a.localeCompare(b);
+          });
+
+          // Build options HTML
+          let optionsHtml = '<option value="">📍 Current branch (default)</option>';
+
+          for (const branch of allBranches) {
+            const isDefault = defaultBranches.has(branch);
+            const icon = isDefault ? '⭐' : '🔀';
+            const selected = branch === currentSelection ? 'selected' : '';
+            optionsHtml += `<option value="${branch}" ${selected}>${icon} ${branch}</option>`;
+          }
+
+          branchSelect.innerHTML = optionsHtml;
+
+        } catch (e) {
+          console.error('Failed to load branches for security scan:', e);
+          // Keep default option only on error
+          branchSelect.innerHTML = '<option value="">📍 Current branch (default)</option>';
         }
       }
 
@@ -1921,6 +1998,9 @@
         let scannedRepos = 0;
         let summaryStats = { critical: 0, high: 0, medium: 0, low: 0, total: 0 };
 
+        // Get selected target branch
+        const targetBranch = document.getElementById('security-branch-select')?.value || '';
+
         try {
           const res = await fetch('/api/security-scan', {
             method: 'POST',
@@ -1928,7 +2008,8 @@
             body: JSON.stringify({
               rootPath: rootPath,
               excluded: getExcludedProjects(),
-              scanner: scanner
+              scanner: scanner,
+              targetBranch: targetBranch
             })
           });
 
@@ -2108,9 +2189,14 @@
               break;
           }
 
+          // Branch badge (show if available)
+          const branchBadge = result.scannedBranch
+            ? `<span style="background: #cba6f722; color: #cba6f7; padding: 2px 6px; border-radius: 4px; font-size: 0.7em; margin-left: 8px;">🔀 ${result.scannedBranch}</span>`
+            : '';
+
           html += `<div class="card" style="border-left: 4px solid ${cardColor};">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-              <h4 style="margin: 0; color: ${cardColor};">📁 ${result.repoName}${projectBadge}</h4>
+              <h4 style="margin: 0; color: ${cardColor};">📁 ${result.repoName}${projectBadge}${branchBadge}</h4>
               <div style="display: flex; align-items: center; gap: 10px;">
                 <span style="color: #9ca0b0; font-size: 0.85em;">${result.duration ? result.duration.toFixed(1) + 's' : ''}</span>
                 <button onclick="exportSingleRepoSecurityPdf('${result.repoName.replace(/'/g, "\\'")}')" class="btn btn-secondary" style="padding: 4px 8px; font-size: 0.75em;" title="Export PDF for this repo">📄</button>

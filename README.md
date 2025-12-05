@@ -30,11 +30,13 @@ See [CHANGELOG.md](CHANGELOG.md) for release history and all versions on the [Re
 ### 🛡️ Security Vulnerability Scanner (Enhanced in v2.4.0)
 
 - **Full-Stack Support**: Scan both **Maven** and **Node.js** projects.
+- **Branch Selection**: Choose which branch to scan (main, develop, feature branches, etc.).
 - **Auto-detect Mode**: Automatically detects project type and uses appropriate scanner.
 - **Multi-Scanner Support**:
   - OWASP Dependency-Check (Maven)
   - Trivy (Maven + Node.js)
   - npm/yarn/pnpm audit (Node.js)
+- **Yarn Berry Support**: Full support for Yarn Modern (v2/v3/v4) with corepack integration.
 - **Parallel Scanning**: Analyzes up to 4 repositories simultaneously.
 - **Severity Grouping**: CVEs organized by Critical, High, Medium, Low.
 - **Project Type Badges**: Visual indicators showing ☕ Maven, 📦 npm, 🧶 yarn, ⚡ pnpm.
@@ -476,18 +478,22 @@ GitHousekeeper automatically detects your Yarn version:
 1. Navigate to the **Security Scanner** tab.
 2. Click **🔄 Refresh** to load repositories from your configured root path.
 3. Select a **Scanner Engine** from the dropdown (Auto-detect recommended).
-4. Click **🔍 Scan for Vulnerabilities**.
-5. Monitor the **progress bar** and live scan status.
-6. Review the **Security Summary**:
+4. **(Optional)** Select a **Target Branch** to scan all repos on a specific branch:
+   - Default: "Current branch" - scans whatever is currently checked out
+   - Select a branch (e.g., `main`, `develop`) to temporarily switch and scan
+   - Branch switching is safe: uncommitted changes are stashed and restored
+5. Click **🔍 Scan for Vulnerabilities**.
+6. Monitor the **progress bar** and live scan status.
+7. Review the **Security Summary**:
    - Total repositories scanned
    - Total CVEs found
    - Breakdown by severity: Critical, High, Medium, Low
-7. Examine **per-repository results** showing:
+8. Examine **per-repository results** showing:
    - Project type badge (☕ Maven, 📦 npm, 🧶 yarn, ⚡ pnpm)
    - Vulnerability count and severity badges
    - CVE IDs with direct NVD links
    - Affected components and versions
-8. Click **📄 Export PDF** for a comprehensive security report.
+9. Click **📄 Export PDF** for a comprehensive security report.
 
 **Tips:**
 

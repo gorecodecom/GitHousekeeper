@@ -927,7 +927,7 @@
             Scan your Maven and Node.js projects for known security vulnerabilities (CVEs) in dependencies.
           </p>
 
-          <div style="display: flex; gap: 15px; flex-wrap: wrap; align-items: center; margin-bottom: 15px;">
+          <div style="display: flex; gap: 15px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 15px;">
             <div style="flex: 1; min-width: 200px;">
               <label for="security-scanner-select" style="font-size: 0.85em; color: #9ca0b0; display: block; margin-bottom: 5px;">Scanner Engine</label>
               <select id="security-scanner-select" style="width: 100%;" onchange="onScannerChange()" aria-describedby="scanner-description">
@@ -937,7 +937,13 @@
                 <option value="npm">📦 npm/yarn/pnpm audit (Node.js)</option>
               </select>
             </div>
-            <div style="display: flex; gap: 10px; align-items: flex-end;">
+            <div style="flex: 1; min-width: 200px;">
+              <label for="security-branch-select" style="font-size: 0.85em; color: #9ca0b0; display: block; margin-bottom: 5px;">Target Branch</label>
+              <select id="security-branch-select" style="width: 100%;" aria-describedby="branch-description">
+                <option value="">📍 Current branch (default)</option>
+              </select>
+            </div>
+            <div style="display: flex; gap: 10px;">
               <button class="btn btn-primary" onclick="runSecurityScan()" id="security-scan-btn" aria-label="Start security scan">
                 🔍 Scan for Vulnerabilities
               </button>

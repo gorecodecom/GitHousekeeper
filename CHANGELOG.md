@@ -16,6 +16,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - pnpm audit integration for projects with `pnpm-lock.yaml`
   - Automatic parsing of all package manager audit formats
 
+- **🔀 Branch Selection for Security Scans**
+  - New "Target Branch" dropdown in the Security Scanner
+  - Scan all repositories on a specific branch (e.g., `main`, `develop`, `release/1.0`)
+  - Automatic branch switching during scan with safe stash/restore of uncommitted changes
+  - Shows "Current branch" as default option
+  - Branch list populated from all available branches across all repositories
+  - Default branches (main/master) shown first with ⭐ icon
+
 - **🧶 Yarn Berry (v2/v3/v4) Support**
   - Full support for Yarn Modern (Berry) including versions 2.x, 3.x, and 4.x
   - Automatic detection of Yarn version via `packageManager` field in `package.json`
@@ -50,12 +58,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated description text to reflect multi-language support
 - `detectYarnVersion()` now reads `packageManager` field from `package.json` first
 - Yarn commands use `corepack yarn` when `packageManager` is defined
+- **Yarn Berry now uses text output instead of JSON**: More reliable scanning since `yarn npm audit --json` often fails with HTTP 500 errors from GitHub Advisory API
 
 ### Fixed
 
 - **Yarn Berry audit parsing**: Fixed issue where Yarn v2/v3/v4 projects showed "No vulnerabilities found" despite having CVEs
 - **Corepack compatibility**: Projects with `packageManager: "yarn@4.0.2"` now correctly use corepack to run the project-specific Yarn version
 - **CVE-2025-66478 detection**: Critical Next.js RCE vulnerability now correctly detected in Yarn Berry projects
+- **Yarn Berry JSON API failure**: Added `parseYarnBerryTextOutput()` parser that parses human-readable text output when JSON fails
+- **Branch-specific scanning**: Fixed issue where scanning different branches showed same results due to Yarn Berry JSON API returning HTTP 500 errors
 
 ## [2.3.0] - 2025-12-04
 

@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"sync"
@@ -1128,9 +1129,10 @@ func getCurrentBranch(repoPath string) string {
 // ==================== SECURITY SCAN ====================
 
 type SecurityScanRequest struct {
-	RootPath string   `json:"rootPath"`
-	Excluded []string `json:"excluded"`
-	Scanner  string   `json:"scanner"` // "owasp", "trivy", "npm", or "auto"
+	RootPath     string   `json:"rootPath"`
+	Excluded     []string `json:"excluded"`
+	Scanner      string   `json:"scanner"`      // "owasp", "trivy", "npm", or "auto"
+	TargetBranch string   `json:"targetBranch"` // Optional: branch to scan (empty = current branch)
 }
 
 type CVEFinding struct {
@@ -1143,11 +1145,12 @@ type CVEFinding struct {
 }
 
 type RepoSecurityResult struct {
-	RepoName    string       `json:"repoName"`
-	Findings    []CVEFinding `json:"findings"`
-	Error       string       `json:"error,omitempty"`
-	Duration    float64      `json:"duration"`
-	ProjectType string       `json:"projectType,omitempty"` // "maven", "npm", "yarn", "pnpm"
+	RepoName      string       `json:"repoName"`
+	Findings      []CVEFinding `json:"findings"`
+	Error         string       `json:"error,omitempty"`
+	Duration      float64      `json:"duration"`
+	ProjectType   string       `json:"projectType,omitempty"`   // "maven", "npm", "yarn", "pnpm"
+	ScannedBranch string       `json:"scannedBranch,omitempty"` // The branch that was scanned
 }
 
 // detectProjectType checks what kind of project this is
@@ -1287,9 +1290,10 @@ func handleSecurityScan(w http.ResponseWriter, r *http.Request) {
 
 	// Create channels for work distribution
 	type scanJob struct {
-		repoPath string
-		repoName string
-		index    int
+		repoPath     string
+		repoName     string
+		index        int
+		targetBranch string
 	}
 
 	type scanResult struct {
@@ -1311,6 +1315,48 @@ func handleSecurityScan(w http.ResponseWriter, r *http.Request) {
 				var result RepoSecurityResult
 				result.RepoName = job.repoName
 
+				// Handle branch switching if targetBranch is specified
+				var originalBranch string
+				branchSwitched := false
+				if job.targetBranch != "" {
+					// Get current branch
+					originalBranch = getCurrentBranch(job.repoPath)
+
+					// Only switch if we're not already on the target branch
+					if originalBranch != job.targetBranch {
+						// Check if there are uncommitted changes
+						cmd := exec.Command("git", "status", "--porcelain")
+						cmd.Dir = job.repoPath
+						statusOutput, _ := cmd.Output()
+
+						if len(statusOutput) > 0 {
+							// Stash changes
+							stashCmd := exec.Command("git", "stash", "push", "-m", "GitHousekeeper security scan")
+							stashCmd.Dir = job.repoPath
+							stashCmd.Run()
+						}
+
+						// Switch to target branch
+						checkoutCmd := exec.Command("git", "checkout", job.targetBranch)
+						checkoutCmd.Dir = job.repoPath
+						if err := checkoutCmd.Run(); err != nil {
+							result.Error = fmt.Sprintf("Failed to checkout branch %s: %v", job.targetBranch, err)
+							result.Duration = time.Since(start).Seconds()
+							results <- scanResult{result: result, index: job.index}
+							continue
+						}
+						branchSwitched = true
+						result.ScannedBranch = job.targetBranch
+					} else {
+						result.ScannedBranch = originalBranch
+					}
+				} else {
+					result.ScannedBranch = getCurrentBranch(job.repoPath)
+				}
+
+				// Store scanned branch for result preservation
+				scannedBranch := result.ScannedBranch
+
 				// Detect project type
 				projectType := detectProjectType(job.repoPath)
 				result.ProjectType = projectType
@@ -1327,6 +1373,11 @@ func handleSecurityScan(w http.ResponseWriter, r *http.Request) {
 					default:
 						result.Error = "No supported project type found (pom.xml or package.json)"
 						result.Duration = time.Since(start).Seconds()
+						// Switch back to original branch before returning error
+						if branchSwitched {
+							exec.Command("git", "checkout", originalBranch).Run()
+							exec.Command("git", "stash", "pop").Run()
+						}
 						results <- scanResult{result: result, index: job.index}
 						continue
 					}
@@ -1357,7 +1408,22 @@ func handleSecurityScan(w http.ResponseWriter, r *http.Request) {
 				default:
 					result.Error = "Unknown scanner type"
 				}
+
+				// Restore the scanned branch info (may be lost in scanner functions)
+				result.ScannedBranch = scannedBranch
 				result.Duration = time.Since(start).Seconds()
+
+				// Switch back to original branch if we switched
+				if branchSwitched {
+					checkoutCmd := exec.Command("git", "checkout", originalBranch)
+					checkoutCmd.Dir = job.repoPath
+					checkoutCmd.Run()
+
+					// Try to restore stashed changes
+					stashPopCmd := exec.Command("git", "stash", "pop")
+					stashPopCmd.Dir = job.repoPath
+					stashPopCmd.Run()
+				}
 
 				results <- scanResult{result: result, index: job.index}
 			}
@@ -1375,9 +1441,10 @@ func handleSecurityScan(w http.ResponseWriter, r *http.Request) {
 	go func() {
 		for i, repoPath := range repos {
 			jobs <- scanJob{
-				repoPath: repoPath,
-				repoName: filepath.Base(repoPath),
-				index:    i,
+				repoPath:     repoPath,
+				repoName:     filepath.Base(repoPath),
+				index:        i,
+				targetBranch: req.TargetBranch,
 			}
 		}
 		close(jobs)
@@ -1586,21 +1653,22 @@ func runNpmAudit(repoPath, repoName, packageManager string) RepoSecurityResult {
 
 	var cmd *exec.Cmd
 	var isYarnBerry bool
+	var useCorepack bool
 
 	switch packageManager {
 	case "yarn":
-		yarnVersion, useCorepack := detectYarnVersion(repoPath)
+		var yarnVersion string
+		yarnVersion, useCorepack = detectYarnVersion(repoPath)
 
 		// Determine if Yarn Berry (v2+)
 		isYarnBerry = !strings.HasPrefix(yarnVersion, "1.")
 
 		if isYarnBerry {
-			// Yarn Modern (v2+/Berry) - use "yarn npm audit --json"
+			// Yarn Modern (v2+/Berry) - try text output first (more reliable than JSON which often fails)
 			if useCorepack {
-				// Use corepack to run the correct yarn version
-				cmd = exec.Command("corepack", "yarn", "npm", "audit", "--json")
+				cmd = exec.Command("corepack", "yarn", "npm", "audit")
 			} else {
-				cmd = exec.Command("yarn", "npm", "audit", "--json")
+				cmd = exec.Command("yarn", "npm", "audit")
 			}
 		} else {
 			// Yarn Classic (v1) - use "yarn audit --json"
@@ -1633,7 +1701,8 @@ func runNpmAudit(repoPath, repoName, packageManager string) RepoSecurityResult {
 	// Parse based on package manager
 	if packageManager == "yarn" {
 		if isYarnBerry {
-			result = parseYarnBerryAuditOutput(output, repoName)
+			// Parse text output for Yarn Berry (more reliable)
+			result = parseYarnBerryTextOutput(output, repoName)
 		} else {
 			result = parseYarnClassicAuditOutput(output, repoName)
 		}
@@ -1727,6 +1796,125 @@ func parseNpmAuditOutputLegacy(output []byte, repoName string) RepoSecurityResul
 			Version:     adv.VulnerableVersions,
 			FixedIn:     adv.PatchedVersions,
 			Description: truncateString(adv.Title, 200),
+		})
+	}
+
+	return result
+}
+
+// parseYarnBerryTextOutput parses Yarn Berry (v2+/v4) "yarn npm audit" text output
+// This is more reliable than JSON output which often fails with HTTP 500 errors
+// Format example:
+// ├─ next
+// │  ├─ ID: 1105949
+// │  ├─ Issue: Next.js has a Cache poisoning vulnerability...
+// │  ├─ URL: https://github.com/advisories/GHSA-r2fc-ccr8-96c4
+// │  ├─ Severity: low
+// │  ├─ Vulnerable Versions: >=15.3.0 <15.3.3
+// │  │
+// │  ├─ Tree Versions
+// │  │  └─ 15.3.1
+func parseYarnBerryTextOutput(output []byte, repoName string) RepoSecurityResult {
+	result := RepoSecurityResult{RepoName: repoName}
+
+	lines := strings.Split(string(output), "\n")
+	var currentPackage string
+	var currentID string
+	var currentIssue string
+	var currentURL string
+	var currentSeverity string
+	var currentVulnVersions string
+	var currentTreeVersion string
+
+	for _, line := range lines {
+		// Remove tree drawing characters
+		cleanLine := strings.TrimSpace(line)
+		cleanLine = strings.TrimPrefix(cleanLine, "├─ ")
+		cleanLine = strings.TrimPrefix(cleanLine, "│  ├─ ")
+		cleanLine = strings.TrimPrefix(cleanLine, "│  │  └─ ")
+		cleanLine = strings.TrimPrefix(cleanLine, "│  └─ ")
+		cleanLine = strings.TrimPrefix(cleanLine, "└─ ")
+		cleanLine = strings.TrimSpace(cleanLine)
+
+		if cleanLine == "" || cleanLine == "│" {
+			continue
+		}
+
+		// Check for new package entry (package name line - not prefixed with known fields)
+		if !strings.Contains(cleanLine, ":") && !strings.HasPrefix(cleanLine, "Tree") && !strings.HasPrefix(cleanLine, "Dependents") && len(cleanLine) > 0 {
+			// Save previous entry if we have one
+			if currentPackage != "" && currentSeverity != "" {
+				cveID := currentID
+				if currentURL != "" && strings.Contains(currentURL, "GHSA-") {
+					parts := strings.Split(currentURL, "/")
+					for _, p := range parts {
+						if strings.HasPrefix(p, "GHSA-") {
+							cveID = p
+							break
+						}
+					}
+				}
+
+				result.Findings = append(result.Findings, CVEFinding{
+					CVE:         cveID,
+					Severity:    normalizeSeverity(currentSeverity),
+					Package:     currentPackage,
+					Version:     currentTreeVersion,
+					FixedIn:     currentVulnVersions,
+					Description: truncateString(currentIssue, 200),
+				})
+			}
+
+			// Start new package
+			currentPackage = cleanLine
+			currentID = ""
+			currentIssue = ""
+			currentURL = ""
+			currentSeverity = ""
+			currentVulnVersions = ""
+			currentTreeVersion = ""
+			continue
+		}
+
+		// Parse fields
+		if strings.HasPrefix(cleanLine, "ID: ") {
+			currentID = fmt.Sprintf("GHSA:%s", strings.TrimPrefix(cleanLine, "ID: "))
+		} else if strings.HasPrefix(cleanLine, "Issue: ") {
+			currentIssue = strings.TrimPrefix(cleanLine, "Issue: ")
+		} else if strings.HasPrefix(cleanLine, "URL: ") {
+			currentURL = strings.TrimPrefix(cleanLine, "URL: ")
+		} else if strings.HasPrefix(cleanLine, "Severity: ") {
+			currentSeverity = strings.TrimPrefix(cleanLine, "Severity: ")
+		} else if strings.HasPrefix(cleanLine, "Vulnerable Versions: ") {
+			currentVulnVersions = strings.TrimPrefix(cleanLine, "Vulnerable Versions: ")
+		} else if !strings.HasPrefix(cleanLine, "Tree") && !strings.HasPrefix(cleanLine, "Dependents") {
+			// This might be a version number under Tree Versions
+			if matched, _ := regexp.MatchString(`^\d+\.\d+`, cleanLine); matched {
+				currentTreeVersion = cleanLine
+			}
+		}
+	}
+
+	// Don't forget the last entry
+	if currentPackage != "" && currentSeverity != "" {
+		cveID := currentID
+		if currentURL != "" && strings.Contains(currentURL, "GHSA-") {
+			parts := strings.Split(currentURL, "/")
+			for _, p := range parts {
+				if strings.HasPrefix(p, "GHSA-") {
+					cveID = p
+					break
+				}
+			}
+		}
+
+		result.Findings = append(result.Findings, CVEFinding{
+			CVE:         cveID,
+			Severity:    normalizeSeverity(currentSeverity),
+			Package:     currentPackage,
+			Version:     currentTreeVersion,
+			FixedIn:     currentVulnVersions,
+			Description: truncateString(currentIssue, 200),
 		})
 	}
 
