@@ -84,10 +84,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Automatic detection of Yarn version via `packageManager` field in `package.json`
   - Corepack integration for projects using managed Yarn versions
   - New `parseYarnBerryAuditOutput()` parser for Yarn Berry's unique NDJSON format
-  - Correctly parses Yarn Berry's `yarn npm audit --json` output format:
-    ```json
-    {"value":"next","children":{"ID":1111229,"Issue":"...","Severity":"critical",...}}
-    ```
+  - Correctly parses Yarn Berry's `yarn npm audit --json` output format: `{"value":"next","children":{"ID":1111229,"Issue":"...","Severity":"critical",...}}`
   - Separate `parseYarnClassicAuditOutput()` for Yarn Classic (v1) format
   - Automatic fallback: detects global vs project-local Yarn version
 
@@ -267,7 +264,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **📚 Framework Info** (NEW TAB)
 
   - Centralized reference for framework information
-  - **Jakarta EE Overview** - Namespace change documentation (javax._ → jakarta._)
+  - **Jakarta EE Overview** - Namespace change documentation (`javax.*` → `jakarta.*`)
   - **Quarkus Information** - Version comparison and migration paths
   - **Java SE Support Matrix** - LTS versions, release dates, and support timelines (Java 8 → Java 25)
 
@@ -276,7 +273,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Migration Type Selection** - Radio button UI for choosing migration type
   - **Spring Boot Upgrade** - Upgrade between Spring Boot versions (2.x → 3.x → 3.5)
   - **Java Version Upgrade** - Java 8 → 17 → 21 migration recipes
-  - **Jakarta EE Migration** - Dedicated javax._ to jakarta._ migration
+  - **Jakarta EE Migration** - Dedicated `javax.*` to `jakarta.*` migration
   - **Quarkus Migration** - Migration path to Quarkus 2.x
 
 - **🎨 UI/UX Improvements**

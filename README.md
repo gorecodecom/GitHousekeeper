@@ -258,6 +258,7 @@ To build from source:
    > 💡 The HTML/CSS/JS assets are embedded directly into the executable. You only need the single binary file to run the app.
 
 3. **Run**:
+
    ```bash
    ./GitHousekeeper
    ```
@@ -409,7 +410,7 @@ Reference information about supported frameworks and versions.
 2. **Spring Boot Versions**: List of all Spring Boot releases grouped by major.minor version.
    - Click **Show More** to see older versions.
    - Direct links to official migration guides.
-3. **Jakarta EE**: Migration information for javax._ → jakarta._ namespace.
+3. **Jakarta EE**: Migration information for `javax.*` → `jakarta.*` namespace.
 4. **Quarkus**: Quarkus framework version information.
 5. **Java SE Support**: Table of Java versions with:
    - LTS indicators (Long-Term Support)
@@ -433,7 +434,7 @@ Analyze projects for framework migrations using OpenRewrite.
 
 - **Spring Boot Upgrade**: Migrate between Spring Boot versions (e.g., 2.7 → 3.2).
 - **Java Version Upgrade**: Upgrade Java version (e.g., 8 → 17 → 21).
-- **Jakarta EE Migration**: Migrate javax._ packages to jakarta._.
+- **Jakarta EE Migration**: Migrate `javax.*` packages to `jakarta.*`.
 - **Quarkus Migration**: Migrate to Quarkus 2.x framework.
 
 **Workflow:**
