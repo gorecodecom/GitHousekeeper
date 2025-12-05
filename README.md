@@ -126,7 +126,7 @@ To run the pre-built executable:
 - **Git**: Must be installed and available in the system PATH.
 - **Maven**: Required for project builds, OpenRewrite analysis, and OWASP security scans.
 - **Java**: JDK 17+ recommended for Spring Boot 3.x projects.
-- **Trivy** *(optional)*: For faster security scanning. Install via `brew install trivy` (macOS) or see [trivy.dev/installation](https://aquasecurity.github.io/trivy/latest/getting-started/installation/).
+- **Trivy** _(optional)_: For faster security scanning. Install via `brew install trivy` (macOS) or see [trivy.dev/installation](https://aquasecurity.github.io/trivy/latest/getting-started/installation/).
 
 To build from source:
 
@@ -242,33 +242,250 @@ If you want to modify the frontend (HTML/CSS/JS) without rebuilding the Go appli
 
 ## Workflow
 
-### General Housekeeping
+GitHousekeeper provides 8 main tabs, each with specific workflows for different tasks.
 
-1. **Configure**:
+---
 
-   - **Root Path**: Select the directory containing your Git repositories.
-   - **Included Projects**: Select which subfolders (repositories) to include or exclude.
-   - **Settings**: Choose version bump strategy and whether to run a full Maven build.
+### 📊 Dashboard
 
-2. **Define Replacements**:
+The Dashboard provides an at-a-glance overview of your entire repository landscape.
 
-   - Use the **Replacements** tab to define search/replace patterns.
-   - Select the **Scope**: All Files, Only pom.xml, or Exclude pom.xml.
+**What you see:**
+- **Avg Health Score**: Aggregated repository health (0-100%) based on deprecations, TODOs, and version status.
+- **Total Repositories**: Number of repositories discovered in your root path.
+- **Technical Debt**: Count of TODO comments found across all projects.
+- **Top Dependencies Chart**: Pie chart showing the most common dependencies.
+- **Spring Boot Versions Chart**: Distribution of Spring Boot versions across repositories.
+- **Repository Details Table**: Sortable table with branch, version, deprecations, and TODOs per repo.
+
+**Usage:**
+1. Configure your **Root Path** first (via Project Setup tab).
+2. The Dashboard automatically refreshes after scanning.
+3. Click on any repository row to see detailed information.
+4. Use the health indicators (🟢 Good / 🟡 Warning / 🔴 Critical) to identify projects needing attention.
+
+---
+
+### 🔧 Maintenance
+
+The Maintenance tab helps you keep all local branches synchronized with their remotes.
+
+**Workflow:**
+1. Navigate to the **Maintenance** tab.
+2. Click **🔄 Refresh** to load all repositories and their branches.
+3. Review the branch cards showing:
+   - Current tracking status (tracked/untracked)
+   - Commits **ahead** (local changes not pushed)
+   - Commits **behind** (remote changes not pulled)
+4. Click **⬇️ Sync All Tracked Branches** to fetch and fast-forward pull all tracked branches.
+5. Monitor the **progress bar** and **sync log** for real-time status.
+
+**Use cases:**
+- Morning sync before starting work
+- After returning from vacation to catch up on all team changes
+- Before running migrations to ensure you have the latest code
+
+---
+
+### ⚙️ Project Setup
+
+Configure which repositories to process and how.
+
+**Settings:**
+1. **Root Folder**: Click **📂 Browse** to select the directory containing your repositories.
+2. **Included Repositories**: Check/uncheck repositories to include or exclude from processing.
+3. **Branch Strategy**:
+   - **None (direct to default)**: Apply changes directly to `main` or `master`.
+   - **Housekeeping branch**: Create/use a dedicated `housekeeping` branch (resets if stale > 1 month).
+   - **Custom branch**: Specify your own branch name (e.g., `feature/spring-boot-3`).
+4. **Parent Version**: Enter a new parent version for `pom.xml` updates (e.g., `3.2.5`).
+5. **Version Bump Strategy**: Choose **Patch** (0.0.X), **Minor** (0.X.0), or **Major** (X.0.0).
+6. **Maven Clean Install**: Check to run `mvn clean install -DskipTests` after changes.
+
+**Tips:**
+- Use "Housekeeping branch" for routine maintenance to keep your default branch clean.
+- Use "Custom branch" for major migrations that require review.
+- Parent Version updates the `<parent><version>` in your `pom.xml`.
+
+---
+
+### 🔄 Replacements
+
+Perform mass search and replace across multiple repositories.
+
+**Workflow:**
+1. Navigate to the **Replacements** tab.
+2. **Select File Scope**:
+   - **All Files**: Search across all text files.
+   - **Only pom.xml**: Limit changes to Maven POM files only.
+   - **Exclude pom.xml**: Search all files except POMs.
+3. **Add Replacement Rows**: Click **➕ Add Row** for each search/replace pattern.
+4. Enter your **Search** text and **Replace** text.
+5. Click **Start** to execute.
+6. Review changes in the **Report** tab.
+
+**Features:**
+- **Fuzzy Matching**: Handles whitespace and indentation differences intelligently.
+- **Smart Indentation**: Preserves original indentation when replacing XML/code blocks.
+- **Multiple Patterns**: Add as many search/replace rows as needed.
+
+**Example use cases:**
+- Update artifact versions: `<version>1.0.0</version>` → `<version>2.0.0</version>`
+- Rename packages: `com.oldcompany` → `com.newcompany`
+- Update deprecated APIs across all services
+
+---
+
+### 📋 Report
+
+View execution logs and deprecation warnings.
+
+**Panels:**
+1. **Log Panel**: Real-time execution log showing:
+   - Repository processing status
+   - Git operations (checkout, commit, push)
+   - Maven build output
+   - Success/error messages with color coding
+2. **Deprecation/Warnings Panel**: Captured warnings from Maven builds:
+   - Top 100 deprecation warnings per repository
+   - Compiler warnings about deprecated APIs
+   - Links to problematic files and line numbers
+
+**Actions:**
+- **🖨️ PDF / Print**: Export each panel as a PDF document.
+- Scroll through logs to review detailed output.
+- Warnings help identify technical debt to address.
+
+---
+
+### ℹ️ Framework Info
+
+Reference information about supported frameworks and versions.
+
+**Sections:**
+1. **OpenRewrite Status**: Shows current and latest OpenRewrite Maven plugin versions with update notifications.
+2. **Spring Boot Versions**: List of all Spring Boot releases grouped by major.minor version.
+   - Click **Show More** to see older versions.
+   - Direct links to official migration guides.
+3. **Jakarta EE**: Migration information for javax.* → jakarta.* namespace.
+4. **Quarkus**: Quarkus framework version information.
+5. **Java SE Support**: Table of Java versions with:
+   - LTS indicators (Long-Term Support)
+   - Release dates
+   - Premier Support end dates
+   - Status badges (🟢 Current / 🟡 Ending Soon / 🔴 Ended)
+
+**Use cases:**
+- Check which Spring Boot version to target for migration
+- Verify Java version support timelines
+- Quick reference during upgrade planning
+
+---
+
+### 🔬 Migration Assistant
+
+Analyze projects for framework migrations using OpenRewrite.
+
+**Migration Types:**
+- **Spring Boot Upgrade**: Migrate between Spring Boot versions (e.g., 2.7 → 3.2).
+- **Java Version Upgrade**: Upgrade Java version (e.g., 8 → 17 → 21).
+- **Jakarta EE Migration**: Migrate javax.* packages to jakarta.*.
+- **Quarkus Migration**: Migrate to Quarkus 2.x framework.
+
+**Workflow:**
+1. Navigate to the **Migration Assistant** tab.
+2. Select a **Migration Type** (radio buttons).
+3. Choose the **Target Version** from the dropdown.
+4. Click **📊 Analyze** to start the OpenRewrite dry-run.
+5. Monitor the **progress bar** with:
+   - Repository count progress
+   - ETA and percentage
+   - Live status per repository (✓ done, ⏳ in progress, ⏸ pending)
+6. Review the **Analysis Report** showing categorized changes:
+   - 🔄 Annotation Updates
+   - 📦 Import Changes
+   - 🛠️ Code Modernization
+   - ⚙️ Configuration Changes
+   - 🗑️ Deprecated Code Removal
+7. Click **🖨️ PDF / Print** to export the analysis.
+
+**Notes:**
+- Analysis runs in **dry-run mode**—no files are modified.
+- OpenRewrite plugin is injected dynamically, no changes to your `pom.xml`.
+- Use the analysis to plan your migration before applying changes.
+
+---
+
+### 🛡️ Security Scanner
+
+Scan repositories for CVE vulnerabilities in dependencies.
+
+**Scanner Options:**
+- **OWASP Dependency-Check** (recommended): Uses Maven plugin, no additional install needed. Comprehensive CVE database. First scan downloads vulnerability database (~10 minutes).
+- **Trivy**: Faster alternative by Aqua Security. Requires separate installation. See install hints in the UI.
+
+**Workflow:**
+1. Navigate to the **Security Scanner** tab.
+2. Click **🔄 Refresh** to load repositories from your configured root path.
+3. Select a **Scanner Engine** from the dropdown.
+4. Click **🔍 Scan for Vulnerabilities**.
+5. Monitor the **progress bar** and live scan status.
+6. Review the **Security Summary**:
+   - Total repositories scanned
+   - Total CVEs found
+   - Breakdown by severity: Critical, High, Medium, Low
+7. Examine **per-repository results** showing:
+   - Vulnerability count and severity badges
+   - CVE IDs with direct NVD links
+   - Affected components and versions
+8. Click **📄 Export PDF** for a comprehensive security report.
+
+**Tips:**
+- Run OWASP first if you don't have Trivy installed.
+- Schedule regular scans to catch new vulnerabilities.
+- Focus on Critical and High severity CVEs first.
+- Export PDF reports for compliance documentation.
+
+---
+
+### ℹ️ About
+
+Information about the application, version, and links.
+
+- **Version**: Current GitHousekeeper version.
+- **Feature Summary**: Quick overview of all capabilities.
+- **Links**:
+   - GitHub Repository
+   - Report Issues
+   - Contributing Guide
+   - Security Policy
+   - Author Profile
+
+---
+
+### Quick Start (General Housekeeping)
+
+For a typical maintenance workflow:
+
+1. **Configure** (Project Setup tab):
+   - Select your **Root Path** containing repositories.
+   - Check/uncheck repositories to include.
+   - Set **Branch Strategy** (recommended: Housekeeping).
+   - Configure **Version Bump** if updating versions.
+
+2. **Define Replacements** (Replacements tab):
+   - Add search/replace patterns.
+   - Select appropriate **File Scope**.
 
 3. **Execute**:
-   - Click **Start** to begin.
-   - Follow the **Live Log** in the Report tab.
-   - Review **Deprecation Warnings** in the side panel.
+   - Click **Start** to begin processing.
+   - Monitor **Live Log** in Report tab.
+   - Review **Deprecation Warnings**.
    - Export reports to PDF if needed.
 
-### Spring Boot Migration Analysis
-
-1. Navigate to the **Migration Assistant** tab.
-2. Select a migration type (Spring Boot, Java, Jakarta EE, or Quarkus).
-3. Choose a **Target Version** from the dropdown.
-4. Click **Analyze** to start the OpenRewrite dry-run.
-5. Review the categorized summary showing what changes would be made.
-6. Apply changes manually or use OpenRewrite's `run` goal to apply them automatically.
+4. **Verify**:
+   - Check the generated commits in your repositories.
+   - Review and merge the housekeeping branches.
 
 ## Screenshots
 
@@ -323,7 +540,7 @@ Sponsor logos will appear here:
 <a href="https://example.com"><img src="logo.png" height="60" alt="Company Name"></a>
 -->
 
-*Your company could be here! [Sponsor now →](https://github.com/sponsors/gorecodecom)*
+_Your company could be here! [Sponsor now →](https://github.com/sponsors/gorecodecom)_
 
 ## Security
 
