@@ -4,7 +4,7 @@ GitHousekeeper is a powerful tool designed to automate maintenance tasks and mas
 
 ## 📥 Download
 
-**Current Version: 2.3.0**
+**Current Version: 2.4.0**
 
 Download the pre-built executable for your platform:
 
@@ -27,12 +27,17 @@ See [CHANGELOG.md](CHANGELOG.md) for release history and all versions on the [Re
 - **Selective Processing**: Include/exclude specific projects via checkbox selection.
 - **Batch Operations**: Apply changes across dozens of repositories simultaneously.
 
-### 🛡️ Security Vulnerability Scanner (NEW in v2.3.0)
+### 🛡️ Security Vulnerability Scanner (Enhanced in v2.4.0)
 
-- **CVE Detection**: Scan all Maven projects for known security vulnerabilities.
-- **Dual Scanner Support**: Choose between OWASP Dependency-Check or Trivy.
+- **Full-Stack Support**: Scan both **Maven** and **Node.js** projects.
+- **Auto-detect Mode**: Automatically detects project type and uses appropriate scanner.
+- **Multi-Scanner Support**:
+  - OWASP Dependency-Check (Maven)
+  - Trivy (Maven + Node.js)
+  - npm/yarn/pnpm audit (Node.js)
 - **Parallel Scanning**: Analyzes up to 4 repositories simultaneously.
 - **Severity Grouping**: CVEs organized by Critical, High, Medium, Low.
+- **Project Type Badges**: Visual indicators showing ☕ Maven, 📦 npm, 🧶 yarn, ⚡ pnpm.
 - **NVD Links**: Direct links to National Vulnerability Database for details.
 - **Per-Repo PDF Export**: Export security reports for individual repositories.
 - **Full Report Export**: Export comprehensive PDF for all scanned projects.
@@ -434,18 +439,43 @@ Analyze projects for framework migrations using OpenRewrite.
 
 ### 🛡️ Security Scanner
 
-Scan repositories for CVE vulnerabilities in dependencies.
+Scan repositories for CVE vulnerabilities in dependencies. Supports both **Maven** and **Node.js** projects.
 
 **Scanner Options:**
 
-- **OWASP Dependency-Check** (recommended): Uses Maven plugin, no additional install needed. Comprehensive CVE database. First scan downloads vulnerability database (~10 minutes).
-- **Trivy**: Faster alternative by Aqua Security. Requires separate installation. See install hints in the UI.
+- **🔄 Auto-detect (recommended)**: Automatically detects project type and uses the best scanner:
+  - `pom.xml` → OWASP Dependency-Check
+  - `package-lock.json` → npm audit
+  - `yarn.lock` → yarn audit
+  - `pnpm-lock.yaml` → pnpm audit
+- **☕ OWASP Dependency-Check**: For Maven projects. Uses Maven plugin, no additional install needed. Comprehensive CVE database. First scan downloads vulnerability database (~10 minutes).
+- **🐳 Trivy**: Fast scanner by Aqua Security. Supports both Maven and Node.js. Requires separate installation. See install hints in the UI.
+- **📦 npm/yarn/pnpm audit**: For Node.js projects. Uses native package manager security auditing. No additional installation required - uses your project's package manager.
+  - **Yarn Berry Support**: Full support for Yarn v2, v3, and v4 (Berry). Automatically detects version via `packageManager` field in `package.json` and uses Corepack when needed.
+
+**Supported Project Types:**
+
+| Project Type | Lock File | Scanner |
+|-------------|-----------|---------|
+| Maven | `pom.xml` | OWASP / Trivy |
+| npm | `package-lock.json` | npm audit / Trivy |
+| Yarn Classic (v1) | `yarn.lock` | yarn audit / Trivy |
+| Yarn Berry (v2/v3/v4) | `yarn.lock` + `packageManager` | yarn npm audit / Trivy |
+| pnpm | `pnpm-lock.yaml` | pnpm audit / Trivy |
+
+**Yarn Version Detection:**
+
+GitHousekeeper automatically detects your Yarn version:
+- If `package.json` contains `"packageManager": "yarn@4.x.x"`, uses Corepack + Yarn Berry commands
+- If no `packageManager` field, checks global `yarn --version`
+- Yarn Classic (v1.x): Uses `yarn audit --json`
+- Yarn Berry (v2+): Uses `corepack yarn npm audit --json`
 
 **Workflow:**
 
 1. Navigate to the **Security Scanner** tab.
 2. Click **🔄 Refresh** to load repositories from your configured root path.
-3. Select a **Scanner Engine** from the dropdown.
+3. Select a **Scanner Engine** from the dropdown (Auto-detect recommended).
 4. Click **🔍 Scan for Vulnerabilities**.
 5. Monitor the **progress bar** and live scan status.
 6. Review the **Security Summary**:
@@ -453,6 +483,7 @@ Scan repositories for CVE vulnerabilities in dependencies.
    - Total CVEs found
    - Breakdown by severity: Critical, High, Medium, Low
 7. Examine **per-repository results** showing:
+   - Project type badge (☕ Maven, 📦 npm, 🧶 yarn, ⚡ pnpm)
    - Vulnerability count and severity badges
    - CVE IDs with direct NVD links
    - Affected components and versions
@@ -460,10 +491,18 @@ Scan repositories for CVE vulnerabilities in dependencies.
 
 **Tips:**
 
-- Run OWASP first if you don't have Trivy installed.
+- Use **Auto-detect** to scan mixed Java/Node.js workspaces seamlessly.
+- Run OWASP first if you don't have Trivy installed (Maven projects).
 - Schedule regular scans to catch new vulnerabilities.
 - Focus on Critical and High severity CVEs first.
 - Export PDF reports for compliance documentation.
+- For Yarn Berry projects: ensure `corepack enable` has been run if using `packageManager` field.
+
+**Known CVEs detected:**
+
+The scanner detects critical vulnerabilities like:
+- **CVE-2025-66478 / CVE-2025-55182**: Critical RCE in Next.js React Server Components (affects Next.js 15.x, 16.x)
+- And thousands more from npm advisory database, GHSA, and NVD.
 
 ---
 

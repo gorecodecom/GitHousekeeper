@@ -73,7 +73,7 @@
         "
         aria-label="Version information"
       >
-        <div>v2.3.0</div>
+        <div>v2.4.0</div>
         <div style="margin-top: 5px">© 2025 GoreCode</div>
       </div>
     </div>
@@ -924,15 +924,17 @@
         <div class="card" style="margin-bottom: 20px;">
           <h3>CVE Vulnerability Scanner</h3>
           <p style="color: #9ca0b0; margin-bottom: 15px;">
-            Scan your Maven projects for known security vulnerabilities (CVEs) in dependencies.
+            Scan your Maven and Node.js projects for known security vulnerabilities (CVEs) in dependencies.
           </p>
 
           <div style="display: flex; gap: 15px; flex-wrap: wrap; align-items: center; margin-bottom: 15px;">
             <div style="flex: 1; min-width: 200px;">
               <label for="security-scanner-select" style="font-size: 0.85em; color: #9ca0b0; display: block; margin-bottom: 5px;">Scanner Engine</label>
               <select id="security-scanner-select" style="width: 100%;" onchange="onScannerChange()" aria-describedby="scanner-description">
-                <option value="owasp">OWASP Dependency-Check (recommended)</option>
-                <option value="trivy">Trivy (faster, requires install)</option>
+                <option value="auto">🔄 Auto-detect (recommended)</option>
+                <option value="owasp">☕ OWASP Dependency-Check (Maven)</option>
+                <option value="trivy">🐳 Trivy (Maven + Node.js)</option>
+                <option value="npm">📦 npm/yarn/pnpm audit (Node.js)</option>
               </select>
             </div>
             <div style="display: flex; gap: 10px; align-items: flex-end;">
@@ -946,12 +948,21 @@
           </div>
 
           <div id="scanner-info" role="region" aria-live="polite" style="padding: 10px; background: var(--input-bg); border-radius: 8px; font-size: 0.85em;">
-            <div id="owasp-info">
-              <strong>OWASP Dependency-Check:</strong> Uses Maven plugin, no additional install required.
+            <div id="auto-info">
+              <strong>🔄 Auto-detect:</strong> Automatically detects project type and uses the best scanner.
+              <ul style="margin: 8px 0 0 20px; color: #a6adc8;">
+                <li><strong>Maven projects</strong> (pom.xml) → OWASP Dependency-Check</li>
+                <li><strong>Node.js projects</strong> (package-lock.json) → npm audit</li>
+                <li><strong>Yarn projects</strong> (yarn.lock) → yarn audit</li>
+                <li><strong>pnpm projects</strong> (pnpm-lock.yaml) → pnpm audit</li>
+              </ul>
+            </div>
+            <div id="owasp-info" class="hidden">
+              <strong>☕ OWASP Dependency-Check:</strong> Uses Maven plugin, no additional install required.
               Comprehensive CVE database coverage. First scan may take longer to download vulnerability database.
             </div>
             <div id="trivy-info" class="hidden">
-              <strong>Trivy:</strong> Fast, lightweight vulnerability scanner by Aqua Security.
+              <strong>🐳 Trivy:</strong> Fast, lightweight vulnerability scanner by Aqua Security.
               <div id="trivy-status-container" style="margin-top: 8px; padding: 8px; background: #1e1e2e; border-radius: 4px;">
                 <div style="display: flex; align-items: center; gap: 8px;">
                   <span id="trivy-status-icon" aria-hidden="true">⏳</span>
@@ -992,6 +1003,20 @@
                 </div>
                 <div style="margin-top: 10px; padding: 8px; background: #11111b; border-radius: 4px; font-size: 0.9em; color: #a6adc8;">
                   💡 <strong>After installing:</strong> Click the <strong>🔄 Re-check</strong> button above to verify Trivy is available.
+                </div>
+              </div>
+            </div>
+            <div id="npm-info" class="hidden">
+              <strong>📦 npm/yarn/pnpm audit:</strong> Native package manager security auditing for Node.js projects.
+              <ul style="margin: 8px 0 0 20px; color: #a6adc8;">
+                <li>Detects lock file automatically: <code style="background: #11111b; padding: 1px 4px; border-radius: 3px;">package-lock.json</code> → npm, <code style="background: #11111b; padding: 1px 4px; border-radius: 3px;">yarn.lock</code> → yarn, <code style="background: #11111b; padding: 1px 4px; border-radius: 3px;">pnpm-lock.yaml</code> → pnpm</li>
+                <li>No additional installation required - uses your project's package manager</li>
+                <li>Reports vulnerabilities from npm's security advisory database</li>
+              </ul>
+              <div id="npm-status-container" style="margin-top: 10px; padding: 8px; background: #1e1e2e; border-radius: 4px;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <span id="npm-status-icon" aria-hidden="true">⏳</span>
+                  <span id="npm-status">Checking available package managers...</span>
                 </div>
               </div>
             </div>
@@ -1099,13 +1124,13 @@
                 >
                   GitHousekeeper
                 </h3>
-                <div style="color: #a6adc8; margin-top: 5px">Version 2.3.0</div>
+<div style="color: #a6adc8; margin-top: 5px">Version 2.4.0</div>
               </div>
             </div>
             <p style="line-height: 1.6; color: #a6adc8">
-              A powerful tool for automating maintenance tasks and
+              A powerful tool for automating maintenance tasks, security scanning, and
               mass-refactoring across multiple Git repositories. Built for
-              developers who manage multiple Spring Boot microservices.
+              developers who manage Spring Boot microservices and Node.js projects.
             </p>
           </div>
 
@@ -1240,10 +1265,10 @@
             >
               <div style="font-size: 24px; margin-bottom: 8px">🛡️</div>
               <div style="font-weight: bold; margin-bottom: 5px">
-                Security Scanner
+                Full-Stack Security
               </div>
               <div style="font-size: 0.85em; color: #a6adc8">
-                CVE vulnerability detection with OWASP/Trivy
+                CVE scanning for Maven & Node.js (npm/yarn/pnpm)
               </div>
             </div>
             <div

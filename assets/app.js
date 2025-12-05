@@ -1781,22 +1781,79 @@
         checkTrivyAvailability();
       }
 
+      // Track npm check status
+      let npmCheckDone = false;
+      let npmAvailableManagers = { npm: false, yarn: false, pnpm: false };
+
+      // Check npm/yarn/pnpm availability
+      async function checkNpmAvailability() {
+        const statusIcon = document.getElementById('npm-status-icon');
+        const statusText = document.getElementById('npm-status');
+
+        if (!statusIcon || !statusText) return;
+
+        statusIcon.textContent = '⏳';
+        statusText.textContent = 'Checking available package managers...';
+
+        try {
+          const response = await fetch('/api/check-npm');
+          const data = await response.json();
+          npmAvailableManagers = data;
+
+          const available = [];
+          if (data.npm) available.push('npm');
+          if (data.yarn) available.push('yarn');
+          if (data.pnpm) available.push('pnpm');
+
+          if (available.length > 0) {
+            statusIcon.textContent = '✅';
+            statusText.innerHTML = `<span style="color: #a6e3a1;">Available:</span> ${available.join(', ')}`;
+          } else {
+            statusIcon.textContent = '⚠️';
+            statusText.innerHTML = '<span style="color: #f9e2af;">No package managers found. Install npm, yarn, or pnpm.</span>';
+          }
+        } catch (error) {
+          statusIcon.textContent = '❌';
+          statusText.textContent = 'Could not check package managers';
+        }
+
+        npmCheckDone = true;
+      }
+
       // Handle scanner selection change
       function onScannerChange() {
         const scanner = document.getElementById('security-scanner-select').value;
+        const autoInfo = document.getElementById('auto-info');
         const owaspInfo = document.getElementById('owasp-info');
         const trivyInfo = document.getElementById('trivy-info');
+        const npmInfo = document.getElementById('npm-info');
 
-        if (scanner === 'owasp') {
-          owaspInfo.classList.remove('hidden');
-          trivyInfo.classList.add('hidden');
-        } else {
-          owaspInfo.classList.add('hidden');
-          trivyInfo.classList.remove('hidden');
-          // Only check if not already done
-          if (!trivyCheckDone) {
-            checkTrivyAvailability();
-          }
+        // Hide all
+        autoInfo.classList.add('hidden');
+        owaspInfo.classList.add('hidden');
+        trivyInfo.classList.add('hidden');
+        npmInfo.classList.add('hidden');
+
+        // Show selected
+        switch (scanner) {
+          case 'auto':
+            autoInfo.classList.remove('hidden');
+            break;
+          case 'owasp':
+            owaspInfo.classList.remove('hidden');
+            break;
+          case 'trivy':
+            trivyInfo.classList.remove('hidden');
+            if (!trivyCheckDone) {
+              checkTrivyAvailability();
+            }
+            break;
+          case 'npm':
+            npmInfo.classList.remove('hidden');
+            if (!npmCheckDone) {
+              checkNpmAvailability();
+            }
+            break;
         }
       }
 
@@ -2030,9 +2087,30 @@
           else if (cveCount > 10) cardColor = '#f38ba8';
           else if (cveCount > 0) cardColor = '#fab387';
 
+          // Project type badge
+          const projectType = result.projectType || 'unknown';
+          let projectBadge = '';
+          switch (projectType) {
+            case 'maven':
+              projectBadge = '<span style="background: #fab38722; color: #fab387; padding: 2px 6px; border-radius: 4px; font-size: 0.7em; margin-left: 8px;">☕ Maven</span>';
+              break;
+            case 'npm':
+              projectBadge = '<span style="background: #f38ba822; color: #f38ba8; padding: 2px 6px; border-radius: 4px; font-size: 0.7em; margin-left: 8px;">📦 npm</span>';
+              break;
+            case 'yarn':
+              projectBadge = '<span style="background: #89b4fa22; color: #89b4fa; padding: 2px 6px; border-radius: 4px; font-size: 0.7em; margin-left: 8px;">🧶 yarn</span>';
+              break;
+            case 'pnpm':
+              projectBadge = '<span style="background: #f9e2af22; color: #f9e2af; padding: 2px 6px; border-radius: 4px; font-size: 0.7em; margin-left: 8px;">⚡ pnpm</span>';
+              break;
+            case 'trivy':
+              projectBadge = '<span style="background: #a6e3a122; color: #a6e3a1; padding: 2px 6px; border-radius: 4px; font-size: 0.7em; margin-left: 8px;">🐳 Trivy</span>';
+              break;
+          }
+
           html += `<div class="card" style="border-left: 4px solid ${cardColor};">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-              <h4 style="margin: 0; color: ${cardColor};">📁 ${result.repoName}</h4>
+              <h4 style="margin: 0; color: ${cardColor};">📁 ${result.repoName}${projectBadge}</h4>
               <div style="display: flex; align-items: center; gap: 10px;">
                 <span style="color: #9ca0b0; font-size: 0.85em;">${result.duration ? result.duration.toFixed(1) + 's' : ''}</span>
                 <button onclick="exportSingleRepoSecurityPdf('${result.repoName.replace(/'/g, "\\'")}')" class="btn btn-secondary" style="padding: 4px 8px; font-size: 0.75em;" title="Export PDF for this repo">📄</button>

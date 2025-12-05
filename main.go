@@ -61,6 +61,7 @@ func main() {
 	http.HandleFunc("/api/sync-branches", handleSyncBranches)
 	http.HandleFunc("/api/security-scan", handleSecurityScan)
 	http.HandleFunc("/api/check-trivy", handleCheckTrivy)
+	http.HandleFunc("/api/check-npm", handleCheckNpm)
 
 	port := "8080"
 	url := "http://localhost:" + port
@@ -1129,7 +1130,7 @@ func getCurrentBranch(repoPath string) string {
 type SecurityScanRequest struct {
 	RootPath string   `json:"rootPath"`
 	Excluded []string `json:"excluded"`
-	Scanner  string   `json:"scanner"` // "owasp" or "trivy"
+	Scanner  string   `json:"scanner"` // "owasp", "trivy", "npm", or "auto"
 }
 
 type CVEFinding struct {
@@ -1142,10 +1143,54 @@ type CVEFinding struct {
 }
 
 type RepoSecurityResult struct {
-	RepoName string       `json:"repoName"`
-	Findings []CVEFinding `json:"findings"`
-	Error    string       `json:"error,omitempty"`
-	Duration float64      `json:"duration"`
+	RepoName    string       `json:"repoName"`
+	Findings    []CVEFinding `json:"findings"`
+	Error       string       `json:"error,omitempty"`
+	Duration    float64      `json:"duration"`
+	ProjectType string       `json:"projectType,omitempty"` // "maven", "npm", "yarn", "pnpm"
+}
+
+// detectProjectType checks what kind of project this is
+func detectProjectType(repoPath string) string {
+	// Check for Maven
+	if _, err := os.Stat(filepath.Join(repoPath, "pom.xml")); err == nil {
+		return "maven"
+	}
+	// Check for pnpm
+	if _, err := os.Stat(filepath.Join(repoPath, "pnpm-lock.yaml")); err == nil {
+		return "pnpm"
+	}
+	// Check for Yarn
+	if _, err := os.Stat(filepath.Join(repoPath, "yarn.lock")); err == nil {
+		return "yarn"
+	}
+	// Check for npm
+	if _, err := os.Stat(filepath.Join(repoPath, "package-lock.json")); err == nil {
+		return "npm"
+	}
+	// Check for package.json without lockfile (default to npm)
+	if _, err := os.Stat(filepath.Join(repoPath, "package.json")); err == nil {
+		return "npm"
+	}
+	return ""
+}
+
+// checkNpmAvailable checks if npm is available
+func checkNpmAvailable() bool {
+	cmd := exec.Command("npm", "--version")
+	return cmd.Run() == nil
+}
+
+// checkYarnAvailable checks if yarn is available
+func checkYarnAvailable() bool {
+	cmd := exec.Command("yarn", "--version")
+	return cmd.Run() == nil
+}
+
+// checkPnpmAvailable checks if pnpm is available
+func checkPnpmAvailable() bool {
+	cmd := exec.Command("pnpm", "--version")
+	return cmd.Run() == nil
 }
 
 func handleCheckTrivy(w http.ResponseWriter, r *http.Request) {
@@ -1177,6 +1222,18 @@ func handleCheckTrivy(w http.ResponseWriter, r *http.Request) {
 		"available": true,
 		"version":   version,
 	})
+}
+
+func handleCheckNpm(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	result := map[string]bool{
+		"npm":  checkNpmAvailable(),
+		"yarn": checkYarnAvailable(),
+		"pnpm": checkPnpmAvailable(),
+	}
+
+	json.NewEncoder(w).Encode(result)
 }
 
 func handleSecurityScan(w http.ResponseWriter, r *http.Request) {
@@ -1254,19 +1311,53 @@ func handleSecurityScan(w http.ResponseWriter, r *http.Request) {
 				var result RepoSecurityResult
 				result.RepoName = job.repoName
 
-				// Check if pom.xml exists
-				pomPath := filepath.Join(job.repoPath, "pom.xml")
-				if _, err := os.Stat(pomPath); os.IsNotExist(err) {
-					result.Error = "No pom.xml found"
-					result.Duration = time.Since(start).Seconds()
-				} else {
-					if req.Scanner == "trivy" {
+				// Detect project type
+				projectType := detectProjectType(job.repoPath)
+				result.ProjectType = projectType
+
+				// Determine which scanner to use
+				scannerToUse := req.Scanner
+				if req.Scanner == "auto" {
+					// Auto-detect based on project type
+					switch projectType {
+					case "maven":
+						scannerToUse = "owasp"
+					case "npm", "yarn", "pnpm":
+						scannerToUse = "npm"
+					default:
+						result.Error = "No supported project type found (pom.xml or package.json)"
+						result.Duration = time.Since(start).Seconds()
+						results <- scanResult{result: result, index: job.index}
+						continue
+					}
+				}
+
+				// Run appropriate scanner
+				switch scannerToUse {
+				case "npm":
+					if projectType == "" || (projectType != "npm" && projectType != "yarn" && projectType != "pnpm") {
+						result.Error = "No package.json found"
+					} else {
+						result = runNpmAudit(job.repoPath, job.repoName, projectType)
+					}
+				case "trivy":
+					if projectType == "" {
+						result.Error = "No pom.xml or package.json found"
+					} else {
 						result = runTrivyScan(job.repoPath, job.repoName)
+						result.ProjectType = projectType
+					}
+				case "owasp":
+					if projectType != "maven" {
+						result.Error = "No pom.xml found (OWASP requires Maven project)"
 					} else {
 						result = runOwaspScan(job.repoPath, job.repoName)
+						result.ProjectType = projectType
 					}
-					result.Duration = time.Since(start).Seconds()
+				default:
+					result.Error = "Unknown scanner type"
 				}
+				result.Duration = time.Since(start).Seconds()
 
 				results <- scanResult{result: result, index: job.index}
 			}
@@ -1454,6 +1545,536 @@ func runOwaspScan(repoPath, repoName string) RepoSecurityResult {
 				Description: truncateString(v.Description, 200),
 			})
 		}
+	}
+
+	return result
+}
+
+// detectYarnVersion detects Yarn version from package.json packageManager field or yarn --version
+func detectYarnVersion(repoPath string) (version string, useCorepack bool) {
+	// First check package.json for packageManager field
+	pkgPath := filepath.Join(repoPath, "package.json")
+	if data, err := os.ReadFile(pkgPath); err == nil {
+		var pkg struct {
+			PackageManager string `json:"packageManager"`
+		}
+		if json.Unmarshal(data, &pkg) == nil && pkg.PackageManager != "" {
+			// Format: "yarn@4.0.2" or "yarn@4.0.2+sha256.xxx"
+			if strings.HasPrefix(pkg.PackageManager, "yarn@") {
+				parts := strings.Split(pkg.PackageManager, "@")
+				if len(parts) >= 2 {
+					ver := strings.Split(parts[1], "+")[0] // Remove hash
+					return ver, true // Use corepack for packageManager-managed yarn
+				}
+			}
+		}
+	}
+
+	// Fallback to global yarn version
+	versionCmd := exec.Command("yarn", "--version")
+	versionCmd.Dir = repoPath
+	if versionOutput, err := versionCmd.Output(); err == nil {
+		return strings.TrimSpace(string(versionOutput)), false
+	}
+
+	return "1.0.0", false // Default to classic
+}
+
+// runNpmAudit runs npm/yarn/pnpm audit for Node.js projects
+func runNpmAudit(repoPath, repoName, packageManager string) RepoSecurityResult {
+	result := RepoSecurityResult{RepoName: repoName, ProjectType: packageManager}
+
+	var cmd *exec.Cmd
+	var isYarnBerry bool
+
+	switch packageManager {
+	case "yarn":
+		yarnVersion, useCorepack := detectYarnVersion(repoPath)
+
+		// Determine if Yarn Berry (v2+)
+		isYarnBerry = !strings.HasPrefix(yarnVersion, "1.")
+
+		if isYarnBerry {
+			// Yarn Modern (v2+/Berry) - use "yarn npm audit --json"
+			if useCorepack {
+				// Use corepack to run the correct yarn version
+				cmd = exec.Command("corepack", "yarn", "npm", "audit", "--json")
+			} else {
+				cmd = exec.Command("yarn", "npm", "audit", "--json")
+			}
+		} else {
+			// Yarn Classic (v1) - use "yarn audit --json"
+			cmd = exec.Command("yarn", "audit", "--json")
+		}
+	case "pnpm":
+		// pnpm audit with JSON output
+		cmd = exec.Command("pnpm", "audit", "--json")
+	default:
+		// npm audit with JSON output
+		cmd = exec.Command("npm", "audit", "--json")
+	}
+	cmd.Dir = repoPath
+
+	// Use CombinedOutput because npm/yarn/pnpm may write to stderr
+	// and return non-zero exit code when vulnerabilities are found
+	output, err := cmd.CombinedOutput()
+
+	// npm/yarn/pnpm audit returns non-zero exit code if vulnerabilities found
+	// but still outputs valid JSON, so we check if there's any output to parse
+	if len(output) == 0 {
+		if err != nil {
+			result.Error = fmt.Sprintf("%s audit failed: %v", packageManager, err)
+		} else {
+			result.Error = fmt.Sprintf("%s audit returned no output", packageManager)
+		}
+		return result
+	}
+
+	// Parse based on package manager
+	if packageManager == "yarn" {
+		if isYarnBerry {
+			result = parseYarnBerryAuditOutput(output, repoName)
+		} else {
+			result = parseYarnClassicAuditOutput(output, repoName)
+		}
+	} else if packageManager == "pnpm" {
+		result = parsePnpmAuditOutput(output, repoName)
+	} else {
+		result = parseNpmAuditOutput(output, repoName)
+	}
+	result.ProjectType = packageManager
+
+	return result
+}
+
+// parseNpmAuditOutput parses npm audit JSON output
+func parseNpmAuditOutput(output []byte, repoName string) RepoSecurityResult {
+	result := RepoSecurityResult{RepoName: repoName}
+
+	// npm audit JSON structure (v7+)
+	var npmResult struct {
+		Vulnerabilities map[string]struct {
+			Name         string        `json:"name"`
+			Severity     string        `json:"severity"`
+			Via          []interface{} `json:"via"`
+			Effects      []string      `json:"effects"`
+			Range        string        `json:"range"`
+			FixAvailable interface{}   `json:"fixAvailable"`
+		} `json:"vulnerabilities"`
+		Metadata struct {
+			Vulnerabilities struct {
+				Total    int `json:"total"`
+				Critical int `json:"critical"`
+				High     int `json:"high"`
+				Moderate int `json:"moderate"`
+				Low      int `json:"low"`
+			} `json:"vulnerabilities"`
+		} `json:"metadata"`
+	}
+
+	if err := json.Unmarshal(output, &npmResult); err != nil {
+		// Try older npm audit format
+		result = parseNpmAuditOutputLegacy(output, repoName)
+		return result
+	}
+
+	for pkgName, vuln := range npmResult.Vulnerabilities {
+		severity := normalizeSeverity(vuln.Severity)
+		cveID, description := extractCVEFromVia(vuln.Via, pkgName)
+		fixedIn := extractFixInfo(vuln.FixAvailable)
+
+		result.Findings = append(result.Findings, CVEFinding{
+			CVE:         cveID,
+			Severity:    severity,
+			Package:     pkgName,
+			Version:     vuln.Range,
+			FixedIn:     fixedIn,
+			Description: truncateString(description, 200),
+		})
+	}
+
+	return result
+}
+
+// parseNpmAuditOutputLegacy parses older npm audit JSON format
+func parseNpmAuditOutputLegacy(output []byte, repoName string) RepoSecurityResult {
+	result := RepoSecurityResult{RepoName: repoName}
+
+	var legacyResult struct {
+		Advisories map[string]struct {
+			ID                 int    `json:"id"`
+			ModuleName         string `json:"module_name"`
+			Severity           string `json:"severity"`
+			Title              string `json:"title"`
+			URL                string `json:"url"`
+			VulnerableVersions string `json:"vulnerable_versions"`
+			PatchedVersions    string `json:"patched_versions"`
+		} `json:"advisories"`
+	}
+
+	if err := json.Unmarshal(output, &legacyResult); err != nil {
+		result.Error = "Failed to parse npm audit output"
+		return result
+	}
+
+	for _, adv := range legacyResult.Advisories {
+		severity := normalizeSeverity(adv.Severity)
+
+		result.Findings = append(result.Findings, CVEFinding{
+			CVE:         fmt.Sprintf("npm:%d", adv.ID),
+			Severity:    severity,
+			Package:     adv.ModuleName,
+			Version:     adv.VulnerableVersions,
+			FixedIn:     adv.PatchedVersions,
+			Description: truncateString(adv.Title, 200),
+		})
+	}
+
+	return result
+}
+
+// parseYarnBerryAuditOutput parses Yarn Berry (v2+/v4) "yarn npm audit --json" NDJSON output
+// Format: {"value":"pkg","children":{"ID":123,"Issue":"...","Severity":"critical","Vulnerable Versions":"...","Tree Versions":[...]}}
+func parseYarnBerryAuditOutput(output []byte, repoName string) RepoSecurityResult {
+	result := RepoSecurityResult{RepoName: repoName}
+
+	lines := strings.Split(string(output), "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+
+		// Yarn Berry format
+		var entry struct {
+			Value    string `json:"value"`
+			Children struct {
+				ID                 int      `json:"ID"`
+				Issue              string   `json:"Issue"`
+				URL                string   `json:"URL"`
+				Severity           string   `json:"Severity"`
+				VulnerableVersions string   `json:"Vulnerable Versions"`
+				TreeVersions       []string `json:"Tree Versions"`
+				Dependents         []string `json:"Dependents"`
+			} `json:"children"`
+		}
+
+		if err := json.Unmarshal([]byte(line), &entry); err != nil {
+			continue
+		}
+
+		// Skip if no package name
+		if entry.Value == "" {
+			continue
+		}
+
+		severity := normalizeSeverity(entry.Children.Severity)
+
+		// Extract version from TreeVersions
+		version := ""
+		if len(entry.Children.TreeVersions) > 0 {
+			version = entry.Children.TreeVersions[0]
+		}
+
+		// Try to extract CVE from URL
+		cveID := fmt.Sprintf("GHSA:%d", entry.Children.ID)
+		if strings.Contains(entry.Children.URL, "GHSA-") {
+			parts := strings.Split(entry.Children.URL, "/")
+			for _, p := range parts {
+				if strings.HasPrefix(p, "GHSA-") {
+					cveID = p
+					break
+				}
+			}
+		}
+
+		result.Findings = append(result.Findings, CVEFinding{
+			CVE:         cveID,
+			Severity:    severity,
+			Package:     entry.Value,
+			Version:     version,
+			FixedIn:     entry.Children.VulnerableVersions, // Shows what's vulnerable, fix is upgrading out of range
+			Description: truncateString(entry.Children.Issue, 200),
+		})
+	}
+
+	return result
+}
+
+// parseYarnClassicAuditOutput parses Yarn Classic (v1) NDJSON format
+func parseYarnClassicAuditOutput(output []byte, repoName string) RepoSecurityResult {
+	result := RepoSecurityResult{RepoName: repoName}
+
+	lines := strings.Split(string(output), "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+
+		var entry struct {
+			Type string `json:"type"`
+			Data struct {
+				Advisory struct {
+					ID                 int    `json:"id"`
+					ModuleName         string `json:"module_name"`
+					Severity           string `json:"severity"`
+					Title              string `json:"title"`
+					URL                string `json:"url"`
+					VulnerableVersions string `json:"vulnerable_versions"`
+					PatchedVersions    string `json:"patched_versions"`
+				} `json:"advisory"`
+			} `json:"data"`
+		}
+
+		if err := json.Unmarshal([]byte(line), &entry); err != nil {
+			continue
+		}
+
+		if entry.Type != "auditAdvisory" {
+			continue
+		}
+
+		adv := entry.Data.Advisory
+		severity := normalizeSeverity(adv.Severity)
+
+		result.Findings = append(result.Findings, CVEFinding{
+			CVE:         fmt.Sprintf("yarn:%d", adv.ID),
+			Severity:    severity,
+			Package:     adv.ModuleName,
+			Version:     adv.VulnerableVersions,
+			FixedIn:     adv.PatchedVersions,
+			Description: truncateString(adv.Title, 200),
+		})
+	}
+
+	return result
+}
+
+// parseYarnAuditOutput is a legacy wrapper - now splits into Berry and Classic
+func parseYarnAuditOutput(output []byte, repoName string) RepoSecurityResult {
+	result := RepoSecurityResult{RepoName: repoName}
+
+	outputStr := string(output)
+
+	// Try to detect format: Yarn Modern (v2+) outputs similar to npm
+	// Check if it starts with { (single JSON object) vs multiple lines (NDJSON)
+	trimmedOutput := strings.TrimSpace(outputStr)
+
+	// Yarn Modern (Berry) format - similar to npm audit
+	if strings.HasPrefix(trimmedOutput, "{") && !strings.Contains(trimmedOutput, "\n{") {
+		// Try npm-like format first (Yarn Modern)
+		var yarnModernResult struct {
+			Advisories map[string]struct {
+				ID               int    `json:"id"`
+				ModuleName       string `json:"module_name"`
+				Severity         string `json:"severity"`
+				Title            string `json:"title"`
+				URL              string `json:"url"`
+				VulnerableVersions string `json:"vulnerable_versions"`
+				PatchedVersions  string `json:"patched_versions"`
+			} `json:"advisories"`
+			// Alternative structure for yarn npm audit
+			Vulnerabilities map[string]struct {
+				Name     string        `json:"name"`
+				Severity string        `json:"severity"`
+				Via      []interface{} `json:"via"`
+				Range    string        `json:"range"`
+				FixAvailable interface{} `json:"fixAvailable"`
+			} `json:"vulnerabilities"`
+		}
+
+		if err := json.Unmarshal(output, &yarnModernResult); err == nil {
+			// Check if we have vulnerabilities (npm v7+ format)
+			if len(yarnModernResult.Vulnerabilities) > 0 {
+				for pkgName, vuln := range yarnModernResult.Vulnerabilities {
+					severity := normalizeSeverity(vuln.Severity)
+					cveID, description := extractCVEFromVia(vuln.Via, pkgName)
+					fixedIn := extractFixInfo(vuln.FixAvailable)
+
+					result.Findings = append(result.Findings, CVEFinding{
+						CVE:         cveID,
+						Severity:    severity,
+						Package:     pkgName,
+						Version:     vuln.Range,
+						FixedIn:     fixedIn,
+						Description: truncateString(description, 200),
+					})
+				}
+				return result
+			}
+
+			// Check if we have advisories (older format)
+			if len(yarnModernResult.Advisories) > 0 {
+				for _, adv := range yarnModernResult.Advisories {
+					severity := normalizeSeverity(adv.Severity)
+					result.Findings = append(result.Findings, CVEFinding{
+						CVE:         fmt.Sprintf("yarn:%d", adv.ID),
+						Severity:    severity,
+						Package:     adv.ModuleName,
+						Version:     adv.VulnerableVersions,
+						FixedIn:     adv.PatchedVersions,
+						Description: truncateString(adv.Title, 200),
+					})
+				}
+				return result
+			}
+		}
+	}
+
+	// Yarn Classic (v1) NDJSON format - each line is a separate JSON object
+	lines := strings.Split(outputStr, "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+
+		var entry struct {
+			Type string `json:"type"`
+			Data struct {
+				Advisory struct {
+					ID                 int    `json:"id"`
+					ModuleName         string `json:"module_name"`
+					Severity           string `json:"severity"`
+					Title              string `json:"title"`
+					URL                string `json:"url"`
+					VulnerableVersions string `json:"vulnerable_versions"`
+					PatchedVersions    string `json:"patched_versions"`
+				} `json:"advisory"`
+			} `json:"data"`
+		}
+
+		if err := json.Unmarshal([]byte(line), &entry); err != nil {
+			continue
+		}
+
+		if entry.Type != "auditAdvisory" {
+			continue
+		}
+
+		adv := entry.Data.Advisory
+		severity := normalizeSeverity(adv.Severity)
+
+		result.Findings = append(result.Findings, CVEFinding{
+			CVE:         fmt.Sprintf("yarn:%d", adv.ID),
+			Severity:    severity,
+			Package:     adv.ModuleName,
+			Version:     adv.VulnerableVersions,
+			FixedIn:     adv.PatchedVersions,
+			Description: truncateString(adv.Title, 200),
+		})
+	}
+
+	return result
+}
+
+// normalizeSeverity converts various severity names to standard format
+func normalizeSeverity(severity string) string {
+	switch strings.ToUpper(severity) {
+	case "CRITICAL", "HIGH", "MEDIUM", "LOW":
+		return strings.ToUpper(severity)
+	case "MODERATE":
+		return "MEDIUM"
+	default:
+		return "LOW"
+	}
+}
+
+// extractCVEFromVia extracts CVE ID and description from npm's via field
+func extractCVEFromVia(via []interface{}, pkgName string) (string, string) {
+	cveID := ""
+	description := ""
+
+	for _, v := range via {
+		if viaMap, ok := v.(map[string]interface{}); ok {
+			if source, exists := viaMap["source"]; exists {
+				if sourceNum, ok := source.(float64); ok {
+					cveID = fmt.Sprintf("GHSA-%d", int(sourceNum))
+				}
+			}
+			if url, exists := viaMap["url"]; exists {
+				if urlStr, ok := url.(string); ok {
+					// Extract CVE or GHSA from URL
+					if strings.Contains(urlStr, "CVE-") {
+						parts := strings.Split(urlStr, "/")
+						for _, p := range parts {
+							if strings.HasPrefix(p, "CVE-") {
+								cveID = p
+								break
+							}
+						}
+					} else if strings.Contains(urlStr, "GHSA-") {
+						parts := strings.Split(urlStr, "/")
+						for _, p := range parts {
+							if strings.HasPrefix(p, "GHSA-") {
+								cveID = p
+								break
+							}
+						}
+					}
+				}
+			}
+			if title, exists := viaMap["title"]; exists {
+				if titleStr, ok := title.(string); ok {
+					description = titleStr
+				}
+			}
+		}
+	}
+
+	if cveID == "" {
+		cveID = fmt.Sprintf("npm:%s", pkgName)
+	}
+
+	return cveID, description
+}
+
+// extractFixInfo extracts fix information from FixAvailable field
+func extractFixInfo(fixAvailable interface{}) string {
+	if fix, ok := fixAvailable.(map[string]interface{}); ok {
+		if version, exists := fix["version"]; exists {
+			return fmt.Sprintf("%v", version)
+		}
+	} else if fixAvailable == true {
+		return "Update available"
+	}
+	return ""
+}
+
+// parsePnpmAuditOutput parses pnpm audit JSON output
+func parsePnpmAuditOutput(output []byte, repoName string) RepoSecurityResult {
+	result := RepoSecurityResult{RepoName: repoName}
+
+	// pnpm audit JSON structure (similar to npm)
+	var pnpmResult struct {
+		Advisories map[string]struct {
+			ID                 int    `json:"id"`
+			ModuleName         string `json:"module_name"`
+			Severity           string `json:"severity"`
+			Title              string `json:"title"`
+			URL                string `json:"url"`
+			VulnerableVersions string `json:"vulnerable_versions"`
+			PatchedVersions    string `json:"patched_versions"`
+		} `json:"advisories"`
+	}
+
+	if err := json.Unmarshal(output, &pnpmResult); err != nil {
+		result.Error = "Failed to parse pnpm audit output"
+		return result
+	}
+
+	for _, adv := range pnpmResult.Advisories {
+		severity := normalizeSeverity(adv.Severity)
+
+		result.Findings = append(result.Findings, CVEFinding{
+			CVE:         fmt.Sprintf("pnpm:%d", adv.ID),
+			Severity:    severity,
+			Package:     adv.ModuleName,
+			Version:     adv.VulnerableVersions,
+			FixedIn:     adv.PatchedVersions,
+			Description: truncateString(adv.Title, 200),
+		})
 	}
 
 	return result

@@ -5,6 +5,58 @@ All notable changes to GitHousekeeper will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.0] - 2025-12-05
+
+### Added
+
+- **📦 Full-Stack Security Scanner - Node.js Support**
+  - Extended CVE vulnerability scanning to support Node.js/Frontend projects
+  - npm audit integration for projects with `package-lock.json`
+  - yarn audit integration for projects with `yarn.lock`
+  - pnpm audit integration for projects with `pnpm-lock.yaml`
+  - Automatic parsing of all package manager audit formats
+
+- **🧶 Yarn Berry (v2/v3/v4) Support**
+  - Full support for Yarn Modern (Berry) including versions 2.x, 3.x, and 4.x
+  - Automatic detection of Yarn version via `packageManager` field in `package.json`
+  - Corepack integration for projects using managed Yarn versions
+  - New `parseYarnBerryAuditOutput()` parser for Yarn Berry's unique NDJSON format
+  - Correctly parses Yarn Berry's `yarn npm audit --json` output format:
+    ```json
+    {"value":"next","children":{"ID":1111229,"Issue":"...","Severity":"critical",...}}
+    ```
+  - Separate `parseYarnClassicAuditOutput()` for Yarn Classic (v1) format
+  - Automatic fallback: detects global vs project-local Yarn version
+
+- **🔄 Auto-detect Project Type**
+  - New "Auto-detect" scanner mode (recommended default)
+  - Automatically detects project type based on lock files:
+    - `pom.xml` → Maven (OWASP Dependency-Check)
+    - `package-lock.json` → npm audit
+    - `yarn.lock` → yarn audit (Classic or Berry, auto-detected)
+    - `pnpm-lock.yaml` → pnpm audit
+  - Mixed repositories: scans using detected package manager
+
+- **🎨 UI Enhancements**
+  - Project type badges in scan results (☕ Maven, 📦 npm, 🧶 yarn, ⚡ pnpm, 🐳 Trivy)
+  - Scanner selection dropdown with clear icons and descriptions
+  - Package manager availability check in UI
+  - Updated scanner descriptions for all options
+
+### Changed
+
+- Scanner dropdown now defaults to "Auto-detect (recommended)"
+- Trivy scanner now supports both Maven and Node.js projects
+- Updated description text to reflect multi-language support
+- `detectYarnVersion()` now reads `packageManager` field from `package.json` first
+- Yarn commands use `corepack yarn` when `packageManager` is defined
+
+### Fixed
+
+- **Yarn Berry audit parsing**: Fixed issue where Yarn v2/v3/v4 projects showed "No vulnerabilities found" despite having CVEs
+- **Corepack compatibility**: Projects with `packageManager: "yarn@4.0.2"` now correctly use corepack to run the project-specific Yarn version
+- **CVE-2025-66478 detection**: Critical Next.js RCE vulnerability now correctly detected in Yarn Berry projects
+
 ## [2.3.0] - 2025-12-04
 
 ### Added
