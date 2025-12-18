@@ -6,7 +6,7 @@ Supports **Maven**, **Node.js** (npm/yarn/pnpm), **Go**, **Python**, and **PHP**
 
 ## 📥 Download
 
-**Current Version: 2.4.0**
+**Current Version: 2.5.0**
 
 Download the pre-built executable for your platform:
 
@@ -49,12 +49,16 @@ See [CHANGELOG.md](CHANGELOG.md) for release history and all versions on the [Re
 - **Per-Repo PDF Export**: Export security reports for individual repositories.
 - **Full Report Export**: Export comprehensive PDF for all scanned projects.
 
-### 🔧 Maintenance Tab (NEW in v2.3.0)
+### 🔧 Maintenance Tab (Enhanced in v2.5.0)
 
 - **Branch Overview**: View all local branches per repository with tracking status.
 - **Ahead/Behind Counts**: See how many commits each branch is ahead or behind.
 - **One-Click Sync**: Fetch and pull all tracked branches across all repositories.
 - **Live Progress**: Real-time progress bar and detailed sync log.
+- **Live Status Updates**: Branch cards update in real-time during sync (pending → synced/error).
+- **Detailed Error Diagnostics**: Clear error messages for sync failures (conflicts, uncommitted changes, diverged branches, etc.).
+- **Remote Deleted Detection**: Identifies branches whose remote was deleted after merge.
+- **One-Click Branch Cleanup**: Delete orphaned local branches with a single click.
 
 ### 🌐 Modern Web Interface
 

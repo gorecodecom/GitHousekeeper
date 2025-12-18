@@ -79,6 +79,7 @@ func main() {
 	http.HandleFunc("/api/dashboard-stats", handleDashboardStats)
 	http.HandleFunc("/api/list-branches", handleListBranches)
 	http.HandleFunc("/api/sync-branches", handleSyncBranches)
+	http.HandleFunc("/api/delete-branch", handleDeleteBranch)
 	http.HandleFunc("/api/security-scan", handleSecurityScan)
 	http.HandleFunc("/api/check-trivy", handleCheckTrivy)
 	http.HandleFunc("/api/check-npm", handleCheckNpm)
@@ -922,6 +923,7 @@ type BranchInfo struct {
 	Remote     string `json:"remote"`
 	Ahead      int    `json:"ahead"`
 	Behind     int    `json:"behind"`
+	RemoteGone bool   `json:"remoteGone"`
 }
 
 // RepoWithBranches represents a repository and its branches
@@ -1016,15 +1018,27 @@ func getRepoBranches(repoPath string) []BranchInfo {
 		ahead := 0
 		behind := 0
 		isTracking := false
+		remoteGone := false
 
 		if len(parts) > 1 && parts[1] != "" {
 			remote = parts[1]
 			isTracking = true
+
+			// Check if the remote branch still exists
+			checkCmd := exec.Command("git", "show-ref", "--verify", "--quiet", "refs/remotes/"+remote)
+			checkCmd.Dir = repoPath
+			if checkCmd.Run() != nil {
+				// Remote branch doesn't exist
+				remoteGone = true
+			}
 		}
 
 		if len(parts) > 2 && parts[2] != "" {
-			// Parse [ahead X, behind Y] or [ahead X] or [behind Y]
+			// Parse [ahead X, behind Y] or [ahead X] or [behind Y] or [gone]
 			track := parts[2]
+			if strings.Contains(track, "gone") {
+				remoteGone = true
+			}
 			if strings.Contains(track, "ahead") {
 				fmt.Sscanf(track, "[ahead %d", &ahead)
 			}
@@ -1043,10 +1057,52 @@ func getRepoBranches(repoPath string) []BranchInfo {
 			Remote:     remote,
 			Ahead:      ahead,
 			Behind:     behind,
+			RemoteGone: remoteGone,
 		})
 	}
 
 	return branches
+}
+
+type DeleteBranchRequest struct {
+	RepoPath   string `json:"repoPath"`
+	BranchName string `json:"branchName"`
+}
+
+func handleDeleteBranch(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req DeleteBranchRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	currentBranch := getCurrentBranch(req.RepoPath)
+	if currentBranch == req.BranchName {
+		// Switch to default branch first
+		defaultBranch := getRepoDefaultBranch(req.RepoPath)
+		if _, err := runGitCommand(req.RepoPath, "checkout", defaultBranch); err != nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Could not switch to " + defaultBranch})
+			return
+		}
+	}
+
+	output, err := runGitCommand(req.RepoPath, "branch", "-D", req.BranchName)
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"error": output})
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"success": "Branch deleted"})
 }
 
 type SyncBranchesRequest struct {
@@ -1092,10 +1148,10 @@ func handleSyncBranches(w http.ResponseWriter, r *http.Request) {
 		currentBranch := getCurrentBranch(repoPath)
 
 		// Fetch with prune
-		cmd := exec.Command("git", "fetch", "-p", "--all")
-		cmd.Dir = repoPath
-		if err := cmd.Run(); err != nil {
-			fmt.Fprintf(w, "  [WARNING] Fetch failed: %v\n", err)
+		// Fetch with prune
+		fetchOutput, fetchErr := runGitCommand(repoPath, "fetch", "-p", "--all")
+		if fetchErr != nil {
+			fmt.Fprintf(w, "  [WARNING] Fetch failed: %s\n", fetchOutput)
 		} else {
 			fmt.Fprintf(w, "  Fetched all remotes\n")
 		}
@@ -1108,29 +1164,40 @@ func handleSyncBranches(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 
-			// Checkout branch
-			cmd = exec.Command("git", "checkout", branch.Name)
-			cmd.Dir = repoPath
-			if err := cmd.Run(); err != nil {
-				fmt.Fprintf(w, "  [WARNING] Could not checkout %s: %v\n", branch.Name, err)
+			// Check if remote branch is gone
+			if branch.RemoteGone {
+				fmt.Fprintf(w, "BRANCH_GONE:%s:%s\n", repoName, branch.Name)
+				fmt.Fprintf(w, "  [WARNING] Pull %s failed: remote branch deleted - consider removing local branch '%s'\n", branch.Name, branch.Name)
+				flusher.Flush()
 				continue
 			}
 
-			// Pull
-			cmd = exec.Command("git", "pull", "--ff-only")
-			cmd.Dir = repoPath
-			if err := cmd.Run(); err != nil {
-				fmt.Fprintf(w, "  [WARNING] Pull %s failed (maybe conflicts): %v\n", branch.Name, err)
+			// Checkout branch
+			checkoutOutput, checkoutErr := runGitCommand(repoPath, "checkout", branch.Name)
+			if checkoutErr != nil {
+				errorDetail := diagnoseCheckoutError(repoPath, branch.Name, checkoutOutput)
+				fmt.Fprintf(w, "BRANCH_ERROR:%s:%s:%s\n", repoName, branch.Name, errorDetail)
+				fmt.Fprintf(w, "  [WARNING] Could not checkout %s: %s\n", branch.Name, errorDetail)
+				flusher.Flush()
+				continue
+			}
+
+			// Pull with fast-forward only
+			pullOutput, pullErr := runGitCommand(repoPath, "pull", "--ff-only")
+			if pullErr != nil {
+				errorDetail := diagnosePullError(repoPath, branch.Name, pullOutput)
+				fmt.Fprintf(w, "BRANCH_ERROR:%s:%s:%s\n", repoName, branch.Name, errorDetail)
+				fmt.Fprintf(w, "  [WARNING] Pull %s failed: %s\n", branch.Name, errorDetail)
 			} else {
+				fmt.Fprintf(w, "BRANCH_SYNCED:%s:%s\n", repoName, branch.Name)
 				fmt.Fprintf(w, "  ✓ %s updated\n", branch.Name)
 			}
+			flusher.Flush()
 		}
 
 		// Switch back to original branch
 		if currentBranch != "" {
-			cmd = exec.Command("git", "checkout", currentBranch)
-			cmd.Dir = repoPath
-			cmd.Run()
+			runGitCommand(repoPath, "checkout", currentBranch)
 		}
 
 		fmt.Fprintf(w, "REPO_DONE:%s\n", repoName)
@@ -1150,6 +1217,117 @@ func getCurrentBranch(repoPath string) string {
 		return ""
 	}
 	return strings.TrimSpace(string(output))
+}
+
+// runGitCommand executes a git command and returns the combined output and error
+func runGitCommand(repoPath string, args ...string) (string, error) {
+	cmd := exec.Command("git", args...)
+	cmd.Dir = repoPath
+	output, err := cmd.CombinedOutput()
+	return strings.TrimSpace(string(output)), err
+}
+
+// hasUncommittedChanges checks if the repository has uncommitted changes
+func hasUncommittedChanges(repoPath string) bool {
+	output, _ := runGitCommand(repoPath, "status", "--porcelain")
+	return len(output) > 0
+}
+
+// diagnosePullError analyzes git pull failure and returns a detailed error message
+func diagnosePullError(repoPath, branchName, gitOutput string) string {
+	gitOutputLower := strings.ToLower(gitOutput)
+
+	// Check for deleted remote branch (tracking branch no longer exists)
+	if strings.Contains(gitOutputLower, "your configuration specifies to merge") ||
+		strings.Contains(gitOutputLower, "no such ref was fetched") ||
+		strings.Contains(gitOutputLower, "couldn't find remote ref") {
+		return fmt.Sprintf("remote branch deleted - consider removing local branch '%s'", branchName)
+	}
+
+	// Check for uncommitted changes
+	if strings.Contains(gitOutputLower, "your local changes") ||
+		strings.Contains(gitOutputLower, "uncommitted changes") ||
+		strings.Contains(gitOutputLower, "please commit your changes") ||
+		strings.Contains(gitOutputLower, "would be overwritten") {
+		return "uncommitted local changes - commit or stash first"
+	}
+
+	// Check for diverged branches (not fast-forward)
+	if strings.Contains(gitOutputLower, "not possible to fast-forward") ||
+		strings.Contains(gitOutputLower, "non-fast-forward") {
+		// Get more details about the divergence
+		localCommit, _ := runGitCommand(repoPath, "rev-parse", branchName)
+		remoteCommit, _ := runGitCommand(repoPath, "rev-parse", "origin/"+branchName)
+		if localCommit != "" && remoteCommit != "" && localCommit != remoteCommit {
+			ahead, _ := runGitCommand(repoPath, "rev-list", "--count", "origin/"+branchName+".."+branchName)
+			behind, _ := runGitCommand(repoPath, "rev-list", "--count", branchName+"..origin/"+branchName)
+			return fmt.Sprintf("branch diverged - %s commits ahead, %s behind remote", ahead, behind)
+		}
+		return "branch diverged from remote - manual merge required"
+	}
+
+	// Check for merge conflicts
+	if strings.Contains(gitOutputLower, "merge conflict") ||
+		strings.Contains(gitOutputLower, "automatic merge failed") ||
+		strings.Contains(gitOutputLower, "conflict") {
+		return "merge conflicts detected - manual resolution required"
+	}
+
+	// Check for untracked files that would be overwritten
+	if strings.Contains(gitOutputLower, "untracked working tree files would be overwritten") {
+		return "untracked files would be overwritten - remove or stash them"
+	}
+
+	// Check for permission issues
+	if strings.Contains(gitOutputLower, "permission denied") {
+		return "permission denied"
+	}
+
+	// Check for network issues
+	if strings.Contains(gitOutputLower, "could not resolve host") ||
+		strings.Contains(gitOutputLower, "connection refused") ||
+		strings.Contains(gitOutputLower, "network") {
+		return "network error - check your connection"
+	}
+
+	// Check for authentication issues
+	if strings.Contains(gitOutputLower, "authentication failed") ||
+		strings.Contains(gitOutputLower, "could not read password") {
+		return "authentication failed"
+	}
+
+	// Return the original git output if no specific pattern matched
+	// Truncate if too long
+	if len(gitOutput) > 100 {
+		return gitOutput[:100] + "..."
+	}
+	if gitOutput == "" {
+		return "unknown error"
+	}
+	return gitOutput
+}
+
+// diagnoseCheckoutError analyzes git checkout failure and returns a detailed error message
+func diagnoseCheckoutError(repoPath, branchName, gitOutput string) string {
+	gitOutput = strings.ToLower(gitOutput)
+
+	if strings.Contains(gitOutput, "your local changes") ||
+		strings.Contains(gitOutput, "would be overwritten") {
+		return "uncommitted changes would be overwritten - commit or stash first"
+	}
+
+	if strings.Contains(gitOutput, "did not match any") ||
+		strings.Contains(gitOutput, "pathspec") {
+		return "branch not found"
+	}
+
+	if len(gitOutput) > 100 {
+		return gitOutput[:100] + "..."
+	}
+	if gitOutput == "" {
+		return "unknown error"
+	}
+	return gitOutput
 }
 
 // ==================== SECURITY SCAN ====================

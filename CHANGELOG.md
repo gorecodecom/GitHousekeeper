@@ -5,6 +5,33 @@ All notable changes to GitHousekeeper will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.5.0] - 2025-12-18
+
+### Added
+
+- **🔧 Improved Sync Error Diagnostics**
+
+  - Detailed error messages for sync failures instead of generic "exit status 1"
+  - Specific diagnosis for: uncommitted changes, diverged branches, merge conflicts, deleted remote branches, network errors, authentication failures
+  - Shows commit counts for diverged branches (e.g., "3 commits ahead, 5 behind remote")
+
+- **🗑️ Delete Local Branches with Deleted Remote**
+
+  - New "remote deleted" status for branches whose remote was removed
+  - One-click delete button to remove orphaned local branches
+  - Automatic switch to default branch before deletion if currently checked out
+
+- **📊 Live Sync Status Updates**
+
+  - Branch status cards now update in real-time during sync
+  - Initial status shows "pending" until branch is synced
+  - Immediate visual feedback: "synced" (green), "error" (red), "remote deleted" (red with delete button)
+
+### Changed
+
+- Sync log window now has fixed height (no more jumping during sync)
+- Removed redundant branch list reload after sync (live updates are sufficient)
+
 ## [2.4.0] - 2025-12-05
 
 ### Added
