@@ -86,6 +86,7 @@ func main() {
 	http.HandleFunc("/api/check-go", handleCheckGo)
 	http.HandleFunc("/api/check-python", handleCheckPython)
 	http.HandleFunc("/api/check-php", handleCheckPhp)
+	http.HandleFunc("/api/install-deps", handleInstallDeps)
 
 	port := "8080"
 	url := "http://localhost:" + port
@@ -1377,6 +1378,7 @@ type CVEFinding struct {
 
 type RepoSecurityResult struct {
 	RepoName      string       `json:"repoName"`
+	RepoPath      string       `json:"repoPath,omitempty"` // Full path to the repository
 	Findings      []CVEFinding `json:"findings"`
 	Error         string       `json:"error,omitempty"`
 	Duration      float64      `json:"duration"`
@@ -1588,6 +1590,116 @@ func handleCheckPhp(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// handleInstallDeps runs npm install or yarn install in the given repository
+func handleInstallDeps(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		RepoPath string `json:"repoPath"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Set headers for streaming
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.Header().Set("Transfer-Encoding", "chunked")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "Streaming not supported", http.StatusInternalServerError)
+		return
+	}
+
+	// Determine which package manager to use
+	var cmd *exec.Cmd
+	var packageManager string
+
+	// Check for yarn.lock first
+	if _, err := os.Stat(filepath.Join(req.RepoPath, "yarn.lock")); err == nil {
+		// Check if it's Yarn Berry (v2+) via packageManager field
+		pkgJsonPath := filepath.Join(req.RepoPath, "package.json")
+		if pkgData, err := os.ReadFile(pkgJsonPath); err == nil {
+			var pkg struct {
+				PackageManager string `json:"packageManager"`
+			}
+			if json.Unmarshal(pkgData, &pkg) == nil && strings.HasPrefix(pkg.PackageManager, "yarn@") {
+				// Yarn Berry - use corepack
+				fmt.Fprintf(w, "Detected Yarn Berry (%s)\n", pkg.PackageManager)
+				flusher.Flush()
+				cmd = exec.Command("corepack", "yarn", "install")
+				packageManager = "yarn (corepack)"
+			}
+		}
+		if cmd == nil {
+			cmd = exec.Command("yarn", "install")
+			packageManager = "yarn"
+		}
+	} else if _, err := os.Stat(filepath.Join(req.RepoPath, "pnpm-lock.yaml")); err == nil {
+		cmd = exec.Command("pnpm", "install")
+		packageManager = "pnpm"
+	} else {
+		cmd = exec.Command("npm", "install")
+		packageManager = "npm"
+	}
+
+	cmd.Dir = req.RepoPath
+
+	fmt.Fprintf(w, "Running %s install in %s...\n\n", packageManager, filepath.Base(req.RepoPath))
+	flusher.Flush()
+
+	// Create pipes for stdout and stderr
+	stdout, _ := cmd.StdoutPipe()
+	stderr, _ := cmd.StderrPipe()
+
+	if err := cmd.Start(); err != nil {
+		fmt.Fprintf(w, "ERROR: Failed to start %s: %v\n", packageManager, err)
+		return
+	}
+
+	// Stream output
+	go func() {
+		buf := make([]byte, 1024)
+		for {
+			n, err := stdout.Read(buf)
+			if n > 0 {
+				w.Write(buf[:n])
+				flusher.Flush()
+			}
+			if err != nil {
+				break
+			}
+		}
+	}()
+
+	go func() {
+		buf := make([]byte, 1024)
+		for {
+			n, err := stderr.Read(buf)
+			if n > 0 {
+				w.Write(buf[:n])
+				flusher.Flush()
+			}
+			if err != nil {
+				break
+			}
+		}
+	}()
+
+	err := cmd.Wait()
+	if err != nil {
+		fmt.Fprintf(w, "\nERROR: %s install failed: %v\n", packageManager, err)
+	} else {
+		fmt.Fprintf(w, "\n✅ %s install completed successfully!\n", packageManager)
+	}
+	flusher.Flush()
+}
+
 func handleSecurityScan(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -1663,6 +1775,7 @@ func handleSecurityScan(w http.ResponseWriter, r *http.Request) {
 				start := time.Now()
 				var result RepoSecurityResult
 				result.RepoName = job.repoName
+				result.RepoPath = job.repoPath
 
 				// Handle branch switching if targetBranch is specified
 				var originalBranch string
@@ -1805,8 +1918,9 @@ func handleSecurityScan(w http.ResponseWriter, r *http.Request) {
 					result.Error = "Unknown scanner type"
 				}
 
-				// Restore the scanned branch info (may be lost in scanner functions)
+				// Restore fields that may be lost in scanner functions
 				result.ScannedBranch = scannedBranch
+				result.RepoPath = job.repoPath
 				result.Duration = time.Since(start).Seconds()
 
 				// Switch back to original branch if we switched

@@ -2744,8 +2744,19 @@ function displaySecurityResults() {
             </div>`;
 
     if (hasError) {
-      html += `<div style="color: #f38ba8; padding: 10px; background: #f38ba822; border-radius: 4px;">
-              <strong>Error:</strong> ${result.error}
+      const isNodeModulesError =
+        result.error && result.error.includes("node_modules not found");
+      html += `<div style="color: #f38ba8; padding: 10px; background: #f38ba822; border-radius: 4px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+              <div><strong>Error:</strong> ${result.error}</div>
+              ${
+                isNodeModulesError
+                  ? `<button onclick="installDeps('${
+                      result.repoPath
+                        ? result.repoPath.replace(/'/g, "\\'")
+                        : ""
+                    }')" class="btn btn-primary" style="padding: 4px 12px; font-size: 0.8em;">📦 Install Dependencies</button>`
+                  : ""
+              }
             </div>`;
     } else if (cveCount === 0) {
       html += `<div style="color: #a6e3a1; padding: 10px; background: #a6e3a122; border-radius: 4px;">
@@ -2837,6 +2848,62 @@ function displaySecuritySummary(stats) {
   document.getElementById("security-high").textContent = stats.high || 0;
   document.getElementById("security-medium").textContent = stats.medium || 0;
   document.getElementById("security-low").textContent = stats.low || 0;
+}
+
+// Install dependencies (npm/yarn/pnpm) for a repository
+async function installDeps(repoPath) {
+  if (!repoPath) {
+    showToast("Error", "Repository path not available", "error");
+    return;
+  }
+
+  // Create a modal to show progress
+  const modal = document.createElement("div");
+  modal.id = "install-deps-modal";
+  modal.style.cssText =
+    "position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); display: flex; justify-content: center; align-items: center; z-index: 10000;";
+  modal.innerHTML = `
+    <div style="background: #1e1e2e; border-radius: 8px; padding: 20px; max-width: 600px; width: 90%; max-height: 80vh; display: flex; flex-direction: column;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+        <h3 style="margin: 0; color: #cdd6f4;">📦 Installing Dependencies</h3>
+        <button onclick="document.getElementById('install-deps-modal').remove()" style="background: none; border: none; color: #9ca0b0; font-size: 1.5em; cursor: pointer;">&times;</button>
+      </div>
+      <pre id="install-deps-log" style="background: #11111b; color: #a6adc8; padding: 15px; border-radius: 4px; overflow: auto; flex: 1; font-size: 0.85em; white-space: pre-wrap; word-break: break-all; max-height: 400px;"></pre>
+      <div style="margin-top: 15px; text-align: right;">
+        <button id="install-deps-close" onclick="document.getElementById('install-deps-modal').remove(); scanSecurityRepos();" class="btn btn-primary" style="display: none;">Close & Re-scan</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+
+  const log = document.getElementById("install-deps-log");
+  const closeBtn = document.getElementById("install-deps-close");
+
+  try {
+    const response = await fetch("/api/install-deps", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ repoPath }),
+    });
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const text = decoder.decode(value, { stream: true });
+      log.textContent += text;
+      log.scrollTop = log.scrollHeight;
+    }
+
+    closeBtn.style.display = "inline-block";
+    showToast("Complete", "Dependency installation finished", "success");
+  } catch (e) {
+    log.textContent += `\nError: ${e.message}`;
+    closeBtn.style.display = "inline-block";
+    showToast("Error", e.message, "error");
+  }
 }
 
 // Export security report as PDF

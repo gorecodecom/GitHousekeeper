@@ -2675,20 +2675,19 @@
             </div>
             <div id="framework-info" class="hidden">
               <strong>⚛️ Framework CVE Check:</strong> Scans for known critical
-              CVEs in React, Next.js, and related frameworks. Checks
-              package.json, package-lock.json, and node_modules directly.
+              security vulnerabilities in React, Next.js, and related frameworks
+              that may not be detected by standard package audits.
               <ul style="margin: 8px 0 0 20px; color: #a6adc8">
                 <li>
-                  <strong>CVE-2025-55182</strong> (CVSS 10.0) - React Server
-                  Components RCE
+                  Checks <strong>React Server Components</strong> packages for
+                  RCE, DoS, and exposure vulnerabilities
                 </li>
                 <li>
-                  <strong>CVE-2025-55184</strong> (CVSS 7.5) - React Server
-                  Components DoS
+                  Scans <strong>Next.js</strong> for Server Actions security
+                  issues
                 </li>
                 <li>
-                  <strong>CVE-2025-55183</strong> (CVSS 5.3) - Source Code
-                  Exposure
+                  Analyzes package.json, lock files, and node_modules directly
                 </li>
               </ul>
               <div
