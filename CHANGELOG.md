@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **⚛️ Framework CVE Scanner for React/Next.js**
+
+  - New scanner specifically for React/Next.js framework vulnerabilities
+  - Detects critical CVEs that may be missed by npm audit:
+    - **CVE-2025-55182** (CVSS 10.0) - Remote Code Execution in React Server Components
+    - **CVE-2025-55184** (CVSS 7.5) - Denial of Service vulnerability
+    - **CVE-2025-55183** (CVSS 5.3) - Source Code Exposure vulnerability
+  - Scans `package.json`, `package-lock.json`, and `node_modules` directly
+  - Checks for vulnerable versions of:
+    - `react-server-dom-webpack`
+    - `react-server-dom-parcel`
+    - `react-server-dom-turbopack`
+    - `next` (Next.js)
+  - No external tools required - built-in package analysis
+
 - **🔧 Improved Sync Error Diagnostics**
 
   - Detailed error messages for sync failures instead of generic "exit status 1"

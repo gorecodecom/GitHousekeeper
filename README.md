@@ -481,6 +481,13 @@ Scan repositories for CVE vulnerabilities in dependencies. Supports **Maven**, *
   - `go.mod` → govulncheck
   - `requirements.txt` / `pyproject.toml` → pip-audit
   - `composer.json` → composer audit
+- **⚛️ Framework CVE Check (React/Next.js)**: Scans for critical framework vulnerabilities that may be missed by npm audit:
+  - **CVE-2025-55182** (CVSS 10.0) - Remote Code Execution in React Server Components
+  - **CVE-2025-55184** (CVSS 7.5) - Denial of Service vulnerability
+  - **CVE-2025-55183** (CVSS 5.3) - Source Code Exposure vulnerability
+  - Checks `react-server-dom-webpack`, `react-server-dom-parcel`, `react-server-dom-turbopack`, and `next`
+  - Scans `package.json`, `package-lock.json`, and `node_modules` directly
+  - No external tools required
 - **☕ OWASP Dependency-Check**: For Maven projects. Uses Maven plugin, no additional install needed. Comprehensive CVE database. First scan downloads vulnerability database (~10 minutes).
 - **🐳 Trivy**: Fast scanner by Aqua Security. Supports Maven and Node.js. Requires separate installation. See install hints in the UI.
 - **📦 npm/yarn/pnpm audit**: For Node.js projects. Uses native package manager security auditing. No additional installation required.

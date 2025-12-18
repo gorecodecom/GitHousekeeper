@@ -2249,6 +2249,7 @@ async function checkNpmAvailability() {
 function onScannerChange() {
   const scanner = document.getElementById("security-scanner-select").value;
   const autoInfo = document.getElementById("auto-info");
+  const frameworkInfo = document.getElementById("framework-info");
   const owaspInfo = document.getElementById("owasp-info");
   const trivyInfo = document.getElementById("trivy-info");
   const npmInfo = document.getElementById("npm-info");
@@ -2258,6 +2259,7 @@ function onScannerChange() {
 
   // Hide all
   autoInfo.classList.add("hidden");
+  frameworkInfo.classList.add("hidden");
   owaspInfo.classList.add("hidden");
   trivyInfo.classList.add("hidden");
   npmInfo.classList.add("hidden");
@@ -2269,6 +2271,9 @@ function onScannerChange() {
   switch (scanner) {
     case "auto":
       autoInfo.classList.remove("hidden");
+      break;
+    case "framework":
+      frameworkInfo.classList.remove("hidden");
       break;
     case "owasp":
       owaspInfo.classList.remove("hidden");

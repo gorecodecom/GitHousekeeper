@@ -2585,6 +2585,9 @@
                 aria-describedby="scanner-description"
               >
                 <option value="auto">🔄 Auto-detect (recommended)</option>
+                <option value="framework">
+                  ⚛️ Framework CVE Check (React/Next.js)
+                </option>
                 <option value="owasp">☕ OWASP Dependency-Check (Maven)</option>
                 <option value="trivy">🐳 Trivy (All project types)</option>
                 <option value="npm">📦 npm/yarn/pnpm audit (Node.js)</option>
@@ -2669,6 +2672,36 @@
                   <strong>PHP projects</strong> (composer.json) → composer audit
                 </li>
               </ul>
+            </div>
+            <div id="framework-info" class="hidden">
+              <strong>⚛️ Framework CVE Check:</strong> Scans for known critical
+              CVEs in React, Next.js, and related frameworks. Checks
+              package.json, package-lock.json, and node_modules directly.
+              <ul style="margin: 8px 0 0 20px; color: #a6adc8">
+                <li>
+                  <strong>CVE-2025-55182</strong> (CVSS 10.0) - React Server
+                  Components RCE
+                </li>
+                <li>
+                  <strong>CVE-2025-55184</strong> (CVSS 7.5) - React Server
+                  Components DoS
+                </li>
+                <li>
+                  <strong>CVE-2025-55183</strong> (CVSS 5.3) - Source Code
+                  Exposure
+                </li>
+              </ul>
+              <div
+                style="
+                  margin-top: 8px;
+                  padding: 8px;
+                  background: #1e1e2e;
+                  border-radius: 4px;
+                  color: #a6e3a1;
+                "
+              >
+                ✅ No installation required - uses built-in package analysis
+              </div>
             </div>
             <div id="owasp-info" class="hidden">
               <strong>☕ OWASP Dependency-Check:</strong> Uses Maven plugin, no

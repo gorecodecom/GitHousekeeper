@@ -1309,23 +1309,50 @@ func diagnosePullError(repoPath, branchName, gitOutput string) string {
 
 // diagnoseCheckoutError analyzes git checkout failure and returns a detailed error message
 func diagnoseCheckoutError(repoPath, branchName, gitOutput string) string {
-	gitOutput = strings.ToLower(gitOutput)
+	gitOutputLower := strings.ToLower(gitOutput)
 
-	if strings.Contains(gitOutput, "your local changes") ||
-		strings.Contains(gitOutput, "would be overwritten") {
-		return "uncommitted changes would be overwritten - commit or stash first"
+	// Check for unresolved merge/rebase conflicts
+	if strings.Contains(gitOutputLower, "resolve your current index") ||
+		strings.Contains(gitOutputLower, "unmerged") ||
+		strings.Contains(gitOutputLower, "merge conflict") ||
+		strings.Contains(gitOutputLower, "you need to resolve") {
+		return fmt.Sprintf("Repository has unresolved conflicts - run 'git status' and resolve conflicts first, or use 'git merge --abort'")
 	}
 
-	if strings.Contains(gitOutput, "did not match any") ||
-		strings.Contains(gitOutput, "pathspec") {
-		return "branch not found"
+	if strings.Contains(gitOutputLower, "your local changes") ||
+		strings.Contains(gitOutputLower, "would be overwritten") {
+		return fmt.Sprintf("Branch '%s': uncommitted changes would be overwritten - commit or stash first", branchName)
 	}
 
-	if len(gitOutput) > 100 {
-		return gitOutput[:100] + "..."
+	if strings.Contains(gitOutputLower, "did not match any") ||
+		strings.Contains(gitOutputLower, "pathspec") {
+		// Check if it's a remote branch that needs to be tracked
+		cmd := exec.Command("git", "branch", "-r")
+		cmd.Dir = repoPath
+		output, _ := cmd.Output()
+		if strings.Contains(string(output), "origin/"+branchName) {
+			return fmt.Sprintf("Branch '%s' exists on remote but not locally. Try: git checkout -b %s origin/%s", branchName, branchName, branchName)
+		}
+		return fmt.Sprintf("Branch '%s' not found (local or remote)", branchName)
 	}
+
+	// Check for detached HEAD state issues
+	if strings.Contains(gitOutputLower, "detached head") {
+		return fmt.Sprintf("Repository is in detached HEAD state - create or checkout a branch first")
+	}
+
+	// Check for submodule issues
+	if strings.Contains(gitOutputLower, "submodule") {
+		return fmt.Sprintf("Submodule issue - run 'git submodule update' first")
+	}
+
+	// Return the actual git error message
+	gitOutput = strings.TrimSpace(gitOutput)
 	if gitOutput == "" {
-		return "unknown error"
+		return fmt.Sprintf("Failed to checkout branch '%s' (unknown git error)", branchName)
+	}
+	if len(gitOutput) > 200 {
+		return gitOutput[:200] + "..."
 	}
 	return gitOutput
 }
@@ -1661,8 +1688,11 @@ func handleSecurityScan(w http.ResponseWriter, r *http.Request) {
 						// Switch to target branch
 						checkoutCmd := exec.Command("git", "checkout", job.targetBranch)
 						checkoutCmd.Dir = job.repoPath
-						if err := checkoutCmd.Run(); err != nil {
-							result.Error = fmt.Sprintf("Failed to checkout branch %s: %v", job.targetBranch, err)
+						checkoutOutput, err := checkoutCmd.CombinedOutput()
+						if err != nil {
+							// Diagnose checkout error
+							errorMsg := diagnoseCheckoutError(job.repoPath, job.targetBranch, string(checkoutOutput))
+							result.Error = errorMsg
 							result.Duration = time.Since(start).Seconds()
 							results <- scanResult{result: result, index: job.index}
 							continue
@@ -1762,6 +1792,13 @@ func handleSecurityScan(w http.ResponseWriter, r *http.Request) {
 						result.Error = "No PHP project found (requires composer.json)"
 					} else {
 						result = runComposerAudit(job.repoPath, job.repoName)
+						result.ProjectType = projectType
+					}
+				case "framework":
+					if projectType == "" || (projectType != "npm" && projectType != "yarn" && projectType != "pnpm") {
+						result.Error = "No package.json found (Framework scan requires Node.js project)"
+					} else {
+						result = runFrameworkScan(job.repoPath, job.repoName)
 						result.ProjectType = projectType
 					}
 				default:
@@ -2911,6 +2948,303 @@ func determinePythonSeverity(id string) string {
 		return "MEDIUM"
 	}
 	return "LOW"
+}
+
+// ==================== FRAMEWORK-SPECIFIC SCANNER ====================
+
+// KnownVulnerability represents a known CVE with affected version ranges
+type KnownVulnerability struct {
+	CVE              string
+	Package          string
+	AffectedVersions []string // semver constraints like ">=19.0.0 <19.0.2"
+	FixedIn          string
+	Severity         string
+	Description      string
+}
+
+// getKnownVulnerabilities returns a list of known critical CVEs for frameworks
+// This list should be updated periodically
+func getKnownVulnerabilities() []KnownVulnerability {
+	return []KnownVulnerability{
+		// React Server Components - Critical RCE (CVSS 10.0)
+		{
+			CVE:              "CVE-2025-55182",
+			Package:          "react-server-dom-webpack",
+			AffectedVersions: []string{"19.0.0", "19.1.0", "19.1.1", "19.2.0"},
+			FixedIn:          "19.0.1, 19.1.2, or 19.2.1",
+			Severity:         "CRITICAL",
+			Description:      "Unauthenticated Remote Code Execution in React Server Components via malicious HTTP request deserialization",
+		},
+		{
+			CVE:              "CVE-2025-55182",
+			Package:          "react-server-dom-parcel",
+			AffectedVersions: []string{"19.0.0", "19.1.0", "19.1.1", "19.2.0"},
+			FixedIn:          "19.0.1, 19.1.2, or 19.2.1",
+			Severity:         "CRITICAL",
+			Description:      "Unauthenticated Remote Code Execution in React Server Components via malicious HTTP request deserialization",
+		},
+		{
+			CVE:              "CVE-2025-55182",
+			Package:          "react-server-dom-turbopack",
+			AffectedVersions: []string{"19.0.0", "19.1.0", "19.1.1", "19.2.0"},
+			FixedIn:          "19.0.1, 19.1.2, or 19.2.1",
+			Severity:         "CRITICAL",
+			Description:      "Unauthenticated Remote Code Execution in React Server Components via malicious HTTP request deserialization",
+		},
+		// React Server Components - DoS (CVSS 7.5)
+		{
+			CVE:              "CVE-2025-55184",
+			Package:          "react-server-dom-webpack",
+			AffectedVersions: []string{"19.0.0", "19.0.1", "19.1.0", "19.1.1", "19.1.2", "19.2.0", "19.2.1"},
+			FixedIn:          "19.0.2, 19.1.3, or 19.2.2",
+			Severity:         "HIGH",
+			Description:      "Denial of Service vulnerability in React Server Components",
+		},
+		{
+			CVE:              "CVE-2025-55184",
+			Package:          "react-server-dom-parcel",
+			AffectedVersions: []string{"19.0.0", "19.0.1", "19.1.0", "19.1.1", "19.1.2", "19.2.0", "19.2.1"},
+			FixedIn:          "19.0.2, 19.1.3, or 19.2.2",
+			Severity:         "HIGH",
+			Description:      "Denial of Service vulnerability in React Server Components",
+		},
+		{
+			CVE:              "CVE-2025-55184",
+			Package:          "react-server-dom-turbopack",
+			AffectedVersions: []string{"19.0.0", "19.0.1", "19.1.0", "19.1.1", "19.1.2", "19.2.0", "19.2.1"},
+			FixedIn:          "19.0.2, 19.1.3, or 19.2.2",
+			Severity:         "HIGH",
+			Description:      "Denial of Service vulnerability in React Server Components",
+		},
+		// React Server Components - Source Code Exposure (CVSS 5.3)
+		{
+			CVE:              "CVE-2025-55183",
+			Package:          "react-server-dom-webpack",
+			AffectedVersions: []string{"19.0.0", "19.0.1", "19.1.0", "19.1.1", "19.1.2", "19.2.0", "19.2.1"},
+			FixedIn:          "19.0.2, 19.1.3, or 19.2.2",
+			Severity:         "MEDIUM",
+			Description:      "Source Code Exposure vulnerability in React Server Components",
+		},
+		{
+			CVE:              "CVE-2025-55183",
+			Package:          "react-server-dom-parcel",
+			AffectedVersions: []string{"19.0.0", "19.0.1", "19.1.0", "19.1.1", "19.1.2", "19.2.0", "19.2.1"},
+			FixedIn:          "19.0.2, 19.1.3, or 19.2.2",
+			Severity:         "MEDIUM",
+			Description:      "Source Code Exposure vulnerability in React Server Components",
+		},
+		{
+			CVE:              "CVE-2025-55183",
+			Package:          "react-server-dom-turbopack",
+			AffectedVersions: []string{"19.0.0", "19.0.1", "19.1.0", "19.1.1", "19.1.2", "19.2.0", "19.2.1"},
+			FixedIn:          "19.0.2, 19.1.3, or 19.2.2",
+			Severity:         "MEDIUM",
+			Description:      "Source Code Exposure vulnerability in React Server Components",
+		},
+		// Next.js affected versions (uses react-server-dom-*)
+		{
+			CVE:              "CVE-2025-55182",
+			Package:          "next",
+			AffectedVersions: []string{"15.0.0", "15.0.1", "15.0.2", "15.0.3", "15.0.4"},
+			FixedIn:          "15.0.5+",
+			Severity:         "CRITICAL",
+			Description:      "Next.js includes vulnerable react-server-dom packages - Remote Code Execution",
+		},
+	}
+}
+
+// runFrameworkScan scans for known framework vulnerabilities by checking package.json and node_modules
+func runFrameworkScan(repoPath, repoName string) RepoSecurityResult {
+	result := RepoSecurityResult{RepoName: repoName, ProjectType: "framework-scan"}
+
+	// Check if package.json exists
+	pkgPath := filepath.Join(repoPath, "package.json")
+	if _, err := os.Stat(pkgPath); os.IsNotExist(err) {
+		result.Error = "No package.json found"
+		return result
+	}
+
+	// Get known vulnerabilities
+	knownVulns := getKnownVulnerabilities()
+
+	// Packages to check (from package.json dependencies and node_modules)
+	packageVersions := make(map[string]string)
+
+	// Parse package.json for direct dependencies
+	pkgData, err := os.ReadFile(pkgPath)
+	if err != nil {
+		result.Error = fmt.Sprintf("Failed to read package.json: %v", err)
+		return result
+	}
+
+	var pkg struct {
+		Dependencies    map[string]string `json:"dependencies"`
+		DevDependencies map[string]string `json:"devDependencies"`
+	}
+	if err := json.Unmarshal(pkgData, &pkg); err != nil {
+		result.Error = fmt.Sprintf("Failed to parse package.json: %v", err)
+		return result
+	}
+
+	// Add dependencies
+	for name, version := range pkg.Dependencies {
+		packageVersions[name] = cleanVersion(version)
+	}
+	for name, version := range pkg.DevDependencies {
+		packageVersions[name] = cleanVersion(version)
+	}
+
+	// Also check node_modules for actual installed versions (more accurate)
+	nodeModulesPath := filepath.Join(repoPath, "node_modules")
+	nodeModulesExists := false
+	if _, err := os.Stat(nodeModulesPath); err == nil {
+		nodeModulesExists = true
+		// Check specific packages we care about
+		packagesToCheck := []string{
+			"react-server-dom-webpack",
+			"react-server-dom-parcel",
+			"react-server-dom-turbopack",
+			"next",
+			"react",
+			"react-dom",
+		}
+
+		for _, pkgName := range packagesToCheck {
+			modulePkgPath := filepath.Join(nodeModulesPath, pkgName, "package.json")
+			if modPkgData, err := os.ReadFile(modulePkgPath); err == nil {
+				var modPkg struct {
+					Version string `json:"version"`
+				}
+				if json.Unmarshal(modPkgData, &modPkg) == nil && modPkg.Version != "" {
+					packageVersions[pkgName] = modPkg.Version
+				}
+			}
+		}
+	}
+
+	// Parse package-lock.json for transitive dependencies
+	lockPath := filepath.Join(repoPath, "package-lock.json")
+	if lockData, err := os.ReadFile(lockPath); err == nil {
+		var lock struct {
+			Packages map[string]struct {
+				Version string `json:"version"`
+			} `json:"packages"`
+		}
+		if json.Unmarshal(lockData, &lock) == nil {
+			for pkgPath, info := range lock.Packages {
+				// Extract package name from path (e.g., "node_modules/react-server-dom-webpack")
+				if strings.HasPrefix(pkgPath, "node_modules/") {
+					pkgName := strings.TrimPrefix(pkgPath, "node_modules/")
+					// Handle scoped packages
+					if !strings.Contains(pkgName, "node_modules/") {
+						packageVersions[pkgName] = info.Version
+					}
+				}
+			}
+		}
+	}
+
+	// Also parse yarn.lock for Yarn projects
+	yarnLockPath := filepath.Join(repoPath, "yarn.lock")
+	if yarnLockData, err := os.ReadFile(yarnLockPath); err == nil {
+		// Parse yarn.lock format - look for react-server-dom packages
+		lines := strings.Split(string(yarnLockData), "\n")
+		var currentPkg string
+		for _, line := range lines {
+			// Package declaration like: react-server-dom-webpack@^19.0.0:
+			if !strings.HasPrefix(line, " ") && strings.Contains(line, "@") {
+				parts := strings.Split(line, "@")
+				if len(parts) >= 1 {
+					currentPkg = strings.TrimSpace(parts[0])
+					// Handle scoped packages
+					if strings.HasPrefix(currentPkg, "\"") {
+						currentPkg = strings.Trim(currentPkg, "\"")
+					}
+				}
+			}
+			// Version line like:   version "19.0.0"
+			if strings.HasPrefix(line, "  version ") && currentPkg != "" {
+				version := strings.TrimPrefix(line, "  version ")
+				version = strings.Trim(version, "\"")
+				// Only add if it's a package we care about
+				for _, vuln := range knownVulns {
+					if currentPkg == vuln.Package {
+						packageVersions[currentPkg] = version
+						break
+					}
+				}
+			}
+		}
+	}
+
+	// Check each known vulnerability
+	for _, vuln := range knownVulns {
+		if version, exists := packageVersions[vuln.Package]; exists {
+			// Check if version is affected
+			if isVersionAffected(version, vuln.AffectedVersions) {
+				result.Findings = append(result.Findings, CVEFinding{
+					CVE:         vuln.CVE,
+					Severity:    vuln.Severity,
+					Package:     vuln.Package,
+					Version:     version,
+					FixedIn:     vuln.FixedIn,
+					Description: vuln.Description,
+				})
+			}
+		}
+	}
+
+	// Add info if React 19 found but no vulnerable packages
+	if len(result.Findings) == 0 {
+		reactVersion := packageVersions["react"]
+		if strings.HasPrefix(reactVersion, "19.") {
+			// Check if any react-server-dom packages are present
+			hasServerComponents := false
+			for pkg := range packageVersions {
+				if strings.HasPrefix(pkg, "react-server-dom") {
+					hasServerComponents = true
+					break
+				}
+			}
+			if !hasServerComponents {
+				// React 19 without Server Components - not affected
+				result.ProjectType = "framework-scan (React " + reactVersion + " - no Server Components)"
+			}
+		}
+		// Add info about node_modules status
+		if !nodeModulesExists {
+			result.Error = "node_modules not found - run 'npm install' or 'yarn' first for accurate scan"
+		}
+	}
+
+	return result
+}
+
+// cleanVersion removes semver prefixes like ^, ~, >= etc
+func cleanVersion(version string) string {
+	version = strings.TrimPrefix(version, "^")
+	version = strings.TrimPrefix(version, "~")
+	version = strings.TrimPrefix(version, ">=")
+	version = strings.TrimPrefix(version, ">")
+	version = strings.TrimPrefix(version, "<=")
+	version = strings.TrimPrefix(version, "<")
+	version = strings.TrimPrefix(version, "=")
+	return strings.TrimSpace(version)
+}
+
+// isVersionAffected checks if the given version matches any of the affected versions
+func isVersionAffected(version string, affectedVersions []string) bool {
+	cleanVer := cleanVersion(version)
+	for _, affected := range affectedVersions {
+		if cleanVer == affected {
+			return true
+		}
+		// Also check if version starts with affected (for canary/beta versions)
+		if strings.HasPrefix(cleanVer, affected+"-") {
+			return true
+		}
+	}
+	return false
 }
 
 // runComposerAudit runs composer audit for PHP projects
