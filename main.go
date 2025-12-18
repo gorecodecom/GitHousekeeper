@@ -448,8 +448,8 @@ type AnalysisResult struct {
 
 // Current OpenRewrite versions used in this app
 const (
-	openRewritePluginVersion      = "6.24.0"
-	openRewriteRecipeVersion      = "6.19.0"
+	openRewritePluginVersion      = "6.26.0"
+	openRewriteRecipeVersion      = "6.21.0"
 	openRewriteMigrateJavaVersion = "3.22.0"
 	openRewriteQuarkusVersion     = "2.28.1"
 )
