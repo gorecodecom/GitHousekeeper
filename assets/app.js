@@ -1799,8 +1799,15 @@ async function deleteLocalBranch(repoPath, branchName) {
       throw new Error(result.error || "Failed to delete branch");
     }
 
+    const repoName = repoPath.split("/").pop();
+    const branchRow = document.querySelector(
+      `div[data-repo="${repoName}"][data-branch="${branchName}"]`
+    );
+    if (branchRow) {
+      branchRow.remove();
+    }
+
     showToast("Deleted", `Branch "${branchName}" removed`, "success", 2000);
-    loadBranchInfo();
   } catch (e) {
     showToast("Error", e.message, "error");
   }
